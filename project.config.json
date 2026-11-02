@@ -1,0 +1,9 @@
+{
+  "appid": "touristappid",
+  "projectname": "pretzel",
+  "compileType": "miniprogram",
+  "miniprogramRoot": "miniprogram/",
+  "setting": {
+    "es6": true
+  }
+}

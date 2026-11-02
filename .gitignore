@@ -1,0 +1,11 @@
+.DS_Store
+*.swp
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+target/
+.idea/
+*.iml
+project.private.config.json
