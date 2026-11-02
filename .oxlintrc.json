@@ -1,0 +1,21 @@
+{
+    "$schema": "./admin-web/node_modules/oxlint/configuration_schema.json",
+    "env": {
+        "node": true
+    },
+    "rules": {
+        "no-debugger": "error",
+        "eqeqeq": "error"
+    },
+    "overrides": [
+        {
+            "files": ["miniprogram/**/*.ts"],
+            "globals": {
+                "App": "readonly",
+                "Page": "readonly",
+                "wx": "readonly"
+            }
+        }
+    ],
+    "plugins": ["typescript", "oxc"]
+}

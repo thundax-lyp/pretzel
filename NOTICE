@@ -1,0 +1,4 @@
+Pretzel includes adapted code from kuzhambu, commit d82d27711234134305aaf631ffb86eebefe07c5b.
+Source: https://github.com/thundax-lyp/kuzhambu
+Original license: Apache License 2.0, included in LICENSE.
+Adaptations: project naming, selected system/auth/avatar modules, runtime assembly, direct log delivery, scoped admin routes and seeds.

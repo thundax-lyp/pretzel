@@ -1,0 +1,14 @@
+backup/
+**/node_modules/
+**/target/
+**/dist/
+**/logs/
+**/storage/
+.env
+.env.*
+**/dev.env
+**/.secrets/
+**/*.java
+**/*.xml
+**/*.sql
+**/mvnw*
