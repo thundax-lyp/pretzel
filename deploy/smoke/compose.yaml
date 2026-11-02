@@ -1,0 +1,61 @@
+name: pretzel-smoke
+services:
+    mysql:
+        image: ${MYSQL_IMAGE:-mysql:8.4}
+        restart: "no"
+        environment:
+            MYSQL_DATABASE: pretzel_smoke
+            MYSQL_USER: pretzel_smoke
+            MYSQL_PASSWORD_FILE: /run/secrets/mysql_app_password
+            MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql_root_password
+            TZ: Asia/Shanghai
+        secrets:
+            - mysql_app_password
+            - mysql_root_password
+        ports:
+            - "127.0.0.1:${MYSQL_PORT:-33316}:3306"
+        volumes:
+            - mysql_data:/var/lib/mysql
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "MYSQL_PWD=$$(cat /run/secrets/mysql_app_password) mysql -upretzel_smoke pretzel_smoke -Nse 'SELECT 1' >/dev/null",
+                ]
+            interval: 5s
+            timeout: 5s
+            retries: 30
+            start_period: 30s
+        networks: [pretzel]
+    redis:
+        image: ${REDIS_IMAGE:-redis:7.2}
+        restart: "no"
+        command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+        secrets: [redis_password]
+        ports:
+            - "127.0.0.1:${REDIS_PORT:-36316}:6379"
+        volumes:
+            - redis_data:/data
+            - ./.secrets/redis.conf:/usr/local/etc/redis/redis.conf:ro
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "REDISCLI_AUTH=$$(cat /run/secrets/redis_password) redis-cli ping | grep -q PONG",
+                ]
+            interval: 5s
+            timeout: 3s
+            retries: 20
+        networks: [pretzel]
+networks:
+    pretzel: {}
+volumes:
+    mysql_data:
+    redis_data:
+secrets:
+    mysql_app_password:
+        file: ./.secrets/mysql_app_password
+    mysql_root_password:
+        file: ./.secrets/mysql_root_password
+    redis_password:
+        file: ./.secrets/redis_password
