@@ -1,1 +1,4 @@
-<view class="page"><view>挑战关卡</view><view>玩法开发中：每次挑战先第一关，再进入第二关。</view></view>
+<view class="page">
+    <view>挑战关卡</view>
+    <view>玩法开发中：每次挑战先第一关，再进入第二关。</view>
+</view>

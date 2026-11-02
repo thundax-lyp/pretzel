@@ -1,0 +1,18 @@
+{
+    "compilerOptions": {
+        "target": "ES2017",
+        "module": "CommonJS",
+        "lib": ["ES2020"],
+        "types": ["miniprogram-api-typings"],
+        "strict": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "noImplicitReturns": true,
+        "noFallthroughCasesInSwitch": true,
+        "isolatedModules": true,
+        "skipLibCheck": true,
+        "noEmit": true
+    },
+    "include": ["app.ts", "pages/**/*.ts", "types/**/*.ts"],
+    "exclude": ["node_modules"]
+}

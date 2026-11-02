@@ -1,1 +1,5 @@
-<view class="page"><view>我的动物园</view><view>本周动物园将在通关后逐渐丰富。</view><button bindtap="enter">开始挑战</button></view>
+<view class="page">
+    <view>我的动物园</view>
+    <view>本周动物园将在通关后逐渐丰富。</view>
+    <button bindtap="enter">开始挑战</button>
+</view>
