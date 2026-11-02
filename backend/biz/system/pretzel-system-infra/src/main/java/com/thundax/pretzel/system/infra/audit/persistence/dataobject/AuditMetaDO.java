@@ -1,0 +1,30 @@
+package com.thundax.pretzel.system.infra.audit.persistence.dataobject;
+
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+import java.time.Instant;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@TableName("system_audit_meta")
+public class AuditMetaDO {
+    @TableId(type = IdType.AUTO)
+    private Long id;
+
+    private String objectType;
+    private String objectId;
+    private Long version;
+    private Long lastLogId;
+    private String lastAction;
+    private String lastOperatorType;
+    private String lastOperatorId;
+    private String lastOperatorName;
+    private Instant lastOperatedAt;
+    private Long createdLogId;
+    private Instant createdAt;
+}

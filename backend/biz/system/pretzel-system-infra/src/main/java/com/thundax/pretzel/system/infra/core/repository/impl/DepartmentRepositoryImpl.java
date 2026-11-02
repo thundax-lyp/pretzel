@@ -1,0 +1,285 @@
+package com.thundax.pretzel.system.infra.core.repository.impl;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.thundax.pretzel.common.core.exception.BizException;
+import com.thundax.pretzel.common.core.page.PageResult;
+import com.thundax.pretzel.common.core.tree.TreeNodeMoveType;
+import com.thundax.pretzel.system.domain.core.codec.DepartmentIdCodec;
+import com.thundax.pretzel.system.domain.core.model.entity.Department;
+import com.thundax.pretzel.system.domain.core.model.valueobject.DepartmentId;
+import com.thundax.pretzel.system.domain.core.repository.DepartmentRepository;
+import com.thundax.pretzel.system.infra.core.cache.DepartmentCacheSupport;
+import com.thundax.pretzel.system.infra.core.persistence.assembler.DepartmentPersistenceAssembler;
+import com.thundax.pretzel.system.infra.core.persistence.dataobject.DepartmentDO;
+import com.thundax.pretzel.system.infra.core.persistence.mapper.DepartmentMapper;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public class DepartmentRepositoryImpl implements DepartmentRepository {
+
+    private static final Long ROOT_ID = 0L;
+
+    private final DepartmentMapper mapper;
+    private final DepartmentCacheSupport cacheSupport;
+
+    public DepartmentRepositoryImpl(DepartmentMapper mapper, DepartmentCacheSupport cacheSupport) {
+        this.mapper = mapper;
+        this.cacheSupport = cacheSupport;
+    }
+
+    @Override
+    public Department getById(DepartmentId id) {
+        Department department = cacheSupport.getById(id.value());
+        if (department != null) {
+            return department;
+        }
+
+        department = DepartmentPersistenceAssembler.toDomain(mapper.selectById(id.value()));
+        cacheSupport.putById(department);
+        return department;
+    }
+
+    @Override
+    public List<Department> listByIds(List<DepartmentId> idList) {
+        if (idList == null || idList.isEmpty()) {
+            return new ArrayList<>();
+        }
+        LambdaQueryWrapper<DepartmentDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.in(DepartmentDO::getId, DepartmentIdCodec.toValues(idList)).orderByAsc(DepartmentDO::getLft);
+        List<Department> departments = DepartmentPersistenceAssembler.toDomainList(mapper.selectList(wrapper));
+        for (Department department : departments) {
+            cacheSupport.putById(department);
+        }
+        return departments;
+    }
+
+    @Override
+    public List<Department> list(DepartmentId parentId, String name, String remarks) {
+        return DepartmentPersistenceAssembler.toDomainList(
+                mapper.selectList(buildListWrapper(DepartmentIdCodec.toValue(parentId), name, remarks)));
+    }
+
+    @Override
+    public PageResult<Department> page(DepartmentId parentId, String name, String remarks, int pageNo, int pageSize) {
+        IPage<DepartmentDO> dataObjectPage = mapper.selectPage(
+                new Page<>(pageNo, pageSize), buildListWrapper(DepartmentIdCodec.toValue(parentId), name, remarks));
+        return PageResult.of(
+                (int) dataObjectPage.getCurrent(),
+                (int) dataObjectPage.getSize(),
+                dataObjectPage.getTotal(),
+                DepartmentPersistenceAssembler.toDomainList(dataObjectPage.getRecords()));
+    }
+
+    @Override
+    public DepartmentId insert(Department entity) {
+        DepartmentDO dataObject = DepartmentPersistenceAssembler.toObject(entity);
+        Integer newPosition = allocateInsertPosition(dataObject);
+        entity.setParentId(DepartmentIdCodec.toDomain(dataObject.getParentId()));
+        dataObject.setLft(newPosition);
+        dataObject.setRgt(newPosition + 1);
+        moveTreeRgts(newPosition, 2);
+        moveTreeLfts(newPosition, 2);
+        mapper.insert(dataObject);
+        cacheSupport.removeAll();
+        return DepartmentIdCodec.toDomain(dataObject.getId());
+    }
+
+    @Override
+    public int update(Department entity) {
+        DepartmentDO oldNode = getTreeNode(DepartmentIdCodec.toValue(entity.getId()));
+        DepartmentDO dataObject = DepartmentPersistenceAssembler.toObject(entity);
+        normalizeParentId(dataObject);
+        entity.setParentId(DepartmentIdCodec.toDomain(dataObject.getParentId()));
+        if (oldNode != null && !Objects.equals(oldNode.getParentId(), dataObject.getParentId())) {
+            moveNodeToParent(oldNode, dataObject.getParentId());
+        }
+        int count = mapper.update(
+                null,
+                buildIdUpdateWrapper(dataObject)
+                        .set(DepartmentDO::getParentId, dataObject.getParentId())
+                        .set(DepartmentDO::getName, dataObject.getName())
+                        .set(DepartmentDO::getShortName, dataObject.getShortName())
+                        .set(DepartmentDO::getRemarks, dataObject.getRemarks()));
+        cacheSupport.removeAll();
+        return count;
+    }
+
+    @Override
+    public int deleteById(DepartmentId id) {
+        DepartmentDO node = getTreeNode(id.value());
+        if (node == null) {
+            return 0;
+        }
+        if (treeSpan(node) != 2) {
+            throw new BizException("存在子节点，不能直接删除");
+        }
+        moveTreeRgts(node.getLft(), -treeSpan(node));
+        moveTreeLfts(node.getLft(), -treeSpan(node));
+        int count = mapper.deleteById(id.value());
+        cacheSupport.removeAll();
+        return count;
+    }
+
+    @Override
+    public void moveTreeNode(DepartmentId fromId, DepartmentId toId, TreeNodeMoveType moveType) {
+        Long fromIdValue = DepartmentIdCodec.toValue(fromId);
+        Long toIdValue = DepartmentIdCodec.toValue(toId);
+        DepartmentDO fromNode = getTreeNode(fromIdValue);
+        DepartmentDO toNode = getTreeNode(toIdValue);
+
+        int newPosition;
+        Long newParentId;
+        if (moveType == TreeNodeMoveType.AFTER) {
+            newPosition = toNode.getRgt() + 1;
+            newParentId = toNode.getParentId();
+        } else if (moveType == TreeNodeMoveType.BEFORE) {
+            newPosition = toNode.getLft();
+            newParentId = toNode.getParentId();
+        } else if (moveType == TreeNodeMoveType.INSIDE) {
+            newPosition = toNode.getLft() + 1;
+            newParentId = toIdValue;
+        } else {
+            newPosition = toNode.getRgt();
+            newParentId = toIdValue;
+        }
+
+        moveTreeLfts(newPosition, treeSpan(fromNode));
+        moveTreeRgts(newPosition, treeSpan(fromNode));
+
+        fromNode = getTreeNode(fromIdValue);
+        int offset = newPosition - fromNode.getLft();
+        moveTreeNodes(fromNode.getLft(), fromNode.getRgt(), offset);
+
+        moveTreeLfts(fromNode.getLft(), -treeSpan(fromNode));
+        moveTreeRgts(fromNode.getLft(), -treeSpan(fromNode));
+
+        DepartmentDO parentUpdateDataObject =
+                DepartmentPersistenceAssembler.toParentUpdateObject(fromIdValue, newParentId);
+        mapper.update(
+                null,
+                buildIdUpdateWrapper(parentUpdateDataObject)
+                        .set(DepartmentDO::getParentId, parentUpdateDataObject.getParentId()));
+        cacheSupport.removeAll();
+    }
+
+    @Override
+    public boolean isChildOf(DepartmentId childId, DepartmentId parentId) {
+        DepartmentDO child = getTreeNode(DepartmentIdCodec.toValue(childId));
+        DepartmentDO parent = getTreeNode(DepartmentIdCodec.toValue(parentId));
+        return child != null && parent != null && child.getLft() > parent.getLft() && child.getRgt() < parent.getRgt();
+    }
+
+    private Integer allocateInsertPosition(DepartmentDO node) {
+        normalizeParentId(node);
+        if (node.getParentId() != null && !ROOT_ID.equals(node.getParentId())) {
+            DepartmentDO parent = getTreeNode(node.getParentId());
+            return parent.getRgt();
+        }
+
+        Integer maxRgt = getMaxPosition();
+        if (maxRgt == null) {
+            maxRgt = 0;
+        }
+        return maxRgt + 1;
+    }
+
+    private void moveNodeToParent(DepartmentDO oldNode, Long parentId) {
+        Integer newPosition = getInsertPosition(parentId);
+        moveTreeRgts(newPosition, treeSpan(oldNode));
+        moveTreeLfts(newPosition, treeSpan(oldNode));
+
+        oldNode = getTreeNode(oldNode.getId());
+        int offset = newPosition - oldNode.getLft();
+        moveTreeNodes(oldNode.getLft(), oldNode.getRgt(), offset);
+
+        moveTreeRgts(oldNode.getLft(), -treeSpan(oldNode));
+        moveTreeLfts(oldNode.getLft(), -treeSpan(oldNode));
+    }
+
+    private Integer getInsertPosition(Long parentId) {
+        if (parentId != null && !ROOT_ID.equals(parentId)) {
+            DepartmentDO parent = getTreeNode(parentId);
+            return parent.getRgt();
+        }
+        Integer maxRgt = getMaxPosition();
+        if (maxRgt == null) {
+            maxRgt = 0;
+        }
+        return maxRgt + 1;
+    }
+
+    private DepartmentDO getTreeNode(Long id) {
+        return mapper.selectById(id);
+    }
+
+    private Integer getMaxPosition() {
+        List<Object> maxValues = mapper.selectObjs(new QueryWrapper<DepartmentDO>().select("MAX(rgt)"));
+        if (maxValues == null || maxValues.isEmpty() || maxValues.get(0) == null) {
+            return null;
+        }
+        return ((Number) maxValues.get(0)).intValue();
+    }
+
+    private void moveTreeRgts(Integer from, Integer offset) {
+        LambdaUpdateWrapper<DepartmentDO> wrapper = new LambdaUpdateWrapper<>();
+        wrapper.ge(DepartmentDO::getRgt, from).setSql("rgt = rgt + " + offset);
+        mapper.update(null, wrapper);
+    }
+
+    private void moveTreeLfts(Integer from, Integer offset) {
+        LambdaUpdateWrapper<DepartmentDO> wrapper = new LambdaUpdateWrapper<>();
+        wrapper.ge(DepartmentDO::getLft, from).setSql("lft = lft + " + offset);
+        mapper.update(null, wrapper);
+    }
+
+    private void moveTreeNodes(Integer from, Integer to, Integer offset) {
+        LambdaUpdateWrapper<DepartmentDO> wrapper = new LambdaUpdateWrapper<>();
+        wrapper.between(DepartmentDO::getLft, from, to)
+                .setSql("lft = lft + " + offset)
+                .setSql("rgt = rgt + " + offset);
+        mapper.update(null, wrapper);
+    }
+
+    private LambdaUpdateWrapper<DepartmentDO> buildIdUpdateWrapper(DepartmentDO dataObject) {
+        LambdaUpdateWrapper<DepartmentDO> wrapper = new LambdaUpdateWrapper<>();
+        wrapper.eq(DepartmentDO::getId, dataObject.getId());
+        return wrapper;
+    }
+
+    private LambdaQueryWrapper<DepartmentDO> buildListWrapper(Long parentId, String name, String remarks) {
+        LambdaQueryWrapper<DepartmentDO> wrapper = new LambdaQueryWrapper<>();
+        if (parentId != null) {
+            if (ROOT_ID.equals(parentId)) {
+                wrapper.isNull(DepartmentDO::getParentId);
+            } else {
+                wrapper.eq(DepartmentDO::getParentId, parentId);
+            }
+        }
+        if (StringUtils.isNotBlank(name)) {
+            wrapper.and(nested -> nested.like(DepartmentDO::getName, name).or().like(DepartmentDO::getShortName, name));
+        }
+        if (StringUtils.isNotBlank(remarks)) {
+            wrapper.like(DepartmentDO::getRemarks, remarks);
+        }
+        wrapper.orderByAsc(DepartmentDO::getLft);
+        return wrapper;
+    }
+
+    private static void normalizeParentId(DepartmentDO node) {
+        if (node != null && (node.getParentId() == null || ROOT_ID.equals(node.getParentId()))) {
+            node.setParentId(null);
+        }
+    }
+
+    private static int treeSpan(DepartmentDO node) {
+        return node.getRgt() - node.getLft() + 1;
+    }
+}

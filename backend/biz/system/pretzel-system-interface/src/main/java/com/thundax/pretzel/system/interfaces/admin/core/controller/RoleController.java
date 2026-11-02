@@ -1,0 +1,475 @@
+package com.thundax.pretzel.system.interfaces.admin.core.controller;
+
+import com.thundax.pretzel.common.security.annotation.HasPermission;
+import com.thundax.pretzel.common.security.token.AccessTokenNames;
+import com.thundax.pretzel.common.web.annotation.IgnoreSysLogger;
+import com.thundax.pretzel.common.web.annotation.SysLogger;
+import com.thundax.pretzel.common.web.annotation.WrappedApiController;
+import com.thundax.pretzel.common.web.assembler.OptionInterfaceAssembler;
+import com.thundax.pretzel.common.web.exception.AdminResponseExceptions;
+import com.thundax.pretzel.common.web.request.RequestListHelper;
+import com.thundax.pretzel.system.application.auth.query.PrincipalIdentityQuery;
+import com.thundax.pretzel.system.application.auth.service.PrincipalIdentityApplicationService;
+import com.thundax.pretzel.system.application.core.service.DepartmentManagementApplicationService;
+import com.thundax.pretzel.system.application.core.service.DictionaryManagementApplicationService;
+import com.thundax.pretzel.system.application.core.service.MenuManagementApplicationService;
+import com.thundax.pretzel.system.application.core.service.RoleManagementApplicationService;
+import com.thundax.pretzel.system.application.core.service.UserManagementApplicationService;
+import com.thundax.pretzel.system.domain.auth.model.entity.PrincipalIdentity;
+import com.thundax.pretzel.system.domain.auth.model.enums.PrincipalIdentityType;
+import com.thundax.pretzel.system.domain.auth.model.enums.PrincipalType;
+import com.thundax.pretzel.system.domain.auth.model.valueobject.PrincipalKey;
+import com.thundax.pretzel.system.domain.core.codec.DepartmentIdCodec;
+import com.thundax.pretzel.system.domain.core.codec.MenuIdCodec;
+import com.thundax.pretzel.system.domain.core.codec.RoleIdCodec;
+import com.thundax.pretzel.system.domain.core.codec.UserIdCodec;
+import com.thundax.pretzel.system.domain.core.model.entity.Department;
+import com.thundax.pretzel.system.domain.core.model.entity.Dict;
+import com.thundax.pretzel.system.domain.core.model.entity.Menu;
+import com.thundax.pretzel.system.domain.core.model.entity.Role;
+import com.thundax.pretzel.system.domain.core.model.entity.User;
+import com.thundax.pretzel.system.domain.core.model.valueobject.DepartmentId;
+import com.thundax.pretzel.system.domain.core.model.valueobject.RoleId;
+import com.thundax.pretzel.system.interfaces.admin.auth.security.CurrentUserResolver;
+import com.thundax.pretzel.system.interfaces.admin.core.assembler.DepartmentInterfaceAssembler;
+import com.thundax.pretzel.system.interfaces.admin.core.assembler.DictInterfaceAssembler;
+import com.thundax.pretzel.system.interfaces.admin.core.assembler.MenuInterfaceAssembler;
+import com.thundax.pretzel.system.interfaces.admin.core.assembler.RoleInterfaceAssembler;
+import com.thundax.pretzel.system.interfaces.admin.core.assembler.UserInterfaceAssembler;
+import com.thundax.pretzel.system.interfaces.admin.core.controller.request.RoleAssignUserRequest;
+import com.thundax.pretzel.system.interfaces.admin.core.controller.request.RoleIdRequest;
+import com.thundax.pretzel.system.interfaces.admin.core.controller.request.RoleMenuRequest;
+import com.thundax.pretzel.system.interfaces.admin.core.controller.request.RoleQueryRequest;
+import com.thundax.pretzel.system.interfaces.admin.core.controller.request.RoleSaveRequest;
+import com.thundax.pretzel.system.interfaces.admin.core.controller.request.RoleSortRequest;
+import com.thundax.pretzel.system.interfaces.admin.core.controller.request.RoleStatusRequest;
+import com.thundax.pretzel.system.interfaces.admin.core.controller.request.RoleUserRequest;
+import com.thundax.pretzel.system.interfaces.admin.core.controller.response.RoleMenuResponse;
+import com.thundax.pretzel.system.interfaces.admin.core.controller.response.RoleOptionsResponse;
+import com.thundax.pretzel.system.interfaces.admin.core.controller.response.RoleResponse;
+import com.thundax.pretzel.system.interfaces.admin.core.controller.response.RoleUserResponse;
+import com.thundax.pretzel.system.interfaces.admin.core.controller.response.RoleUserTreeNodeResponse;
+import io.swagger.annotations.ApiImplicitParam;
+import io.swagger.annotations.ApiImplicitParams;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+
+@Tag(name = "系统模块-角色", description = "角色")
+@SysLogger(module = {"系统", "权限"})
+@RequestMapping(value = "/api/sys/role")
+@WrappedApiController
+public class RoleController {
+
+    private static final String DEPARTMENT_ID_PREFIX = "DEPARTMENT_";
+    private static final String ROLE_PRIVILEGE_DICT_TYPE = "role_privilege";
+    private static final String ROLE_STATUS_DICT_TYPE = "role_status";
+
+    private final RoleManagementApplicationService roleService;
+    private final MenuManagementApplicationService menuService;
+    private final DepartmentManagementApplicationService departmentService;
+    private final DictionaryManagementApplicationService dictService;
+    private final UserManagementApplicationService userService;
+    private final PrincipalIdentityApplicationService principalIdentityService;
+    private final CurrentUserResolver currentUserResolver;
+
+    @Autowired
+    public RoleController(
+            RoleManagementApplicationService roleService,
+            MenuManagementApplicationService menuService,
+            DepartmentManagementApplicationService departmentService,
+            DictionaryManagementApplicationService dictService,
+            UserManagementApplicationService userService,
+            PrincipalIdentityApplicationService principalIdentityService,
+            CurrentUserResolver currentUserResolver) {
+
+        this.roleService = roleService;
+        this.menuService = menuService;
+        this.departmentService = departmentService;
+        this.dictService = dictService;
+        this.userService = userService;
+        this.principalIdentityService = principalIdentityService;
+        this.currentUserResolver = currentUserResolver;
+    }
+
+    @Operation(summary = "获取对象", description = "sys:role:view")
+    @ApiImplicitParams({
+        @ApiImplicitParam(
+                name = AccessTokenNames.HEADER_TOKEN,
+                value = "令牌",
+                paramType = "header",
+                dataTypeClass = String.class),
+    })
+    @HasPermission(value = "sys:role:view")
+    @SysLogger(value = "读取")
+    @PostMapping(value = "get")
+    public RoleResponse get(@Valid @RequestBody RoleIdRequest request) {
+        Role bean = roleService.get(RoleInterfaceAssembler.toGetQuery(RoleIdCodec.toDomain(request.getId())));
+        if (bean == null) {
+            throw AdminResponseExceptions.objectNotFound();
+        }
+        return toResponse(bean);
+    }
+
+    @Operation(summary = "获取列表", description = "sys:role:view")
+    @ApiImplicitParams({
+        @ApiImplicitParam(
+                name = AccessTokenNames.HEADER_TOKEN,
+                value = "令牌",
+                paramType = "header",
+                dataTypeClass = String.class),
+    })
+    @HasPermission(value = "sys:role:view")
+    @SysLogger(value = "列表")
+    @PostMapping(value = "list")
+    public List<RoleResponse> list(@Valid @RequestBody RoleQueryRequest request) {
+        return roleService.list(RoleInterfaceAssembler.toQuery(request)).stream()
+                .map(role -> toResponse(role))
+                .collect(Collectors.toList());
+    }
+
+    @Operation(summary = "获取角色选项", description = "sys:role:view")
+    @ApiImplicitParams({
+        @ApiImplicitParam(
+                name = AccessTokenNames.HEADER_TOKEN,
+                value = "令牌",
+                paramType = "header",
+                dataTypeClass = String.class),
+    })
+    @HasPermission(value = "sys:role:view")
+    @IgnoreSysLogger
+    @PostMapping(value = "options/list")
+    public RoleOptionsResponse listOptions() {
+        return RoleOptionsResponse.builder()
+                .statusOptions(OptionInterfaceAssembler.toOptionResponseList(
+                        dictService.list(DictInterfaceAssembler.toTypeQuery(ROLE_STATUS_DICT_TYPE)),
+                        Dict::getValue,
+                        Dict::getLabel))
+                .privilegeOptions(OptionInterfaceAssembler.toOptionResponseList(
+                        dictService.list(DictInterfaceAssembler.toTypeQuery(ROLE_PRIVILEGE_DICT_TYPE)),
+                        Dict::getValue,
+                        Dict::getLabel))
+                .build();
+    }
+
+    @Operation(summary = "添加", description = "sys:role:edit")
+    @ApiImplicitParams({
+        @ApiImplicitParam(
+                name = AccessTokenNames.HEADER_TOKEN,
+                value = "令牌",
+                paramType = "header",
+                dataTypeClass = String.class),
+    })
+    @HasPermission(value = "sys:role:edit")
+    @SysLogger(value = "添加")
+    @PostMapping(value = "create")
+    public RoleResponse add(@Valid @RequestBody RoleSaveRequest request) {
+        validateAdminRole(Boolean.TRUE.equals(request.getAdmin()));
+        validateMenus(request.getMenuList());
+
+        if (request.getId() != null) {
+            Role bean = roleService.get(RoleInterfaceAssembler.toGetQuery(RoleIdCodec.toDomain(request.getId())));
+            if (bean != null) {
+                throw AdminResponseExceptions.objectExists();
+            }
+        }
+
+        Role entity = RoleInterfaceAssembler.toDomain(new Role(), request);
+        entity.setId(roleService.create(RoleInterfaceAssembler.toCreateCommand(request)));
+
+        return toResponse(entity);
+    }
+
+    @Operation(summary = "更新", description = "sys:role:edit")
+    @ApiImplicitParams({
+        @ApiImplicitParam(
+                name = AccessTokenNames.HEADER_TOKEN,
+                value = "令牌",
+                paramType = "header",
+                dataTypeClass = String.class),
+    })
+    @HasPermission(value = "sys:role:edit")
+    @SysLogger(value = "更新")
+    @PostMapping(value = "update")
+    public RoleResponse update(@Valid @RequestBody RoleSaveRequest request) {
+        validateMenus(request.getMenuList());
+
+        Role bean = roleService.get(RoleInterfaceAssembler.toGetQuery(RoleIdCodec.toDomain(request.getId())));
+        if (bean == null) {
+            throw AdminResponseExceptions.objectNotFound();
+        }
+
+        validateAdminRole(bean.isAdmin() || Boolean.TRUE.equals(request.getAdmin()));
+        Role entity = RoleInterfaceAssembler.toDomain(bean, request);
+
+        roleService.changeInfo(RoleInterfaceAssembler.toChangeInfoCommand(request));
+
+        return toResponse(entity);
+    }
+
+    @Operation(summary = "启用/禁用", description = "sys:role:edit")
+    @ApiImplicitParams({
+        @ApiImplicitParam(
+                name = AccessTokenNames.HEADER_TOKEN,
+                value = "令牌",
+                paramType = "header",
+                dataTypeClass = String.class),
+    })
+    @HasPermission(value = "sys:role:edit")
+    @SysLogger(value = "启用")
+    @PostMapping(value = "status/update")
+    public Boolean updateStatus(@Valid @RequestBody List<RoleStatusRequest> list) {
+        List<com.thundax.pretzel.system.application.core.command.ChangeRoleStatusCommand> commandList =
+                new ArrayList<>();
+        for (RoleStatusRequest request : RequestListHelper.present(list)) {
+            Role bean = roleService.get(RoleInterfaceAssembler.toGetQuery(RoleIdCodec.toDomain(request.getId())));
+            if (bean == null) {
+                throw AdminResponseExceptions.objectNotFound();
+            }
+            validateAdminRole(bean.isAdmin());
+            commandList.add(RoleInterfaceAssembler.toChangeStatusCommand(bean, request));
+        }
+        if (commandList.isEmpty()) {
+            throw AdminResponseExceptions.invalidParameter("list");
+        }
+
+        commandList.forEach(roleService::changeStatus);
+
+        return true;
+    }
+
+    @Operation(summary = "排序", description = "sys:role:edit")
+    @ApiImplicitParams({
+        @ApiImplicitParam(
+                name = AccessTokenNames.HEADER_TOKEN,
+                value = "令牌",
+                paramType = "header",
+                dataTypeClass = String.class),
+    })
+    @HasPermission(value = "sys:role:edit")
+    @SysLogger(value = "排序")
+    @PostMapping(value = "sort")
+    public Boolean sort(@Valid @RequestBody RoleSortRequest request) {
+        roleService.sort(
+                RoleInterfaceAssembler.toSortCommand(readOrderedIds(request == null ? null : request.getOrderedIds())));
+        return true;
+    }
+
+    private List<Long> readOrderedIds(List<String> sourceList) {
+        List<String> orderedIdValues =
+                RequestListHelper.presentUnique(sourceList, "orderedIds", AdminResponseExceptions::invalidParameter);
+        List<Long> orderedIds = orderedIdValues.stream()
+                .map(value -> Long.valueOf(value.trim()))
+                .collect(Collectors.toList());
+        Set<Long> uniqueIds = new HashSet<>(orderedIds);
+        if (uniqueIds.size() != orderedIds.size()) {
+            throw AdminResponseExceptions.invalidParameter("orderedIds");
+        }
+        return orderedIds;
+    }
+
+    @Operation(summary = "删除", description = "sys:role:edit")
+    @ApiImplicitParams({
+        @ApiImplicitParam(
+                name = AccessTokenNames.HEADER_TOKEN,
+                value = "令牌",
+                paramType = "header",
+                dataTypeClass = String.class),
+    })
+    @HasPermission(value = "sys:role:edit")
+    @SysLogger(value = "删除")
+    @PostMapping(value = "delete")
+    public Boolean delete(@Valid @RequestBody List<RoleIdRequest> list) {
+        List<RoleId> idList = new ArrayList<>();
+        for (RoleIdRequest request : RequestListHelper.present(list)) {
+            Role bean = roleService.get(RoleInterfaceAssembler.toGetQuery(RoleIdCodec.toDomain(request.getId())));
+            if (bean == null) {
+                throw AdminResponseExceptions.objectNotFound();
+            }
+            validateAdminRole(bean.isAdmin());
+            idList.add(bean.getId());
+        }
+        if (idList.isEmpty()) {
+            throw AdminResponseExceptions.invalidParameter("list");
+        }
+
+        idList.forEach(id -> roleService.remove(RoleInterfaceAssembler.toRemoveCommand(id)));
+
+        return true;
+    }
+
+    @Operation(summary = "获取菜单树", description = "sys:role:view, sys:role:edit")
+    @ApiImplicitParams({
+        @ApiImplicitParam(
+                name = AccessTokenNames.HEADER_TOKEN,
+                value = "令牌",
+                paramType = "header",
+                dataTypeClass = String.class),
+    })
+    @HasPermission({"sys:role:view", "sys:role:edit"})
+    @IgnoreSysLogger
+    @PostMapping(value = "menu/list")
+    public List<RoleMenuResponse> listMenus() {
+        return menuService.list(MenuInterfaceAssembler.toListAllQuery()).stream()
+                .map(menu -> RoleInterfaceAssembler.toMenuResponse(menu))
+                .collect(Collectors.toList());
+    }
+
+    @Operation(summary = "获取用户树", description = "sys:role:view, sys:role:edit")
+    @ApiImplicitParams({
+        @ApiImplicitParam(
+                name = AccessTokenNames.HEADER_TOKEN,
+                value = "令牌",
+                paramType = "header",
+                dataTypeClass = String.class),
+    })
+    @HasPermission({"sys:role:view", "sys:role:edit"})
+    @IgnoreSysLogger
+    @PostMapping(value = "user-tree/list")
+    public List<RoleUserTreeNodeResponse> listUserTree() {
+        List<RoleUserTreeNodeResponse> list = new ArrayList<>();
+
+        list.addAll(departmentService.list(DepartmentInterfaceAssembler.toListAllQuery()).stream()
+                .map(department -> RoleInterfaceAssembler.toDepartmentTreeNode(
+                        DEPARTMENT_ID_PREFIX + DepartmentIdCodec.toValue(department.getId()), department))
+                .collect(Collectors.toList()));
+
+        list.addAll(userService.list(UserInterfaceAssembler.toListAllQuery()).stream()
+                .map(user -> RoleInterfaceAssembler.toUserTreeNode(
+                        DEPARTMENT_ID_PREFIX,
+                        user,
+                        Optional.ofNullable(getAccountLoginName(user)),
+                        Optional.ofNullable(getDepartment(user.getDepartmentId())),
+                        this::getDepartment))
+                .collect(Collectors.toList()));
+
+        return list;
+    }
+
+    @Operation(summary = "获取权限用户列表", description = "sys:role:view, sys:role:edit")
+    @ApiImplicitParams({
+        @ApiImplicitParam(
+                name = AccessTokenNames.HEADER_TOKEN,
+                value = "令牌",
+                paramType = "header",
+                dataTypeClass = String.class),
+    })
+    @HasPermission({"sys:role:view", "sys:role:edit"})
+    @IgnoreSysLogger
+    @PostMapping(value = "user/list")
+    public List<RoleUserResponse> listUsers(@Valid @RequestBody RoleIdRequest request) {
+        Role bean = roleService.get(RoleInterfaceAssembler.toGetQuery(RoleIdCodec.toDomain(request.getId())));
+        if (bean == null) {
+            throw AdminResponseExceptions.objectNotFound();
+        }
+
+        return roleService
+                .listRoleUsers(RoleInterfaceAssembler.toIdQuery(RoleIdCodec.toDomain(request.getId())))
+                .stream()
+                .map(user -> toUserResponse(userService.get(UserInterfaceAssembler.toGetQuery(user.getId()))))
+                .collect(Collectors.toList());
+    }
+
+    @Operation(summary = "更新权限用户列表", description = "sys:role:edit")
+    @ApiImplicitParams({
+        @ApiImplicitParam(
+                name = AccessTokenNames.HEADER_TOKEN,
+                value = "令牌",
+                paramType = "header",
+                dataTypeClass = String.class),
+    })
+    @HasPermission(value = "sys:role:edit")
+    @SysLogger(value = "授权")
+    @PostMapping(value = "user/update")
+    public Boolean updateUsers(@Valid @RequestBody RoleAssignUserRequest request) {
+        validateAssignUser(request);
+
+        roleService.assignUsers(RoleInterfaceAssembler.toAssignUsersCommand(request));
+
+        return true;
+    }
+
+    private RoleResponse toResponse(Role role) {
+        return RoleInterfaceAssembler.toResponse(
+                role, roleService.listRoleMenus(RoleInterfaceAssembler.toIdQuery(role.getId())));
+    }
+
+    private RoleUserResponse toUserResponse(User user) {
+        return RoleInterfaceAssembler.toUserResponse(
+                user,
+                Optional.ofNullable(getAccountLoginName(user)),
+                Optional.ofNullable(getDepartment(user.getDepartmentId())),
+                this::getDepartment);
+    }
+
+    private String getAccountLoginName(User user) {
+        if (user == null || user.getId() == null) {
+            return null;
+        }
+        PrincipalIdentity identity = principalIdentityService.get(identityQuery(
+                PrincipalKey.of(PrincipalType.USER, UserIdCodec.toValue(user.getId())),
+                PrincipalIdentityType.USER_ACCOUNT));
+        return identity == null ? null : identity.getIdentityValue();
+    }
+
+    private PrincipalIdentityQuery identityQuery(PrincipalKey principalKey, PrincipalIdentityType identityType) {
+        return RoleInterfaceAssembler.toPrincipalIdentityQuery(principalKey, identityType);
+    }
+
+    private void validateAssignUser(RoleAssignUserRequest request) {
+        Role roleBean = roleService.get(RoleInterfaceAssembler.toGetQuery(RoleIdCodec.toDomain(request.getRoleId())));
+        if (roleBean == null) {
+            throw AdminResponseExceptions.objectNotFound();
+        }
+
+        validateAdminRole(roleBean.isAdmin());
+        if (request.getUsers() == null || request.getUsers().isEmpty()) {
+            throw AdminResponseExceptions.invalidParameter("users");
+        }
+
+        for (RoleUserRequest userRequest : request.getUsers()) {
+            User userBean =
+                    userService.get(UserInterfaceAssembler.toGetQuery(UserIdCodec.toDomain(userRequest.getId())));
+            if (userBean == null) {
+                throw AdminResponseExceptions.objectNotFound();
+            }
+        }
+    }
+
+    private Department getDepartment(DepartmentId departmentId) {
+        return departmentService.get(DepartmentInterfaceAssembler.toGetQuery(departmentId));
+    }
+
+    private void validateAdminRole(boolean admin) {
+        if (admin && !currentUserResolver.currentUser().isSuper()) {
+            throw AdminResponseExceptions.permissionDenied();
+        }
+    }
+
+    private void validateMenus(List<RoleMenuRequest> requestList) {
+        if (requestList == null || requestList.isEmpty()) {
+            return;
+        }
+        for (RoleMenuRequest request : requestList) {
+            if (request == null || request.getId() == null) {
+                throw AdminResponseExceptions.invalidParameter("menus.id");
+
+            } else {
+                Menu bean = menuService.get(MenuInterfaceAssembler.toGetQuery(MenuIdCodec.toDomain(request.getId())));
+                if (bean == null) {
+                    throw AdminResponseExceptions.objectNotFound();
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,27 @@
+package com.thundax.pretzel.storage.domain.object.model.enums;
+
+import com.thundax.pretzel.common.core.exception.DomainException;
+import java.util.Arrays;
+
+public enum StorageOwnerType {
+    USER,
+    MEMBER,
+    SUBMISSION,
+    CLASSICS_WANGQI_DOCUMENT,
+    CLASSICS_SANCAI_ENTRY_IMAGE,
+    CLASSICS_CONTENT_EXPORT_JOB,
+    CLASSICS_SANCAI_SHOWCASE,
+    DISCOVERY_QA_SESSION_EXPORT;
+
+    public String value() {
+        return name();
+    }
+
+    public static StorageOwnerType from(String value) {
+        return Arrays.stream(values())
+                .filter(item -> item.name().equalsIgnoreCase(value))
+                .findFirst()
+                .orElseThrow(() -> new DomainException(
+                        "STORAGE-90002", "storage.domain.owner-type.invalid", "Unknown storage owner type: " + value));
+    }
+}

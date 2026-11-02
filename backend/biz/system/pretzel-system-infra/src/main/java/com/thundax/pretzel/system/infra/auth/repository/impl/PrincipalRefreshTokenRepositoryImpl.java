@@ -1,0 +1,281 @@
+package com.thundax.pretzel.system.infra.auth.repository.impl;
+
+import com.alicp.jetcache.Cache;
+import com.alicp.jetcache.anno.CacheType;
+import com.alicp.jetcache.anno.CreateCache;
+import com.thundax.pretzel.common.cache.CacheDTO;
+import com.thundax.pretzel.common.cache.PretzelCacheNames;
+import com.thundax.pretzel.common.core.crypto.Sha256Digest;
+import com.thundax.pretzel.common.core.id.SnowflakeIdGenerator;
+import com.thundax.pretzel.system.domain.auth.codec.PrincipalAccessTokenIdCodec;
+import com.thundax.pretzel.system.domain.auth.codec.PrincipalAuthSessionIdCodec;
+import com.thundax.pretzel.system.domain.auth.codec.PrincipalClientIdCodec;
+import com.thundax.pretzel.system.domain.auth.codec.PrincipalRefreshTokenIdCodec;
+import com.thundax.pretzel.system.domain.auth.model.entity.PrincipalRefreshToken;
+import com.thundax.pretzel.system.domain.auth.model.enums.PrincipalTokenStatus;
+import com.thundax.pretzel.system.domain.auth.model.enums.PrincipalType;
+import com.thundax.pretzel.system.domain.auth.model.valueobject.PrincipalClientId;
+import com.thundax.pretzel.system.domain.auth.model.valueobject.PrincipalKey;
+import com.thundax.pretzel.system.domain.auth.model.valueobject.PrincipalRefreshTokenCode;
+import com.thundax.pretzel.system.domain.auth.model.valueobject.PrincipalRefreshTokenId;
+import com.thundax.pretzel.system.domain.auth.repository.PrincipalRefreshTokenRepository;
+import io.lettuce.core.RedisClient;
+import io.lettuce.core.SetArgs;
+import io.lettuce.core.api.StatefulRedisConnection;
+import io.lettuce.core.api.sync.RedisCommands;
+import jakarta.annotation.PreDestroy;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Repository;
+import org.springframework.util.Assert;
+
+@Repository
+@Profile("!test")
+public class PrincipalRefreshTokenRepositoryImpl implements PrincipalRefreshTokenRepository {
+
+    private static final String CACHE_SECTION = PretzelCacheNames.PREFIX + "PRINCIPAL_REFRESH_TOKEN_V2_";
+    private static final String TOKEN_HASH_PREFIX = CACHE_SECTION + "HASH_";
+    private static final String TOKEN_CODE_PREFIX = CACHE_SECTION + "TOKEN_CODE_";
+    private static final String PRINCIPAL_INDEX_PREFIX = CACHE_SECTION + "PRINCIPAL_";
+    private static final String TOKEN_LOCK_PREFIX = CACHE_SECTION + "LOCK_";
+    private static final int SAFETY_SECONDS = 5;
+    private static final int TOKEN_LOCK_SECONDS = 5;
+
+    private final SnowflakeIdGenerator idGenerator = new SnowflakeIdGenerator();
+    private final RedisClient redisClient;
+    private StatefulRedisConnection<String, String> redisConnection;
+
+    @CreateCache(name = CACHE_SECTION, cacheType = CacheType.BOTH)
+    private Cache<String, Object> cache;
+
+    public PrincipalRefreshTokenRepositoryImpl(
+            @Value("${spring.data.redis.url:${spring.redis.url:redis://127.0.0.1:6379/0}}") String redisUrl,
+            @Value("${spring.redis.password:}") String redisPassword) {
+        this.redisClient = AuthRedisClientFactory.create(redisUrl, redisPassword);
+    }
+
+    @Override
+    public PrincipalRefreshToken getById(PrincipalRefreshTokenId id) {
+        if (id == null) {
+            return null;
+        }
+        String tokenHash = (String) cache.get(TOKEN_CODE_PREFIX + PrincipalRefreshTokenIdCodec.toValue(id));
+        return getByTokenHash(tokenHash);
+    }
+
+    @Override
+    public PrincipalRefreshToken getByTokenCode(PrincipalRefreshTokenCode tokenCode) {
+        if (tokenCode == null) {
+            return null;
+        }
+        String tokenHash = (String) cache.get(TOKEN_CODE_PREFIX + tokenCode.value());
+        return getByTokenHash(tokenHash);
+    }
+
+    @Override
+    public PrincipalRefreshToken getByToken(String token) {
+        return getByTokenHash(tokenHash(token));
+    }
+
+    private PrincipalRefreshToken getByTokenHash(String tokenHash) {
+        return StringUtils.isBlank(tokenHash)
+                ? null
+                : toDomain((PrincipalRefreshTokenCacheDTO) cache.get(TOKEN_HASH_PREFIX + tokenHash));
+    }
+
+    @Override
+    public List<PrincipalRefreshToken> listByPrincipalKeyAndClientIdAndStatus(
+            PrincipalKey principalKey, PrincipalClientId clientId, PrincipalTokenStatus status) {
+        if (principalKey == null || status == null) {
+            return new ArrayList<>();
+        }
+        String indexKey = principalIndexKey(principalKey, clientId, status);
+        redis().zremrangebyscore(indexKey, 0, System.currentTimeMillis());
+        List<String> tokenHashes = redis().zrange(indexKey, 0, -1);
+        List<PrincipalRefreshToken> tokens = new ArrayList<>();
+        for (String tokenHash : tokenHashes) {
+            PrincipalRefreshToken token = getByTokenHash(tokenHash);
+            if (token != null) {
+                tokens.add(token);
+            }
+        }
+        return tokens;
+    }
+
+    @Override
+    public PrincipalRefreshTokenId insert(PrincipalRefreshToken refreshToken, String token) {
+        Assert.notNull(refreshToken, "refreshToken can not be null");
+        Assert.notNull(refreshToken.getTokenCode(), "tokenCode can not be null");
+        Assert.hasText(token, "token can not be blank");
+        Assert.notNull(refreshToken.getPrincipalKey(), "principalKey can not be null");
+        Assert.notNull(refreshToken.getExpireAt(), "expireAt can not be null");
+        Assert.notNull(refreshToken.getStatus(), "status can not be null");
+        if (refreshToken.getId() == null) {
+            refreshToken.setId(PrincipalRefreshTokenIdCodec.nextId(idGenerator));
+        }
+        putToken(refreshToken, tokenHash(token));
+        return refreshToken.getId();
+    }
+
+    @Override
+    public int updateStatus(PrincipalRefreshToken refreshToken) {
+        Assert.notNull(refreshToken, "refreshToken can not be null");
+        String tokenHash = tokenHashById(refreshToken.getId());
+        PrincipalRefreshToken oldToken = getByTokenHash(tokenHash);
+        if (oldToken != null) {
+            redis().zrem(principalIndexKey(oldToken), tokenHashById(oldToken.getId()));
+        }
+        Assert.notNull(refreshToken.getExpireAt(), "expireAt can not be null");
+        Assert.notNull(refreshToken.getStatus(), "status can not be null");
+        putToken(refreshToken, tokenHash);
+        return 1;
+    }
+
+    @Override
+    public int updateUsedIfActive(PrincipalRefreshToken refreshToken, Instant now) {
+        Assert.notNull(refreshToken, "refreshToken can not be null");
+        String tokenHash = tokenHashById(refreshToken.getId());
+        if (StringUtils.isBlank(tokenHash)) {
+            return 0;
+        }
+        String lockKey = TOKEN_LOCK_PREFIX + tokenHash;
+        String lockValue = UUID.randomUUID().toString();
+        String locked = redis().set(lockKey, lockValue, SetArgs.Builder.nx().ex(TOKEN_LOCK_SECONDS));
+        if (!StringUtils.equals("OK", locked)) {
+            return 0;
+        }
+        try {
+            PrincipalRefreshToken latestToken = getByTokenHash(tokenHash);
+            if (latestToken == null || !latestToken.canRefresh(now)) {
+                return 0;
+            }
+            latestToken.markUsed();
+            return updateStatus(latestToken);
+        } finally {
+            if (StringUtils.equals(lockValue, redis().get(lockKey))) {
+                redis().del(lockKey);
+            }
+        }
+    }
+
+    private void putToken(PrincipalRefreshToken refreshToken, String tokenHash) {
+        Assert.hasText(tokenHash, "tokenHash can not be blank");
+        long seconds = remainingSeconds(refreshToken);
+        cache.put(TOKEN_HASH_PREFIX + tokenHash, toCacheDTO(refreshToken), seconds + SAFETY_SECONDS, TimeUnit.SECONDS);
+        cache.put(TOKEN_CODE_PREFIX + refreshToken.getTokenCode().value(), tokenHash, seconds, TimeUnit.SECONDS);
+        cache.put(
+                TOKEN_CODE_PREFIX + PrincipalRefreshTokenIdCodec.toValue(refreshToken.getId()),
+                tokenHash,
+                seconds,
+                TimeUnit.SECONDS);
+        redis().zadd(principalIndexKey(refreshToken), refreshToken.getExpireAt().toEpochMilli(), tokenHash);
+    }
+
+    private String tokenHashById(PrincipalRefreshTokenId id) {
+        if (id == null) {
+            return null;
+        }
+        return (String) cache.get(TOKEN_CODE_PREFIX + PrincipalRefreshTokenIdCodec.toValue(id));
+    }
+
+    private long remainingSeconds(PrincipalRefreshToken refreshToken) {
+        Instant expireAt = refreshToken.getExpireAt();
+        if (expireAt == null) {
+            return 1L;
+        }
+        long remainingMillis = Duration.between(Instant.now(), expireAt).toMillis();
+        return remainingMillis <= 0 ? 1L : (remainingMillis + 999L) / 1000L;
+    }
+
+    private String tokenHash(String token) {
+        return StringUtils.isBlank(token) ? null : Sha256Digest.hashBase64Url(token);
+    }
+
+    private String principalIndexKey(PrincipalRefreshToken refreshToken) {
+        return principalIndexKey(refreshToken.getPrincipalKey(), refreshToken.getClientId(), refreshToken.getStatus());
+    }
+
+    private String principalIndexKey(
+            PrincipalKey principalKey, PrincipalClientId clientId, PrincipalTokenStatus status) {
+        return PRINCIPAL_INDEX_PREFIX
+                + principalKey.getPrincipalType().value()
+                + "_"
+                + principalKey.getPrincipalId()
+                + "_"
+                + StringUtils.defaultIfBlank(PrincipalClientIdCodec.toValue(clientId), "DEFAULT")
+                + "_"
+                + status.value();
+    }
+
+    private RedisCommands<String, String> redis() {
+        if (redisConnection == null) {
+            synchronized (this) {
+                if (redisConnection == null) {
+                    redisConnection = redisClient.connect();
+                }
+            }
+        }
+        return redisConnection.sync();
+    }
+
+    @PreDestroy
+    public void destroy() {
+        if (redisConnection != null) {
+            redisConnection.close();
+        }
+        redisClient.shutdown();
+    }
+
+    private static PrincipalRefreshToken toDomain(PrincipalRefreshTokenCacheDTO cacheDTO) {
+        if (cacheDTO == null) {
+            return null;
+        }
+        PrincipalRefreshToken refreshToken = new PrincipalRefreshToken();
+        refreshToken.setId(PrincipalRefreshTokenIdCodec.toDomain(cacheDTO.id));
+        refreshToken.setTokenCode(PrincipalRefreshTokenCode.ofNullable(cacheDTO.tokenCode));
+        refreshToken.setAccessTokenId(PrincipalAccessTokenIdCodec.toDomain(cacheDTO.accessTokenId));
+        refreshToken.setClientId(PrincipalClientIdCodec.toDomain(cacheDTO.clientId));
+        refreshToken.setSessionId(PrincipalAuthSessionIdCodec.toDomain(cacheDTO.sessionId));
+        refreshToken.setPrincipalKey(PrincipalKey.of(PrincipalType.from(cacheDTO.principalType), cacheDTO.principalId));
+        refreshToken.setIssuedAt(cacheDTO.issuedAt);
+        refreshToken.setExpireAt(cacheDTO.expireAt);
+        refreshToken.setStatus(PrincipalTokenStatus.from(cacheDTO.status));
+        return refreshToken;
+    }
+
+    private static PrincipalRefreshTokenCacheDTO toCacheDTO(PrincipalRefreshToken refreshToken) {
+        PrincipalRefreshTokenCacheDTO cacheDTO = new PrincipalRefreshTokenCacheDTO();
+        cacheDTO.id = PrincipalRefreshTokenIdCodec.toValue(refreshToken.getId());
+        cacheDTO.tokenCode = refreshToken.getTokenCode().value();
+        cacheDTO.accessTokenId = PrincipalAccessTokenIdCodec.toValue(refreshToken.getAccessTokenId());
+        cacheDTO.clientId = PrincipalClientIdCodec.toValue(refreshToken.getClientId());
+        cacheDTO.sessionId = PrincipalAuthSessionIdCodec.toValue(refreshToken.getSessionId());
+        cacheDTO.principalType =
+                refreshToken.getPrincipalKey().getPrincipalType().value();
+        cacheDTO.principalId = refreshToken.getPrincipalKey().getPrincipalId();
+        cacheDTO.issuedAt = refreshToken.getIssuedAt();
+        cacheDTO.expireAt = refreshToken.getExpireAt();
+        cacheDTO.status = refreshToken.getStatus().value();
+        return cacheDTO;
+    }
+
+    private static class PrincipalRefreshTokenCacheDTO implements CacheDTO {
+        private String id;
+        private String tokenCode;
+        private String accessTokenId;
+        private String clientId;
+        private String sessionId;
+        private String principalType;
+        private Long principalId;
+        private Instant issuedAt;
+        private Instant expireAt;
+        private String status;
+    }
+}

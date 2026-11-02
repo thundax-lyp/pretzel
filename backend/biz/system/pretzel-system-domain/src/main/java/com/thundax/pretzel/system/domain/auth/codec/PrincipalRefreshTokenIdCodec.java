@@ -1,0 +1,21 @@
+package com.thundax.pretzel.system.domain.auth.codec;
+
+import com.thundax.pretzel.common.core.id.SnowflakeIdGenerator;
+import com.thundax.pretzel.system.domain.auth.model.valueobject.PrincipalRefreshTokenId;
+
+public final class PrincipalRefreshTokenIdCodec {
+
+    private PrincipalRefreshTokenIdCodec() {}
+
+    public static PrincipalRefreshTokenId toDomain(String value) {
+        return value == null || value.trim().isEmpty() ? null : new PrincipalRefreshTokenId(value);
+    }
+
+    public static String toValue(PrincipalRefreshTokenId id) {
+        return id == null ? null : id.value();
+    }
+
+    public static PrincipalRefreshTokenId nextId(SnowflakeIdGenerator generator) {
+        return toDomain(Long.toHexString(generator.nextId().value()));
+    }
+}
