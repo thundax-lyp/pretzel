@@ -1,0 +1,563 @@
+import {
+    clearAccessToken,
+    getAccessToken,
+    getAccessTokenExpireAt,
+    getRefreshToken,
+    saveTokenSession,
+} from "../auth/token-storage";
+
+export const ADMIN_API_BASE_URL =
+    import.meta.env.VITE_ADMIN_API_BASE_URL || "/pretzel-admin-api/api";
+const ACCESS_TOKEN_HEADER = "Access-Token";
+const AUTH_INVALID_CODE = "COMMON-00002";
+const ADMIN_CLIENT_ID = "admin-api";
+const TOKEN_REFRESH_PATH = "/auth/session/token/refresh";
+const TOKEN_REFRESH_AHEAD_MS = 60 * 1000;
+
+interface ApiResponse<T> {
+    code: string;
+    message: string;
+    data: T;
+}
+
+interface RequestOptions<TBody> {
+    body?: TBody;
+    signal?: AbortSignal;
+}
+
+interface FormDataProgressOptions {
+    signal?: AbortSignal;
+    onProgress?: (uploadedBytes: number, totalBytes: number) => void;
+}
+
+interface EventStreamOptions {
+    onChunk: (chunk: string) => void;
+    signal?: AbortSignal;
+}
+
+interface PostEventStreamOptions<TBody> extends RequestOptions<TBody> {
+    onChunk: (chunk: string) => void;
+    signal?: AbortSignal;
+}
+
+interface AccessTokenPayload {
+    token: string;
+    refreshToken?: string;
+    expireAt?: number;
+}
+
+export class ApiError extends Error {
+    readonly code: string | number;
+
+    constructor(code: string | number, message: string) {
+        super(message);
+        this.name = "ApiError";
+        this.code = code;
+    }
+}
+
+const isSuccessCode = (code: string | undefined) => {
+    return code === "COMMON-00000";
+};
+
+const isAuthInvalid = (
+    response: Response,
+    code: string | number | undefined,
+) => {
+    return response.status === 401 || code === AUTH_INVALID_CODE;
+};
+
+const safeReadApiResponse = async <T>(response: Response) => {
+    const text = await response.text();
+    if (!text.trim()) {
+        return null;
+    }
+    try {
+        return JSON.parse(text) as ApiResponse<T>;
+    } catch {
+        return null;
+    }
+};
+
+const shouldRefreshBeforeRequest = () => {
+    const token = getAccessToken();
+    const refreshToken = getRefreshToken();
+    const expireAt = getAccessTokenExpireAt();
+    return Boolean(
+        token &&
+        refreshToken &&
+        expireAt &&
+        expireAt <= Date.now() + TOKEN_REFRESH_AHEAD_MS,
+    );
+};
+
+let refreshPromise: Promise<AccessTokenPayload | null> | null = null;
+
+const requestTokenRefresh = async () => {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) {
+        return null;
+    }
+
+    const response = await fetch(`${ADMIN_API_BASE_URL}${TOKEN_REFRESH_PATH}`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            clientId: ADMIN_CLIENT_ID,
+            refreshToken,
+        }),
+    });
+
+    const payload = await safeReadApiResponse<AccessTokenPayload>(response);
+    if (
+        !response.ok ||
+        !isSuccessCode(payload?.code) ||
+        !payload?.data?.token
+    ) {
+        clearAccessToken();
+        return null;
+    }
+
+    saveTokenSession(payload.data);
+    return payload.data;
+};
+
+export const refreshAccessTokenIfNeeded = async () => {
+    if (refreshPromise) {
+        const refreshedToken = await refreshPromise;
+        return refreshedToken?.token || getAccessToken();
+    }
+
+    if (!shouldRefreshBeforeRequest()) {
+        return getAccessToken();
+    }
+
+    const refreshedToken = await refreshAccessToken();
+    return refreshedToken?.token || getAccessToken();
+};
+
+const refreshAccessToken = async () => {
+    if (!refreshPromise) {
+        refreshPromise = requestTokenRefresh().finally(() => {
+            refreshPromise = null;
+        });
+    }
+
+    return refreshPromise;
+};
+
+const requestJson = async <TResponse, TBody = unknown>(
+    path: string,
+    options: RequestOptions<TBody>,
+    token: string | null,
+) => {
+    const headers: HeadersInit = {
+        "Content-Type": "application/json",
+    };
+    if (token) {
+        headers[ACCESS_TOKEN_HEADER] = token;
+    }
+
+    const response = await fetch(`${ADMIN_API_BASE_URL}${path}`, {
+        method: "POST",
+        headers,
+        body:
+            options.body === undefined
+                ? undefined
+                : JSON.stringify(options.body),
+        signal: options.signal,
+    });
+
+    const payload = (await response.json()) as ApiResponse<TResponse>;
+    return { response, payload };
+};
+
+const requestPostEventStream = async <TBody>(
+    path: string,
+    options: PostEventStreamOptions<TBody>,
+    token: string | null,
+) => {
+    const headers: HeadersInit = {
+        Accept: "text/event-stream",
+        "Content-Type": "application/json",
+    };
+    if (token) {
+        headers[ACCESS_TOKEN_HEADER] = token;
+    }
+
+    return fetch(`${ADMIN_API_BASE_URL}${path}`, {
+        body:
+            options.body === undefined
+                ? undefined
+                : JSON.stringify(options.body),
+        headers,
+        method: "POST",
+        signal: options.signal,
+    });
+};
+
+const requestGetJson = async <TResponse>(
+    path: string,
+    token: string | null,
+) => {
+    const headers: HeadersInit = {};
+    if (token) {
+        headers[ACCESS_TOKEN_HEADER] = token;
+    }
+
+    const response = await fetch(`${ADMIN_API_BASE_URL}${path}`, {
+        method: "GET",
+        headers,
+    });
+
+    const payload = (await response.json()) as ApiResponse<TResponse>;
+    return { response, payload };
+};
+
+const requestFormData = async <TResponse>(
+    path: string,
+    body: FormData,
+    token: string | null,
+    options: FormDataProgressOptions = {},
+) => {
+    const headers: HeadersInit = {};
+    if (token) {
+        headers[ACCESS_TOKEN_HEADER] = token;
+    }
+
+    const response = await fetch(`${ADMIN_API_BASE_URL}${path}`, {
+        method: "POST",
+        headers,
+        body,
+        signal: options.signal,
+    });
+
+    const payload = (await response.json()) as ApiResponse<TResponse>;
+    return { response, payload };
+};
+
+const requestFormDataWithProgress = async <TResponse>(
+    path: string,
+    body: FormData,
+    token: string | null,
+    options: FormDataProgressOptions = {},
+) => {
+    const signal = options.signal;
+    const onProgress = options.onProgress;
+
+    const response = await new Promise<Response>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        const url = `${ADMIN_API_BASE_URL}${path}`;
+        xhr.open("POST", url, true);
+
+        if (token) {
+            xhr.setRequestHeader(ACCESS_TOKEN_HEADER, token);
+        }
+
+        if (onProgress) {
+            xhr.upload.onprogress = (event) => {
+                if (event.lengthComputable) {
+                    onProgress(event.loaded, event.total);
+                }
+            };
+        }
+
+        if (signal) {
+            if (signal.aborted) {
+                reject(new ApiError("ABORTED", "Request was aborted"));
+                return;
+            }
+
+            const abortHandler = () => {
+                xhr.abort();
+                reject(new ApiError("ABORTED", "Request was aborted"));
+            };
+            signal.addEventListener("abort", abortHandler, { once: true });
+            xhr.addEventListener("loadend", () => {
+                signal.removeEventListener("abort", abortHandler);
+            });
+        }
+
+        xhr.onload = () => {
+            const payloadText = xhr.responseText;
+            resolve(
+                new Response(payloadText, {
+                    status: xhr.status,
+                    statusText: xhr.statusText,
+                    headers: { "Content-Type": "application/json" },
+                }),
+            );
+        };
+
+        xhr.onerror = () => {
+            reject(new ApiError("NETWORK_ERROR", "network error"));
+        };
+
+        xhr.send(body);
+    });
+
+    const payload = (await response.json()) as ApiResponse<TResponse>;
+    return { response, payload };
+};
+
+export const postJson = async <TResponse, TBody = unknown>(
+    path: string,
+    options: RequestOptions<TBody> = {},
+) => {
+    if (path !== TOKEN_REFRESH_PATH) {
+        await refreshAccessTokenIfNeeded();
+    }
+
+    const token = getAccessToken();
+    let { response, payload } = await requestJson<TResponse, TBody>(
+        path,
+        options,
+        token,
+    );
+
+    if (!response.ok || !isSuccessCode(payload.code)) {
+        const code = payload.code ?? response.status;
+        if (
+            path !== TOKEN_REFRESH_PATH &&
+            isAuthInvalid(response, code) &&
+            getRefreshToken()
+        ) {
+            const refreshedToken = await refreshAccessToken();
+            if (refreshedToken?.token) {
+                const retryResult = await requestJson<TResponse, TBody>(
+                    path,
+                    options,
+                    refreshedToken.token,
+                );
+                response = retryResult.response;
+                payload = retryResult.payload;
+
+                if (response.ok && isSuccessCode(payload.code)) {
+                    return payload.data;
+                }
+            }
+        }
+
+        if (isAuthInvalid(response, code)) {
+            clearAccessToken();
+        }
+        throw new ApiError(code, payload.message || "请求失败");
+    }
+
+    return payload.data;
+};
+
+export const getJson = async <TResponse>(path: string) => {
+    await refreshAccessTokenIfNeeded();
+
+    const token = getAccessToken();
+    let { response, payload } = await requestGetJson<TResponse>(path, token);
+
+    if (!response.ok || !isSuccessCode(payload.code)) {
+        const code = payload.code ?? response.status;
+        if (isAuthInvalid(response, code) && getRefreshToken()) {
+            const refreshedToken = await refreshAccessToken();
+            if (refreshedToken?.token) {
+                const retryResult = await requestGetJson<TResponse>(
+                    path,
+                    refreshedToken.token,
+                );
+                response = retryResult.response;
+                payload = retryResult.payload;
+
+                if (response.ok && isSuccessCode(payload.code)) {
+                    return payload.data;
+                }
+            }
+        }
+
+        if (isAuthInvalid(response, code)) {
+            clearAccessToken();
+        }
+        throw new ApiError(code, payload.message || "请求失败");
+    }
+
+    return payload.data;
+};
+
+export const postFormData = async <TResponse>(
+    path: string,
+    body: FormData,
+    options: FormDataProgressOptions = {},
+) => {
+    await refreshAccessTokenIfNeeded();
+
+    const token = getAccessToken();
+    let { response, payload } = await requestFormData<TResponse>(
+        path,
+        body,
+        token,
+        options,
+    );
+
+    if (!response.ok || !isSuccessCode(payload.code)) {
+        const code = payload.code ?? response.status;
+        if (isAuthInvalid(response, code) && getRefreshToken()) {
+            const refreshedToken = await refreshAccessToken();
+            if (refreshedToken?.token) {
+                const retryResult = await requestFormData<TResponse>(
+                    path,
+                    body,
+                    refreshedToken.token,
+                    options,
+                );
+                response = retryResult.response;
+                payload = retryResult.payload;
+
+                if (response.ok && isSuccessCode(payload.code)) {
+                    return payload.data;
+                }
+            }
+        }
+
+        if (isAuthInvalid(response, code)) {
+            clearAccessToken();
+        }
+        throw new ApiError(code, payload.message || "请求失败");
+    }
+
+    return payload.data;
+};
+
+export const postFormDataWithProgress = async <TResponse>(
+    path: string,
+    body: FormData,
+    options: FormDataProgressOptions = {},
+) => {
+    await refreshAccessTokenIfNeeded();
+
+    const token = getAccessToken();
+    let { response, payload } = await requestFormDataWithProgress<TResponse>(
+        path,
+        body,
+        token,
+        options,
+    );
+
+    if (!response.ok || !isSuccessCode(payload.code)) {
+        const code = payload.code ?? response.status;
+        if (isAuthInvalid(response, code) && getRefreshToken()) {
+            const refreshedToken = await refreshAccessToken();
+            if (refreshedToken?.token) {
+                const retryResult =
+                    await requestFormDataWithProgress<TResponse>(
+                        path,
+                        body,
+                        refreshedToken.token,
+                        options,
+                    );
+                response = retryResult.response;
+                payload = retryResult.payload;
+
+                if (response.ok && isSuccessCode(payload.code)) {
+                    return payload.data;
+                }
+            }
+        }
+
+        if (isAuthInvalid(response, code)) {
+            clearAccessToken();
+        }
+        throw new ApiError(code, payload.message || "请求失败");
+    }
+
+    return payload.data;
+};
+
+export const getEventStream = async (
+    path: string,
+    options: EventStreamOptions,
+) => {
+    await refreshAccessTokenIfNeeded();
+
+    const token = getAccessToken();
+    const headers: HeadersInit = {};
+    if (token) {
+        headers[ACCESS_TOKEN_HEADER] = token;
+    }
+
+    const response = await fetch(`${ADMIN_API_BASE_URL}${path}`, {
+        headers,
+        method: "GET",
+        signal: options.signal,
+    });
+
+    if (!response.ok) {
+        throw new ApiError(response.status, `流式请求失败：${response.status}`);
+    }
+    if (!response.body) {
+        throw new ApiError("EMPTY_STREAM", "流式响应为空");
+    }
+
+    const decoder = new TextDecoder();
+    const reader = response.body.getReader();
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+                break;
+            }
+            options.onChunk(decoder.decode(value, { stream: true }));
+        }
+        options.onChunk(decoder.decode());
+    } finally {
+        reader.releaseLock();
+    }
+};
+
+export const postEventStream = async <TBody = unknown>(
+    path: string,
+    options: PostEventStreamOptions<TBody>,
+) => {
+    await refreshAccessTokenIfNeeded();
+
+    const token = getAccessToken();
+    let response = await requestPostEventStream(path, options, token);
+
+    if (
+        !response.ok &&
+        isAuthInvalid(response, response.status) &&
+        getRefreshToken()
+    ) {
+        const refreshedToken = await refreshAccessToken();
+        if (refreshedToken?.token) {
+            response = await requestPostEventStream(
+                path,
+                options,
+                refreshedToken.token,
+            );
+        }
+    }
+
+    if (!response.ok) {
+        if (isAuthInvalid(response, response.status)) {
+            clearAccessToken();
+        }
+        throw new ApiError(response.status, `流式请求失败：${response.status}`);
+    }
+    if (!response.body) {
+        throw new ApiError("EMPTY_STREAM", "流式响应为空");
+    }
+
+    const decoder = new TextDecoder();
+    const reader = response.body.getReader();
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+                break;
+            }
+            options.onChunk(decoder.decode(value, { stream: true }));
+        }
+        options.onChunk(decoder.decode());
+    } finally {
+        reader.releaseLock();
+    }
+};
