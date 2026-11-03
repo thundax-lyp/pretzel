@@ -1,9 +1,34 @@
 {
-  "appid": "touristappid",
-  "projectname": "pretzel",
-  "compileType": "miniprogram",
-  "miniprogramRoot": "miniprogram/",
-  "setting": {
-    "es6": true
-  }
+    "appid": "touristappid",
+    "projectname": "pretzel",
+    "compileType": "miniprogram",
+    "miniprogramRoot": "miniprogram/",
+    "setting": {
+        "es6": true,
+        "useCompilerPlugins": ["typescript"]
+    },
+    "packOptions": {
+        "ignore": [
+            {
+                "type": "folder",
+                "value": "node_modules"
+            },
+            {
+                "type": "file",
+                "value": "package.json"
+            },
+            {
+                "type": "file",
+                "value": "package-lock.json"
+            },
+            {
+                "type": "file",
+                "value": "tsconfig.json"
+            },
+            {
+                "type": "file",
+                "value": "README.md"
+            }
+        ]
+    }
 }

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.thundax</groupId>
+        <artifactId>pretzel</artifactId>
+        <version>0.0.1-dev</version>
+    </parent>
+    <artifactId>pretzel-common</artifactId>
+    <packaging>pom</packaging>
+    <name>pretzel-common</name>
+    <modules>
+        <module>pretzel-common-core</module>
+        <module>pretzel-common-audit</module>
+        <module>pretzel-common-security</module>
+        <module>pretzel-common-web</module>
+        <module>pretzel-common-openapi</module>
+        <module>pretzel-common-mybatis</module>
+        <module>pretzel-common-cache</module>
+        <module>pretzel-common-oss</module>
+        <module>pretzel-common-test</module>
+    </modules>
+</project>

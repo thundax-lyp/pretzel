@@ -1,0 +1,84 @@
+:root {
+    --surface-page: #f7f4ec;
+    --surface-panel: rgba(255, 253, 248, 0.9);
+    --surface-soft: rgba(242, 238, 226, 0.9);
+    --surface-hover: rgba(232, 226, 210, 0.88);
+    --text-primary: #1f2521;
+    --text-secondary: #6d685d;
+    --text-muted: #969085;
+    --line-subtle: rgba(102, 89, 65, 0.18);
+    --line-strong: rgba(74, 65, 48, 0.32);
+    --accent-yellow: #efe4c8;
+    --accent-lime: #7da995;
+    --accent-violet: #8d7f6f;
+    --accent-orange: #b9863b;
+    --accent-blue: #1f4b73;
+    --accent-blue-soft: rgba(31, 75, 115, 0.12);
+    --accent-cinnabar: #b33a32;
+    --accent-jade: #4f927a;
+    --paper-fiber: rgba(116, 101, 76, 0.08);
+    --shadow-soft: 0 18px 48px rgba(70, 58, 38, 0.1);
+    --shadow-blue: 0 14px 30px rgba(31, 75, 115, 0.22);
+    --sidebar-width: 248px;
+    --sidebar-collapsed-width: 88px;
+    --workspace-padding-inline: 0px;
+    --workspace-padding-top: 0px;
+    --workspace-padding-bottom: 0px;
+    color: var(--text-primary);
+    background: var(--surface-page);
+    font-family:
+        Georgia, "Times New Roman", "Songti SC", "Noto Serif SC",
+        "Source Han Serif SC", SimSun, serif;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+html[data-theme="dark"] {
+    --surface-page: #111713;
+    --surface-panel: rgba(24, 33, 29, 0.9);
+    --surface-soft: rgba(36, 44, 38, 0.86);
+    --surface-hover: rgba(52, 61, 52, 0.88);
+    --text-primary: #f3eee3;
+    --text-secondary: #c5bbab;
+    --text-muted: #8f8779;
+    --line-subtle: rgba(184, 174, 150, 0.18);
+    --line-strong: rgba(215, 203, 176, 0.3);
+    --accent-yellow: #8e7850;
+    --accent-lime: #7bb49e;
+    --accent-violet: #b19d83;
+    --accent-orange: #d6a75f;
+    --accent-blue: #7fa4c4;
+    --accent-blue-soft: rgba(127, 164, 196, 0.18);
+    --accent-cinnabar: #d97867;
+    --accent-jade: #7bb49e;
+    --paper-fiber: rgba(224, 209, 177, 0.08);
+    --shadow-soft: 0 24px 70px rgba(0, 0, 0, 0.38);
+    --shadow-blue: 0 18px 40px rgba(127, 164, 196, 0.24);
+}
+
+* {
+    box-sizing: border-box;
+}
+body {
+    margin: 0;
+    min-width: 320px;
+    color: var(--text-primary);
+    background: var(--surface-page);
+}
+#root {
+    min-height: 100vh;
+}
+.user-menu-trigger {
+    height: auto;
+    padding: 4px 8px;
+}
+.user-menu-copy {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+}
+.menu-icon-config-error {
+    color: var(--accent-cinnabar);
+}

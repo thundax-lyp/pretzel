@@ -1,0 +1,35 @@
+package com.thundax.pretzel.storage.domain;
+
+import com.thundax.pretzel.common.test.architecture.AbstractArchitectureTest;
+import com.thundax.pretzel.common.test.architecture.AnnotationBoundaryArchitectureRuleSupport;
+import com.thundax.pretzel.common.test.architecture.ModuleAndDependencyArchitectureRuleSupport;
+import com.thundax.pretzel.common.test.architecture.NamingArchitectureRuleSupport;
+import com.thundax.pretzel.common.test.architecture.SpringBeanArchitectureRuleSupport;
+import com.tngtech.archunit.core.domain.JavaClasses;
+import java.nio.file.Path;
+import org.junit.jupiter.api.Test;
+
+class StorageDomainArchitectureTest extends AbstractArchitectureTest {
+
+    private static final String BASE_PACKAGE = "com.thundax.pretzel.storage";
+
+    @Test
+    void domainCodecShouldStayInDomainCodecPackage() throws Exception {
+        JavaClasses classes = importPackages(BASE_PACKAGE + ".domain");
+
+        ModuleAndDependencyArchitectureRuleSupport.assertCrossDomainDependencyBoundary(classes, "storage");
+        AnnotationBoundaryArchitectureRuleSupport.assertDomainSpringAndPersistenceFree(classes, BASE_PACKAGE);
+        SpringBeanArchitectureRuleSupport.assertDirectSpringBeansHaveSingleConstructor(classes);
+        NamingArchitectureRuleSupport.assertCodecPlacement(classes, BASE_PACKAGE);
+        NamingArchitectureRuleSupport.assertValueObjectPlacement(classes, BASE_PACKAGE);
+        NamingArchitectureRuleSupport.assertValueObjectIdSourcesDeclareNoStaticMethods(Path.of("src/main/java"));
+        NamingArchitectureRuleSupport.assertBaseIdTypes(classes, BASE_PACKAGE);
+        NamingArchitectureRuleSupport.assertEntityPlacement(classes, BASE_PACKAGE);
+        NamingArchitectureRuleSupport.assertEntitySourcesDeclareOnlyRequiredAnnotations(Path.of("src/main/java"));
+        NamingArchitectureRuleSupport.assertDomainEnumPlacement(classes, BASE_PACKAGE);
+        NamingArchitectureRuleSupport.assertDomainServiceSourcesUseRepositoryBoundary(Path.of("src/main/java"));
+        NamingArchitectureRuleSupport.assertRepositoryPlacement(classes, BASE_PACKAGE);
+        NamingArchitectureRuleSupport.assertRepositoryInterfaceMethodNames(classes);
+        NamingArchitectureRuleSupport.assertRepositoryTypeNamesUseRepositorySuffix(classes);
+    }
+}

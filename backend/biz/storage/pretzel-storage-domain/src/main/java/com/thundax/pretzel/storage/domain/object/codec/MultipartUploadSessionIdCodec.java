@@ -1,0 +1,34 @@
+package com.thundax.pretzel.storage.domain.object.codec;
+
+import com.thundax.pretzel.storage.domain.object.model.valueobject.MultipartUploadSessionId;
+import java.util.List;
+import java.util.stream.Collectors;
+
+public final class MultipartUploadSessionIdCodec {
+
+    private MultipartUploadSessionIdCodec() {}
+
+    public static MultipartUploadSessionId toDomain(Long value) {
+        return value == null ? null : new MultipartUploadSessionId(value);
+    }
+
+    public static Long toValue(MultipartUploadSessionId id) {
+        return id == null ? null : id.value();
+    }
+
+    public static String toStringValue(MultipartUploadSessionId id) {
+        return id == null ? null : String.valueOf(id.value());
+    }
+
+    public static List<MultipartUploadSessionId> toDomains(List<Long> values) {
+        return values == null
+                ? null
+                : values.stream().map(MultipartUploadSessionIdCodec::toDomain).collect(Collectors.toList());
+    }
+
+    public static List<Long> toValues(List<MultipartUploadSessionId> ids) {
+        return ids == null
+                ? null
+                : ids.stream().map(MultipartUploadSessionIdCodec::toValue).collect(Collectors.toList());
+    }
+}

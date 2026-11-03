@@ -1,0 +1,60 @@
+package com.thundax.pretzel.system.domain.auth.model.entity;
+
+import com.thundax.pretzel.system.domain.auth.codec.PrincipalClientIdCodec;
+import com.thundax.pretzel.system.domain.auth.model.enums.PrincipalTokenStatus;
+import com.thundax.pretzel.system.domain.auth.model.valueobject.PrincipalAccessTokenCode;
+import com.thundax.pretzel.system.domain.auth.model.valueobject.PrincipalAccessTokenId;
+import com.thundax.pretzel.system.domain.auth.model.valueobject.PrincipalAuthSessionId;
+import com.thundax.pretzel.system.domain.auth.model.valueobject.PrincipalClientId;
+import com.thundax.pretzel.system.domain.auth.model.valueobject.PrincipalKey;
+import java.time.Instant;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+public class PrincipalAccessToken {
+    private PrincipalAccessTokenId id;
+    private PrincipalAccessTokenCode tokenCode;
+    private PrincipalClientId clientId;
+    private PrincipalAuthSessionId sessionId;
+    private PrincipalKey principalKey;
+    private Set<String> scopes = new LinkedHashSet<>();
+    private Instant issuedAt;
+    private Instant expireAt;
+    private PrincipalTokenStatus status = PrincipalTokenStatus.ACTIVE;
+
+    public boolean canAccess(Instant now) {
+        return isActive() && !isExpired(now);
+    }
+
+    public void setClientId(String clientId) {
+        this.clientId = PrincipalClientIdCodec.toDomain(clientId);
+    }
+
+    public void setClientId(PrincipalClientId clientId) {
+        this.clientId = clientId;
+    }
+
+    public void revoke() {
+        status = PrincipalTokenStatus.REVOKED;
+    }
+
+    public void expire() {
+        status = PrincipalTokenStatus.EXPIRED;
+    }
+
+    public boolean isActive() {
+        return status == PrincipalTokenStatus.ACTIVE;
+    }
+
+    public boolean isExpired(Instant now) {
+        return expireAt != null && now != null && !expireAt.isAfter(now);
+    }
+}

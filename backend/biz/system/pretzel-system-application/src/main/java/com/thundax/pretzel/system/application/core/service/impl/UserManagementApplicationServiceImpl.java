@@ -1,0 +1,244 @@
+package com.thundax.pretzel.system.application.core.service.impl;
+
+import com.thundax.pretzel.common.audit.annotation.AuditLog;
+import com.thundax.pretzel.common.audit.model.enums.AuditAction;
+import com.thundax.pretzel.common.core.exception.BizExceptionBoundary;
+import com.thundax.pretzel.common.core.page.PageQuery;
+import com.thundax.pretzel.common.core.page.PageResult;
+import com.thundax.pretzel.system.application.core.command.ChangeUserInfoCommand;
+import com.thundax.pretzel.system.application.core.command.ChangeUserStatusCommand;
+import com.thundax.pretzel.system.application.core.command.CreateUserCommand;
+import com.thundax.pretzel.system.application.core.command.RemoveUserCommand;
+import com.thundax.pretzel.system.application.core.query.GetUserQuery;
+import com.thundax.pretzel.system.application.core.query.UserQuery;
+import com.thundax.pretzel.system.application.core.service.UserManagementApplicationService;
+import com.thundax.pretzel.system.application.core.service.handler.UserDeleteCascadeHandler;
+import com.thundax.pretzel.system.domain.core.model.entity.Role;
+import com.thundax.pretzel.system.domain.core.model.entity.User;
+import com.thundax.pretzel.system.domain.core.model.valueobject.RoleId;
+import com.thundax.pretzel.system.domain.core.model.valueobject.UserId;
+import com.thundax.pretzel.system.domain.core.repository.UserRepository;
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+
+@Service
+@Transactional(readOnly = true)
+@BizExceptionBoundary
+public class UserManagementApplicationServiceImpl implements UserManagementApplicationService {
+
+    private final UserRepository dao;
+    private final List<UserDeleteCascadeHandler> deleteCascadeHandlers;
+    private final ObjectProvider<List<RoleManagementApplicationServiceImpl.CacheChangedListener>>
+            roleCacheChangedListeners;
+
+    public UserManagementApplicationServiceImpl(
+            UserRepository dao,
+            ObjectProvider<List<UserDeleteCascadeHandler>> deleteCascadeHandlers,
+            ObjectProvider<List<RoleManagementApplicationServiceImpl.CacheChangedListener>> roleCacheChangedListeners) {
+        this.dao = dao;
+        this.deleteCascadeHandlers = deleteCascadeHandlers == null
+                ? Collections.emptyList()
+                : deleteCascadeHandlers.getIfAvailable(Collections::emptyList);
+        this.roleCacheChangedListeners = roleCacheChangedListeners;
+    }
+
+    public User get(GetUserQuery query) {
+        UserId id = query == null ? null : query.id();
+        if (id == null) {
+            return null;
+        }
+        return dao.getById(id);
+    }
+
+    public List<User> list(UserQuery query) {
+        return dao.list(
+                query == null ? null : query.departmentId(),
+                query == null ? null : query.loginName(),
+                query == null ? null : query.name(),
+                query == null ? null : query.status(),
+                query == null ? null : query.privilege());
+    }
+
+    public PageResult<User> page(UserQuery query, PageQuery page) {
+        return dao.page(
+                query == null ? null : query.departmentId(),
+                query == null ? null : query.loginName(),
+                query == null ? null : query.name(),
+                query == null ? null : query.status(),
+                query == null ? null : query.privilege(),
+                page.getPageNo(),
+                page.getPageSize());
+    }
+
+    @Override
+    public boolean existsEmail(UserQuery query) {
+        return query != null && dao.countByEmail(query.email(), query.excludedId()) > 0;
+    }
+
+    @Override
+    public boolean existsMobile(UserQuery query) {
+        return query != null && dao.countByMobile(query.mobile(), query.excludedId()) > 0;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    @AuditLog(type = "User", id = "", action = AuditAction.CREATE, summary = "创建后台用户")
+    public UserId create(CreateUserCommand command) {
+        User user = toUser(command);
+        user.setId(dao.insert(user));
+        rewriteUserRoles(user.getId(), command.roleIdList());
+        return user.getId();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    @AuditLog(
+            type = "User",
+            id = "#command.id.value()",
+            action = AuditAction.UPDATE,
+            summary = "更新后台用户",
+            recordWhenUnchanged = true)
+    public void changeInfo(ChangeUserInfoCommand command) {
+        User user = toUser(command);
+        dao.update(user);
+        rewriteUserRoles(user.getId(), command.roleIdList());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    @AuditLog(
+            type = "User",
+            id = "#command.userId.value()",
+            action = AuditAction.UPDATE,
+            summary = "更新个人资料",
+            recordWhenUnchanged = true)
+    public User changeProfile(
+            com.thundax.pretzel.system.application.core.command.ChangeCurrentUserInfoCommand command) {
+        User user = new User();
+        user.setId(command.userId());
+        user.setEmail(command.email());
+        user.setMobile(command.mobile());
+        user.setName(command.name());
+        dao.updateProfile(user);
+        return dao.getById(command.userId());
+    }
+
+    private void rewriteUserRoles(UserId userId, List<RoleId> roleIdList) {
+        if (roleIdList != null) {
+            dao.deleteUserRole(userId);
+            if (!roleIdList.isEmpty()) {
+                dao.insertUserRole(userId, roleIdList);
+            }
+            notifyRoleCacheChanged();
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    @AuditLog(
+            type = "User",
+            id = "#command.id.value()",
+            action = AuditAction.UPDATE,
+            summary = "变更后台用户状态",
+            before = "#command.beforeUser",
+            after = "#command.afterUser",
+            recordWhenUnchanged = true)
+    public int changeStatus(ChangeUserStatusCommand command) {
+        User user = new User();
+        user.setId(command.id());
+        user.setStatus(command.status());
+        int result = dao.updateStatus(user);
+        notifyRoleCacheChanged();
+        return result;
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    @AuditLog(
+            type = "User",
+            id = "#command.id == null ? null : #command.id.value()",
+            action = AuditAction.DELETE,
+            summary = "删除后台用户")
+    public int remove(RemoveUserCommand command) {
+        UserId id = command == null ? null : command.id();
+        User user = get(new GetUserQuery(id));
+        if (user == null) {
+            return 0;
+        }
+
+        for (UserDeleteCascadeHandler deleteCascadeHandler : deleteCascadeHandlers) {
+            deleteCascadeHandler.beforeDelete(user);
+        }
+        dao.deleteUserRole(id);
+        notifyRoleCacheChanged();
+
+        return dao.deleteById(id);
+    }
+
+    @Override
+    public List<Role> listUserRoles(UserQuery query) {
+        return dao.listUserRoles(query.id()).stream().map(this::newRole).collect(Collectors.toList());
+    }
+
+    private Role newRole(RoleId id) {
+        Role role = new Role();
+        role.setId(id);
+        return role;
+    }
+
+    private void notifyRoleCacheChanged() {
+        Runnable notify = () -> roleCacheChangedListeners()
+                .forEach(RoleManagementApplicationServiceImpl.CacheChangedListener::onRoleCacheChanged);
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    notify.run();
+                }
+            });
+        } else {
+            notify.run();
+        }
+    }
+
+    private List<RoleManagementApplicationServiceImpl.CacheChangedListener> roleCacheChangedListeners() {
+        return roleCacheChangedListeners == null
+                ? Collections.emptyList()
+                : roleCacheChangedListeners.getIfAvailable(Collections::emptyList);
+    }
+
+    private User toUser(CreateUserCommand command) {
+        User user = new User();
+        user.setId(command.id());
+        user.setDepartmentId(command.departmentId());
+        user.setEmail(command.email());
+        user.setMobile(command.mobile());
+        user.setTel(command.tel());
+        user.setName(command.name());
+        user.setRank(command.rank());
+        user.setPrivilege(command.privilege());
+        user.setStatus(command.status());
+        user.setRemarks(command.remarks());
+        return user;
+    }
+
+    private User toUser(ChangeUserInfoCommand command) {
+        User user = new User();
+        user.setId(command.id());
+        user.setDepartmentId(command.departmentId());
+        user.setEmail(command.email());
+        user.setMobile(command.mobile());
+        user.setTel(command.tel());
+        user.setName(command.name());
+        user.setRank(command.rank());
+        user.setPrivilege(command.privilege());
+        user.setStatus(command.status());
+        user.setRemarks(command.remarks());
+        return user;
+    }
+}

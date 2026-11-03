@@ -9,3 +9,22 @@ target/
 .idea/
 *.iml
 project.private.config.json
+logs/
+/backend/starter/pretzel-admin-starter/storage/
+coverage/
+.secrets/
+client.env
+.acceptance.env
+
+/backup/
+
+__pycache__/
+
+*.pyc
+
+dev.env
+.environment
+
+# Local lint and Python environments
+.ruff_cache/
+.venv/

@@ -1,0 +1,40 @@
+.role-page {
+    --role-ink: #111827;
+    --role-line: rgba(107, 124, 150, 0.24);
+    --role-blue: #2563eb;
+    --role-cyan: #0891b2;
+    --role-cyan-soft: rgba(8, 145, 178, 0.11);
+    --role-cyan-line: rgba(8, 145, 178, 0.24);
+    --role-green: #0f766e;
+    --role-green-soft: rgba(15, 118, 110, 0.1);
+    --role-green-line: rgba(15, 118, 110, 0.24);
+    --role-danger: #dc2626;
+    --role-filter-bg-end: rgba(248, 251, 255, 0.48);
+    --role-filter-bg-start: rgba(226, 235, 247, 0.62);
+    --role-filter-inset: color-mix(in srgb, white 56%, transparent);
+    color: var(--role-ink);
+}
+
+html[data-theme="dark"] .role-page {
+    --role-ink: #f8fbff;
+    --role-line: rgba(171, 191, 222, 0.16);
+    --role-blue: #3b82f6;
+    --role-cyan: #22d3ee;
+    --role-cyan-soft: rgba(34, 211, 238, 0.12);
+    --role-cyan-line: rgba(34, 211, 238, 0.26);
+    --role-green: #2dd4bf;
+    --role-green-soft: rgba(45, 212, 191, 0.13);
+    --role-green-line: rgba(45, 212, 191, 0.28);
+    --role-danger: #f87171;
+    --role-filter-bg-end: rgba(12, 22, 38, 0.48);
+    --role-filter-bg-start: rgba(48, 72, 110, 0.52);
+    --role-filter-inset: rgba(185, 207, 238, 0.12);
+}
+
+.role-name-icon {
+    color: var(--role-cyan);
+}
+
+.role-drag-action {
+    cursor: grab;
+}

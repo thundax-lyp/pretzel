@@ -1,0 +1,452 @@
+package com.thundax.pretzel.storage.application.service.impl;
+
+import com.thundax.pretzel.common.core.exception.BizException;
+import com.thundax.pretzel.common.core.exception.BizExceptionBoundary;
+import com.thundax.pretzel.common.core.id.UuidHelper;
+import com.thundax.pretzel.storage.application.command.AbortMultipartUploadCommand;
+import com.thundax.pretzel.storage.application.command.AddStorageReferencesCommand;
+import com.thundax.pretzel.storage.application.command.CompleteMultipartUploadCommand;
+import com.thundax.pretzel.storage.application.command.CreateStorageCommand;
+import com.thundax.pretzel.storage.application.command.InitMultipartUploadCommand;
+import com.thundax.pretzel.storage.application.command.UploadMultipartPartCommand;
+import com.thundax.pretzel.storage.application.service.MultipartUploadApplicationService;
+import com.thundax.pretzel.storage.application.service.StorageApplicationService;
+import com.thundax.pretzel.storage.domain.object.model.entity.MultipartUploadPart;
+import com.thundax.pretzel.storage.domain.object.model.entity.MultipartUploadSession;
+import com.thundax.pretzel.storage.domain.object.model.entity.StoredObject;
+import com.thundax.pretzel.storage.domain.object.model.entity.StoredObjectReference;
+import com.thundax.pretzel.storage.domain.object.model.enums.MultipartUploadStatus;
+import com.thundax.pretzel.storage.domain.object.model.enums.StoredObjectReferenceStatus;
+import com.thundax.pretzel.storage.domain.object.model.enums.StoredObjectStatus;
+import com.thundax.pretzel.storage.domain.object.model.valueobject.MultipartUploadId;
+import com.thundax.pretzel.storage.domain.object.repository.MultipartUploadRepository;
+import com.thundax.pretzel.storage.domain.object.repository.StoredObjectContentRepository;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.SequenceInputStream;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Vector;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+
+@Service
+@Transactional(readOnly = true)
+@BizExceptionBoundary
+public class MultipartUploadApplicationServiceImpl implements MultipartUploadApplicationService {
+    private static final String EXTENSION_SEPARATOR = ".";
+    private static final long MAX_MULTIPART_UPLOAD_SIZE = 20L * 1024L * 1024L;
+
+    private final MultipartUploadRepository multipartUploadRepository;
+    private final StoredObjectContentRepository storedObjectContentRepository;
+    private final StorageApplicationService storageApplicationService;
+
+    public MultipartUploadApplicationServiceImpl(
+            MultipartUploadRepository multipartUploadRepository,
+            StoredObjectContentRepository storedObjectContentRepository,
+            StorageApplicationService storageApplicationService) {
+        this.multipartUploadRepository = multipartUploadRepository;
+        this.storedObjectContentRepository = storedObjectContentRepository;
+        this.storageApplicationService = storageApplicationService;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MultipartUploadSession init(InitMultipartUploadCommand command) {
+        MultipartUploadSession session = toMultipartSession(command);
+        if (session == null) {
+            throw new BizException("Multipart upload session can not be null");
+        }
+        if (session.getOwnerType() == null || StringUtils.isBlank(session.getOwnerId())) {
+            throw new BizException("Multipart upload owner can not be empty");
+        }
+        validateMultipartSize(session);
+        if (StringUtils.isBlank(session.getUploadId())) {
+            session.setUploadId(UuidHelper.compact());
+        }
+        if (StringUtils.isBlank(session.getObjectKey())) {
+            session.setObjectKey(defaultObjectKey(session));
+        }
+        if (StringUtils.isBlank(session.getProviderUploadId())) {
+            session.setProviderUploadId(session.getUploadId());
+        }
+        session.setUploadStatus(MultipartUploadStatus.INITIATED);
+        session.setUploadedPartCount(0);
+        session.setId(multipartUploadRepository.insertMultipartSession(session));
+        return session;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MultipartUploadPart uploadPart(UploadMultipartPartCommand command) {
+        MultipartUploadPart part = toMultipartPart(command);
+        if (part == null || command == null || command.inputStream() == null) {
+            throw new BizException("Multipart upload part content can not be null");
+        }
+        if (part == null || StringUtils.isBlank(part.getUploadId())) {
+            throw new BizException("Multipart upload part can not be null");
+        }
+        if (part.getPartNumber() == null || part.getPartNumber() <= 0) {
+            throw new BizException("Multipart upload part number must start from 1");
+        }
+        MultipartUploadSession session = requireActiveMultipartSession(part.getUploadIdRef());
+        validateMultipartPart(session, part);
+        if (multipartUploadRepository.getMultipartPart(part.getUploadIdRef(), part.getPartNumberRef()) != null) {
+            throw new BizException("Multipart upload part already exists: " + part.getPartNumber());
+        }
+        part.setPartPath(resolveMultipartPartObjectKey(session, part.getPartNumber()));
+        persistMultipartPartContent(part, command.inputStream());
+        part.setId(multipartUploadRepository.insertMultipartPart(part));
+
+        session.setUploadStatus(MultipartUploadStatus.UPLOADING);
+        session.setUploadedPartCount(multipartUploadRepository.countMultipartParts(session.getUploadIdRef()));
+        multipartUploadRepository.updateMultipartSession(session);
+        return part;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public StoredObject complete(CompleteMultipartUploadCommand command) {
+        MultipartUploadId uploadId = command == null ? null : command.uploadId();
+        MultipartUploadSession session = requireActiveMultipartSession(uploadId);
+        claimCompleting(session);
+        List<MultipartUploadPart> parts = multipartUploadRepository.listMultipartParts(uploadId);
+        validateMultipartParts(session, parts);
+
+        StoredObject storage = toCompletedStorage(session, command);
+        persistCompletedMultipartStorage(session, parts, storage);
+        StoredObject createdStorage = storageApplicationService.create(toCreateStorageCommand(storage));
+        storage.setId(createdStorage == null ? null : createdStorage.getId());
+
+        storageApplicationService.addReferences(new AddStorageReferencesCommand(
+                List.of(new StoredObjectReference(storage.getId(), session.getOwnerRef(), null))));
+        storage.setReferenceStatus(StoredObjectReferenceStatus.REFERENCED);
+        Instant now = Instant.now();
+        session.setUploadStatus(MultipartUploadStatus.COMPLETED);
+        session.setUploadedPartCount(parts.size());
+        session.setCompletedDate(now);
+        multipartUploadRepository.updateMultipartSession(session);
+        multipartUploadRepository.deleteByUploadId(session.getUploadIdRef());
+        afterCommit(() -> parts.forEach(this::deleteMultipartPartContent));
+        return storage;
+    }
+
+    private void persistMultipartPartContent(MultipartUploadPart part, InputStream inputStream) {
+        try (InputStream stream = inputStream) {
+            StoredObject partStorage = new StoredObject();
+            partStorage.setObjectKey(part.getPartPath());
+            StoredObject savedStorage = storedObjectContentRepository.save(
+                    partStorage, StorageInputStreamLimiter.limit(stream, part.getSize()));
+            deleteOnRollback(savedStorage);
+            if (!part.getSize().equals(savedStorage.getSize())) {
+                deleteMultipartPartContent(part);
+                throw new BizException("Multipart upload part size mismatch: " + part.getPartNumber());
+            }
+        } catch (IOException exception) {
+            throw new BizException("Multipart upload part save failed: " + exception.getMessage());
+        }
+    }
+
+    private void deleteMultipartPartContent(MultipartUploadPart part) {
+        try {
+            StoredObject partStorage = new StoredObject();
+            partStorage.setObjectKey(part.getPartPath());
+            storedObjectContentRepository.delete(partStorage);
+        } catch (IOException ignored) {
+            // best-effort cleanup for rejected multipart parts
+        }
+    }
+
+    private void deleteOnRollback(StoredObject object) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCompletion(int status) {
+                    if (status == STATUS_ROLLED_BACK) {
+                        try {
+                            storedObjectContentRepository.delete(object);
+                        } catch (IOException exception) {
+                            throw new BizException(
+                                    "STORAGE-90006",
+                                    "storage.rollback.cleanup-failed",
+                                    "Multipart rollback cleanup failed",
+                                    exception);
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    private void afterCommit(Runnable action) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    action.run();
+                }
+            });
+        } else {
+            action.run();
+        }
+    }
+
+    private void persistCompletedMultipartStorage(
+            MultipartUploadSession session, List<MultipartUploadPart> parts, StoredObject storage) {
+        List<InputStream> streams = new ArrayList<>();
+        try (InputStream mergedStream = mergeParts(session, parts, streams)) {
+            StoredObject mergedStorage = storedObjectContentRepository.save(
+                    storage, StorageInputStreamLimiter.limit(mergedStream, session.getTotalSize()));
+            deleteOnRollback(mergedStorage);
+            if (!session.getTotalSize().equals(mergedStorage.getSize())) {
+                storedObjectContentRepository.delete(mergedStorage);
+                throw new BizException("Multipart upload total size mismatch");
+            }
+            storage.setObjectKey(mergedStorage.getObjectKey());
+            storage.setBucketName(mergedStorage.getBucketName());
+            storage.setSize(mergedStorage.getSize());
+            storage.setAccessEndpoint(mergedStorage.getAccessEndpoint());
+        } catch (IOException exception) {
+            throw new BizException("Multipart complete save failed: " + exception.getMessage());
+        } finally {
+            closePartStreams(streams);
+        }
+    }
+
+    private void closePartStreams(List<InputStream> streams) {
+        for (InputStream stream : streams) {
+            if (stream == null) {
+                continue;
+            }
+            try {
+                stream.close();
+            } catch (IOException ignored) {
+                // ignore
+            }
+        }
+    }
+
+    private InputStream mergeParts(
+            MultipartUploadSession session, List<MultipartUploadPart> parts, List<InputStream> streams)
+            throws IOException {
+        if (parts == null || parts.isEmpty()) {
+            return InputStream.nullInputStream();
+        }
+        for (MultipartUploadPart part : parts) {
+            if (part == null || StringUtils.isBlank(part.getPartPath())) {
+                throw new BizException("Multipart upload part path can not be empty: " + session.getUploadId());
+            }
+            StoredObject partStorage = new StoredObject();
+            partStorage.setObjectKey(part.getPartPath());
+            streams.add(storedObjectContentRepository.open(partStorage));
+        }
+        if (streams.isEmpty()) {
+            return InputStream.nullInputStream();
+        }
+        return new SequenceInputStream(new Vector<>(streams).elements());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public int abort(AbortMultipartUploadCommand command) {
+        MultipartUploadSession session = requireActiveMultipartSession(command == null ? null : command.uploadId());
+        List<MultipartUploadPart> parts = multipartUploadRepository.listMultipartParts(session.getUploadIdRef());
+        afterCommit(() -> parts.forEach(this::deleteMultipartPartContent));
+        multipartUploadRepository.deleteByUploadId(session.getUploadIdRef());
+        Instant now = Instant.now();
+        session.setUploadStatus(MultipartUploadStatus.ABORTED);
+        session.setAbortedDate(now);
+        return multipartUploadRepository.updateMultipartSession(session);
+    }
+
+    private MultipartUploadSession requireActiveMultipartSession(MultipartUploadId uploadId) {
+        if (uploadId == null) {
+            throw new BizException("Multipart upload id can not be empty");
+        }
+        MultipartUploadSession session = multipartUploadRepository.getMultipartSessionByUploadId(uploadId);
+        if (session == null) {
+            throw new BizException("Multipart upload session not found: " + uploadId.value());
+        }
+        if (MultipartUploadStatus.COMPLETED == session.getUploadStatus()
+                || MultipartUploadStatus.ABORTED == session.getUploadStatus()
+                || MultipartUploadStatus.COMPLETING == session.getUploadStatus()) {
+            throw new BizException("Multipart upload session is closed: " + uploadId.value());
+        }
+        return session;
+    }
+
+    private void claimCompleting(MultipartUploadSession session) {
+        int updated = multipartUploadRepository.updateMultipartSessionStatus(
+                session.getUploadIdRef(), session.getUploadStatus(), MultipartUploadStatus.COMPLETING);
+        if (updated != 1) {
+            throw new BizException("Multipart upload session status conflict: " + session.getUploadId());
+        }
+        session.setUploadStatus(MultipartUploadStatus.COMPLETING);
+    }
+
+    private void validateMultipartParts(MultipartUploadSession session, List<MultipartUploadPart> parts) {
+        if (parts == null || parts.isEmpty()) {
+            throw new BizException("Multipart upload has no parts: " + session.getUploadId());
+        }
+        int expectedPartCount = expectedPartCount(session);
+        if (expectedPartCount > 0 && parts.size() != expectedPartCount) {
+            throw new BizException("Multipart upload parts are incomplete: " + session.getUploadId());
+        }
+
+        List<Integer> partNumbers = new ArrayList<>();
+        for (MultipartUploadPart part : parts) {
+            partNumbers.add(part.getPartNumber());
+        }
+        for (int i = 1; i <= expectedPartCount; i++) {
+            if (!partNumbers.contains(i)) {
+                throw new BizException("Multipart upload part is missing: " + i);
+            }
+        }
+    }
+
+    private int expectedPartCount(MultipartUploadSession session) {
+        Long totalSize = session.getTotalSize();
+        Long partSize = session.getPartSize();
+        if (totalSize == null || totalSize <= 0 || partSize == null || partSize <= 0) {
+            return 0;
+        }
+        return (int) ((totalSize + partSize - 1) / partSize);
+    }
+
+    private void validateMultipartSize(MultipartUploadSession session) {
+        if (session.getTotalSize() == null || session.getTotalSize() <= 0L) {
+            throw new BizException("Multipart upload total size must be greater than 0");
+        }
+        if (session.getTotalSize() > MAX_MULTIPART_UPLOAD_SIZE) {
+            throw new BizException("Multipart upload total size exceeds limit");
+        }
+        if (session.getPartSize() == null || session.getPartSize() <= 0L) {
+            throw new BizException("Multipart upload part size must be greater than 0");
+        }
+        if (session.getPartSize() > session.getTotalSize()) {
+            throw new BizException("Multipart upload part size can not exceed total size");
+        }
+    }
+
+    private void validateMultipartPart(MultipartUploadSession session, MultipartUploadPart part) {
+        if (part.getSize() == null || part.getSize() <= 0L) {
+            throw new BizException("Multipart upload part size must be greater than 0");
+        }
+        int expectedPartCount = expectedPartCount(session);
+        if (expectedPartCount <= 0 || part.getPartNumber() > expectedPartCount) {
+            throw new BizException("Multipart upload part number exceeds expected count: " + part.getPartNumber());
+        }
+        long expectedSize = expectedPartSize(session, part.getPartNumber(), expectedPartCount);
+        if (part.getSize() != expectedSize) {
+            throw new BizException("Multipart upload part size mismatch: " + part.getPartNumber());
+        }
+    }
+
+    private long expectedPartSize(MultipartUploadSession session, int partNumber, int expectedPartCount) {
+        if (partNumber < expectedPartCount) {
+            return session.getPartSize();
+        }
+        long remaining = session.getTotalSize() % session.getPartSize();
+        return remaining == 0L ? session.getPartSize() : remaining;
+    }
+
+    private StoredObject toCompletedStorage(MultipartUploadSession session, CompleteMultipartUploadCommand command) {
+        StoredObject storage = new StoredObject();
+        storage.setName(baseName(session.getOriginalFilename()));
+        storage.setExtendName(extension(session.getOriginalFilename()));
+        storage.setMimeTypeRef(session.getMimeTypeRef());
+        storage.setBucketNameRef(
+                command == null || command.bucketName() == null ? session.getBucketNameRef() : command.bucketName());
+        storage.setObjectKeyRef(
+                command == null || command.objectKey() == null ? session.getObjectKeyRef() : command.objectKey());
+        storage.setSizeRef(command == null || command.size() == null ? session.getTotalSizeRef() : command.size());
+        storage.setAccessEndpoint(command == null ? null : command.accessEndpoint());
+        storage.setObjectStatus(StoredObjectStatus.ACTIVE);
+        storage.setReferenceStatus(StoredObjectReferenceStatus.UNREFERENCED);
+        return storage;
+    }
+
+    private MultipartUploadSession toMultipartSession(InitMultipartUploadCommand command) {
+        if (command == null) {
+            return null;
+        }
+        MultipartUploadSession session = new MultipartUploadSession();
+        session.setUploadIdRef(command.uploadId());
+        session.setOwnerRef(command.ownerRef());
+        session.setBusinessType(command.businessType());
+        session.setOriginalFilename(command.originalFilename());
+        session.setMimeTypeRef(command.mimeType());
+        session.setBucketNameRef(command.bucketName());
+        session.setObjectKeyRef(command.objectKey());
+        session.setProviderUploadId(
+                command.providerUploadId() == null
+                        ? null
+                        : command.providerUploadId().value());
+        session.setTotalSizeRef(command.totalSize());
+        session.setPartSizeRef(command.partSize());
+        return session;
+    }
+
+    private CreateStorageCommand toCreateStorageCommand(StoredObject storage) {
+        return new CreateStorageCommand(
+                storage == null ? null : storage.getId(),
+                storage == null ? null : storage.getOriginalFilename(),
+                storage == null ? null : storage.getContentType(),
+                storage == null ? null : storage.getName(),
+                storage == null ? null : storage.getExtendName(),
+                storage == null ? null : storage.getMimeTypeRef(),
+                null,
+                storage == null ? null : storage.getBucketNameRef(),
+                storage == null ? null : storage.getObjectKeyRef(),
+                storage == null ? null : storage.getSizeRef(),
+                storage == null ? null : storage.getAccessEndpoint(),
+                storage == null ? null : storage.getObjectStatus(),
+                storage == null ? null : storage.getReferenceStatus(),
+                storage == null ? null : storage.getRemarks());
+    }
+
+    private MultipartUploadPart toMultipartPart(UploadMultipartPartCommand command) {
+        if (command == null) {
+            return null;
+        }
+        MultipartUploadPart part = new MultipartUploadPart();
+        part.setUploadIdRef(command.uploadId());
+        part.setPartNumberRef(command.partNumber());
+        part.setEtag(command.etag());
+        part.setSizeRef(command.size());
+        return part;
+    }
+
+    private String resolveMultipartPartObjectKey(MultipartUploadSession session, Integer partNumber) {
+        return "multipart/" + session.getUploadId() + "/" + partNumber + ".part";
+    }
+
+    private String baseName(String originalFilename) {
+        if (StringUtils.isBlank(originalFilename)) {
+            return null;
+        }
+        int index = originalFilename.lastIndexOf(EXTENSION_SEPARATOR);
+        return index < 0 ? originalFilename : originalFilename.substring(0, index);
+    }
+
+    private String extension(String originalFilename) {
+        if (StringUtils.isBlank(originalFilename)) {
+            return null;
+        }
+        int index = originalFilename.lastIndexOf(EXTENSION_SEPARATOR);
+        return index < 0 ? null : StringUtils.lowerCase(originalFilename.substring(index + 1));
+    }
+
+    private String defaultObjectKey(MultipartUploadSession session) {
+        String extension = extension(session.getOriginalFilename());
+        return "multipart/"
+                + session.getUploadId()
+                + "/"
+                + UuidHelper.compact()
+                + (StringUtils.isBlank(extension) ? "" : EXTENSION_SEPARATOR + extension);
+    }
+}

@@ -1,0 +1,10 @@
+package com.thundax.pretzel.system.application.core.command;
+
+import com.thundax.pretzel.system.domain.core.model.enums.RolePrivilege;
+import com.thundax.pretzel.system.domain.core.model.enums.RoleStatus;
+import com.thundax.pretzel.system.domain.core.model.valueobject.MenuId;
+import com.thundax.pretzel.system.domain.core.model.valueobject.RoleId;
+import java.util.List;
+
+public record ChangeRoleInfoCommand(
+        RoleId id, String name, RolePrivilege privilege, RoleStatus status, String remarks, List<MenuId> menuIdList) {}

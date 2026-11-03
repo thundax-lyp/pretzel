@@ -1,0 +1,12 @@
+package com.thundax.pretzel.common.web.exception;
+
+public class SystemException extends ApiException {
+
+    public SystemException() {
+        super(WebErrorCode.SYSTEM_ERROR);
+    }
+
+    public SystemException(String message) {
+        super(WebErrorCode.SYSTEM_ERROR, message);
+    }
+}

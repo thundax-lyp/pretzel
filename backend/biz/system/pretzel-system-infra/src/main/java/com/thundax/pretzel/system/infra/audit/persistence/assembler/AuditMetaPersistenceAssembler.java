@@ -1,0 +1,58 @@
+package com.thundax.pretzel.system.infra.audit.persistence.assembler;
+
+import com.thundax.pretzel.common.audit.model.enums.AuditAction;
+import com.thundax.pretzel.system.domain.audit.codec.AuditLogIdCodec;
+import com.thundax.pretzel.system.domain.audit.codec.AuditMetaIdCodec;
+import com.thundax.pretzel.system.domain.audit.model.entity.AuditMeta;
+import com.thundax.pretzel.system.domain.audit.model.enums.AuditOperatorType;
+import com.thundax.pretzel.system.domain.audit.model.valueobject.AuditObjectRef;
+import com.thundax.pretzel.system.domain.audit.model.valueobject.AuditOperatorRef;
+import com.thundax.pretzel.system.infra.audit.persistence.dataobject.AuditMetaDO;
+
+public final class AuditMetaPersistenceAssembler {
+
+    private AuditMetaPersistenceAssembler() {}
+
+    public static AuditMetaDO toObject(AuditMeta entity) {
+        if (entity == null) {
+            return null;
+        }
+        AuditMetaDO dataObject = new AuditMetaDO();
+        dataObject.setId(AuditMetaIdCodec.toValue(entity.getId()));
+        dataObject.setObjectType(entity.getObjectType());
+        dataObject.setObjectId(entity.getObjectId());
+        dataObject.setVersion(entity.getVersion());
+        dataObject.setLastLogId(AuditLogIdCodec.toValue(entity.getLastLogId()));
+        dataObject.setLastAction(
+                entity.getLastAction() == null ? null : entity.getLastAction().value());
+        dataObject.setLastOperatorType(
+                entity.getLastOperatorType() == null
+                        ? null
+                        : entity.getLastOperatorType().value());
+        dataObject.setLastOperatorId(entity.getLastOperatorId());
+        dataObject.setLastOperatorName(entity.getLastOperatorName());
+        dataObject.setLastOperatedAt(entity.getLastOperatedAt());
+        dataObject.setCreatedLogId(AuditLogIdCodec.toValue(entity.getCreatedLogId()));
+        dataObject.setCreatedAt(entity.getCreatedAt());
+        return dataObject;
+    }
+
+    public static AuditMeta toDomain(AuditMetaDO dataObject) {
+        if (dataObject == null) {
+            return null;
+        }
+        AuditMeta entity = new AuditMeta();
+        entity.setId(AuditMetaIdCodec.toDomain(dataObject.getId()));
+        entity.setObjectRef(AuditObjectRef.of(dataObject.getObjectType(), dataObject.getObjectId()));
+        entity.setVersion(dataObject.getVersion());
+        entity.setLastLogId(AuditLogIdCodec.toDomain(dataObject.getLastLogId()));
+        entity.setLastAction(AuditAction.from(dataObject.getLastAction()));
+        entity.setLastOperatorRef(AuditOperatorRef.of(
+                AuditOperatorType.from(dataObject.getLastOperatorType()), dataObject.getLastOperatorId()));
+        entity.setLastOperatorName(dataObject.getLastOperatorName());
+        entity.setLastOperatedAt(dataObject.getLastOperatedAt());
+        entity.setCreatedLogId(AuditLogIdCodec.toDomain(dataObject.getCreatedLogId()));
+        entity.setCreatedAt(dataObject.getCreatedAt());
+        return entity;
+    }
+}

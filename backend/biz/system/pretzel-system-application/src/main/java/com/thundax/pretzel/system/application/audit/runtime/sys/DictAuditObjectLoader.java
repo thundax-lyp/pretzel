@@ -1,0 +1,26 @@
+package com.thundax.pretzel.system.application.audit.runtime.sys;
+
+import com.thundax.pretzel.common.audit.runtime.AuditObjectLoader;
+import com.thundax.pretzel.system.application.core.service.DictionaryManagementApplicationService;
+import com.thundax.pretzel.system.domain.core.codec.DictIdCodec;
+import org.springframework.stereotype.Component;
+
+@Component
+public class DictAuditObjectLoader implements AuditObjectLoader {
+
+    private final DictionaryManagementApplicationService dictService;
+
+    public DictAuditObjectLoader(DictionaryManagementApplicationService dictService) {
+        this.dictService = dictService;
+    }
+
+    @Override
+    public String objectType() {
+        return "Dict";
+    }
+
+    @Override
+    public Object load(String objectId) {
+        return dictService.get(DictIdCodec.toDomain(Long.valueOf(objectId)));
+    }
+}

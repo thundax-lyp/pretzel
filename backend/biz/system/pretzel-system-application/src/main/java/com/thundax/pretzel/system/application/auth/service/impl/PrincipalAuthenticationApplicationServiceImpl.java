@@ -1,0 +1,142 @@
+package com.thundax.pretzel.system.application.auth.service.impl;
+
+import com.thundax.pretzel.common.core.exception.BizException;
+import com.thundax.pretzel.common.core.exception.BizExceptionBoundary;
+import com.thundax.pretzel.system.application.auth.command.AuthenticateIdentityCommand;
+import com.thundax.pretzel.system.application.auth.command.AuthenticatePasswordCommand;
+import com.thundax.pretzel.system.application.auth.command.ChangePrincipalCredentialVerifyStateCommand;
+import com.thundax.pretzel.system.application.auth.command.RecordPrincipalCredentialFailureCommand;
+import com.thundax.pretzel.system.application.auth.exception.InvalidPasswordException;
+import com.thundax.pretzel.system.application.auth.query.PrincipalCredentialQuery;
+import com.thundax.pretzel.system.application.auth.query.PrincipalIdentityQuery;
+import com.thundax.pretzel.system.application.auth.service.PrincipalAuthenticationApplicationService;
+import com.thundax.pretzel.system.application.auth.service.PrincipalCredentialApplicationService;
+import com.thundax.pretzel.system.application.auth.service.PrincipalIdentityApplicationService;
+import com.thundax.pretzel.system.application.auth.service.dto.PrincipalPasswordPolicyDTO;
+import com.thundax.pretzel.system.application.auth.util.PasswordHelper;
+import com.thundax.pretzel.system.domain.auth.model.entity.PrincipalCredential;
+import com.thundax.pretzel.system.domain.auth.model.entity.PrincipalIdentity;
+import com.thundax.pretzel.system.domain.auth.model.enums.PrincipalCredentialStatus;
+import com.thundax.pretzel.system.domain.auth.model.enums.PrincipalCredentialType;
+import com.thundax.pretzel.system.domain.auth.model.valueobject.PrincipalIdentityId;
+import java.time.Duration;
+import java.time.Instant;
+import org.springframework.stereotype.Service;
+
+@Service
+@BizExceptionBoundary
+public class PrincipalAuthenticationApplicationServiceImpl implements PrincipalAuthenticationApplicationService {
+
+    private final PrincipalIdentityApplicationService principalIdentityService;
+    private final PrincipalCredentialApplicationService principalCredentialService;
+
+    public PrincipalAuthenticationApplicationServiceImpl(
+            PrincipalIdentityApplicationService principalIdentityService,
+            PrincipalCredentialApplicationService principalCredentialService) {
+        this.principalIdentityService = principalIdentityService;
+        this.principalCredentialService = principalCredentialService;
+    }
+
+    @Override
+    public PrincipalIdentity authenticateIdentity(AuthenticateIdentityCommand command) {
+        PrincipalIdentity identity = principalIdentityService.get(identityQuery(command));
+        if (identity == null || !identity.isEnabled()) {
+            throw new InvalidPasswordException();
+        }
+        return identity;
+    }
+
+    @Override
+    public PrincipalIdentity authenticatePassword(AuthenticatePasswordCommand command) {
+        PrincipalIdentity identity =
+                authenticateIdentity(new AuthenticateIdentityCommand(command.identityType(), command.identityValue()));
+        PrincipalCredential credential =
+                principalCredentialService.get(credentialQuery(identity.getId(), command.credentialType()));
+        if (credential == null) {
+            throw new InvalidPasswordException();
+        }
+        PrincipalPasswordPolicyDTO passwordPolicy =
+                command.passwordPolicy() == null ? PrincipalPasswordPolicyDTO.disabled() : command.passwordPolicy();
+        validateCredential(credential, command.plainPassword(), passwordPolicy);
+        return identity;
+    }
+
+    private void validateCredential(
+            PrincipalCredential credential, String plainPassword, PrincipalPasswordPolicyDTO passwordPolicy) {
+        Instant now = Instant.now();
+        if (credential.isLocked(now)) {
+            throw new BizException("帐号已被锁定，请等待（" + lockedExpireSeconds(credential, passwordPolicy, now) + "）秒后自动解锁!");
+        }
+        if (credential.isExpired(now)) {
+            throw new BizException("认证凭据已过期");
+        }
+        if (credential.getStatus() == PrincipalCredentialStatus.LOCKED) {
+            credential.unlock();
+            credential.setFailedCount(0);
+            principalCredentialService.changeVerifyState(verifyStateCommand(credential));
+        }
+        if (!credential.isActive()) {
+            throw new BizException("认证凭据不可用");
+        }
+
+        if (PasswordHelper.validate(plainPassword, credential.getCredentialValue())) {
+            credential.markVerified(now);
+            principalCredentialService.changeVerifyState(verifyStateCommand(credential));
+            return;
+        }
+
+        if (!passwordPolicy.isLockEnabled()) {
+            throw new InvalidPasswordException();
+        }
+
+        if (credential.getFailedLimit() <= 0) {
+            credential.setFailedLimit(passwordPolicy.getMaxFailedCount());
+        }
+        Instant lockedUntil = now.plusSeconds(passwordPolicy.getLockSeconds());
+        credential.setLockedUntil(lockedUntil);
+        PrincipalCredential latestCredential = principalCredentialService.recordFailure(failureCommand(credential));
+        if (latestCredential == null) {
+            throw new InvalidPasswordException();
+        }
+        if (latestCredential.isLocked(now)) {
+            throw new BizException("帐号已被锁定，请等待（" + passwordPolicy.getLockSeconds() + "）秒后自动解锁!");
+        }
+        throw new BizException("密码输入错误"
+                + latestCredential.getFailedLimit()
+                + "次后将被锁定，剩余"
+                + Math.max(latestCredential.getFailedLimit() - latestCredential.getFailedCount(), 0)
+                + "次");
+    }
+
+    private PrincipalIdentityQuery identityQuery(AuthenticateIdentityCommand command) {
+        return new PrincipalIdentityQuery(null, command.identityType(), command.identityValue(), null, null);
+    }
+
+    private PrincipalCredentialQuery credentialQuery(
+            PrincipalIdentityId identityId, PrincipalCredentialType credentialType) {
+        return new PrincipalCredentialQuery(null, identityId, credentialType, null, null);
+    }
+
+    private ChangePrincipalCredentialVerifyStateCommand verifyStateCommand(PrincipalCredential credential) {
+        return new ChangePrincipalCredentialVerifyStateCommand(
+                credential.getId(),
+                credential.getStatus(),
+                credential.getFailedCount(),
+                credential.getLockedUntil(),
+                credential.getLastVerifiedAt());
+    }
+
+    private RecordPrincipalCredentialFailureCommand failureCommand(PrincipalCredential credential) {
+        return new RecordPrincipalCredentialFailureCommand(
+                credential.getId(), credential.getFailedLimit(), credential.getLockedUntil());
+    }
+
+    private long lockedExpireSeconds(
+            PrincipalCredential credential, PrincipalPasswordPolicyDTO passwordPolicy, Instant now) {
+        if (credential.getLockedUntil() == null) {
+            return passwordPolicy.getLockSeconds();
+        }
+        long remaining = Duration.between(now, credential.getLockedUntil()).getSeconds();
+        return Math.max(remaining, 0L);
+    }
+}

@@ -1,0 +1,381 @@
+package com.thundax.pretzel.common.test.architecture;
+
+import static com.thundax.pretzel.common.test.architecture.ArchitectureAssertions.assertTrue;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
+import javax.xml.parsers.DocumentBuilderFactory;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+
+public final class RepositoryArchitectureRuleSupport {
+
+    private static final Set<String> SERVER_GROUPS = new HashSet<String>(Arrays.asList("common", "biz", "starter"));
+    private static final Set<String> DOMAIN_LAYERS =
+            new HashSet<String>(Arrays.asList("interface", "application", "domain", "infra", "facade"));
+    private static final Set<String> STARTER_MODULES =
+            new HashSet<String>(Arrays.asList("pretzel-admin-starter", "pretzel-portal-starter"));
+    private static final Pattern PACKAGE_PATTERN = Pattern.compile("(?m)^\\s*package\\s+([A-Za-z0-9_.]+)\\s*;");
+    private static final Set<String> COMMON_ONLY_LAYERS = new HashSet<String>(Arrays.asList("domain", "facade"));
+
+    private RepositoryArchitectureRuleSupport() {}
+
+    public static void assertServerModuleLayout() throws IOException {
+        Path root = ArchitectureSourceSupport.repositoryRoot();
+        Path servers = root.resolve("backend");
+        List<String> violations = new ArrayList<String>();
+
+        try (Stream<Path> paths = Files.list(servers)) {
+            paths.filter(Files::isDirectory)
+                    .filter(path -> !isIgnoredRootDirectory(path))
+                    .forEach(path -> {
+                        String name = path.getFileName().toString();
+                        if (!SERVER_GROUPS.contains(name)) {
+                            violations.add("backend/" + name);
+                        }
+                    });
+        }
+
+        assertTrue("Server module groups must be common, biz, starter: " + violations, violations.isEmpty());
+    }
+
+    private static boolean isIgnoredRootDirectory(Path path) {
+        String name = path.getFileName().toString();
+        return "target".equals(name) || name.startsWith(".");
+    }
+
+    public static void assertMavenModuleNames() throws IOException {
+        Path root = ArchitectureSourceSupport.repositoryRoot();
+        List<String> violations = new ArrayList<String>();
+
+        assertCommonModuleNames(root, violations);
+        assertDomainModuleNames(root, violations);
+        assertStarterModuleNames(root, violations);
+
+        assertTrue("Maven modules must follow repository naming rules: " + violations, violations.isEmpty());
+    }
+
+    public static void assertJavaPackagesMatchModuleLayout() throws IOException {
+        Path root = ArchitectureSourceSupport.repositoryRoot();
+        List<String> violations = new ArrayList<String>();
+
+        try (Stream<Path> paths = Files.walk(root.resolve("backend"))) {
+            paths.filter(path -> path.getFileName().toString().endsWith(".java"))
+                    .filter(path ->
+                            ArchitectureSourceSupport.normalizePath(path).contains("/src/main/java/"))
+                    .forEach(path -> collectPackageLayoutViolations(root, path, violations));
+        }
+
+        assertTrue("Java package declarations must match module layout: " + violations, violations.isEmpty());
+    }
+
+    public static void assertMavenDependenciesStayInsideAllowedBoundaries() throws IOException {
+        Path root = ArchitectureSourceSupport.repositoryRoot();
+        List<String> violations = new ArrayList<String>();
+
+        try (Stream<Path> paths = Files.walk(root.resolve("backend"))) {
+            paths.filter(path -> "pom.xml".equals(path.getFileName().toString()))
+                    .filter(path ->
+                            !ArchitectureSourceSupport.normalizePath(path).contains("/target/"))
+                    .forEach(path -> collectPomDependencyViolations(root, path, violations));
+        }
+
+        assertTrue(
+                "Maven dependencies must stay inside allowed module boundaries: " + violations, violations.isEmpty());
+    }
+
+    private static void assertCommonModuleNames(Path root, List<String> violations) throws IOException {
+        Path common = root.resolve("backend/common");
+        try (Stream<Path> paths = Files.list(common)) {
+            paths.filter(Files::isDirectory)
+                    .filter(path -> !"target".equals(path.getFileName().toString()))
+                    .forEach(path -> {
+                        String name = path.getFileName().toString();
+                        if (!name.startsWith("pretzel-common-")) {
+                            violations.add(ArchitectureSourceSupport.repositoryPath(root, path));
+                        }
+                    });
+        }
+    }
+
+    private static void assertDomainModuleNames(Path root, List<String> violations) throws IOException {
+        Path biz = root.resolve("backend/biz");
+        try (Stream<Path> domains = Files.list(biz)) {
+            domains.filter(Files::isDirectory)
+                    .filter(path -> !"target".equals(path.getFileName().toString()))
+                    .forEach(domainPath -> collectDomainModuleNameViolations(root, domainPath, violations));
+        }
+    }
+
+    private static void assertStarterModuleNames(Path root, List<String> violations) throws IOException {
+        Path starter = root.resolve("backend/starter");
+        try (Stream<Path> paths = Files.list(starter)) {
+            paths.filter(Files::isDirectory)
+                    .filter(path -> !"target".equals(path.getFileName().toString()))
+                    .forEach(path -> {
+                        String name = path.getFileName().toString();
+                        if (!STARTER_MODULES.contains(name)) {
+                            violations.add(ArchitectureSourceSupport.repositoryPath(root, path));
+                        }
+                    });
+        }
+    }
+
+    private static void collectDomainModuleNameViolations(Path root, Path domainPath, List<String> violations) {
+        String domain = domainPath.getFileName().toString();
+        try (Stream<Path> modules = Files.list(domainPath)) {
+            modules.filter(Files::isDirectory)
+                    .filter(path -> !"target".equals(path.getFileName().toString()))
+                    .forEach(modulePath -> {
+                        String name = modulePath.getFileName().toString();
+                        String prefix = "pretzel-" + domain + "-";
+                        if (!name.startsWith(prefix) || !DOMAIN_LAYERS.contains(name.substring(prefix.length()))) {
+                            violations.add(ArchitectureSourceSupport.repositoryPath(root, modulePath));
+                        }
+                    });
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static void collectPackageLayoutViolations(Path root, Path source, List<String> violations) {
+        String packageName = packageName(source);
+        String normalized = ArchitectureSourceSupport.normalizePath(root.relativize(source));
+        String expectedPrefix = expectedPackagePrefix(normalized);
+        if (expectedPrefix.length() > 0 && !packageName.startsWith(expectedPrefix)) {
+            violations.add(normalized + " package=" + packageName + " expected=" + expectedPrefix);
+        }
+    }
+
+    private static String expectedPackagePrefix(String path) {
+        String[] segments = path.split("/");
+        if (segments.length < 7 || !"backend".equals(segments[0])) {
+            return "";
+        }
+        if ("common".equals(segments[1]) && segments[2].startsWith("pretzel-common-")) {
+            String capability =
+                    segments[2].substring("pretzel-common-".length()).replace("-", "");
+            return "com.thundax.pretzel.common." + capability;
+        }
+        if ("biz".equals(segments[1]) && segments.length > 3) {
+            String domain = segments[2];
+            String module = segments[3];
+            String prefix = "pretzel-" + domain + "-";
+            if (module.startsWith(prefix)) {
+                String layer = module.substring(prefix.length());
+                return "interface".equals(layer)
+                        ? "com.thundax.pretzel." + domain + ".interfaces"
+                        : "com.thundax.pretzel." + domain + "." + layer;
+            }
+        }
+        if ("starter".equals(segments[1]) && segments[2].startsWith("pretzel-")) {
+            if ("pretzel-admin-starter".equals(segments[2])) {
+                return "com.thundax.pretzel.starter.admin";
+            }
+            if ("pretzel-portal-starter".equals(segments[2])) {
+                return "com.thundax.pretzel.starter.portal";
+            }
+        }
+        return "";
+    }
+
+    private static String packageName(Path source) {
+        Matcher matcher = PACKAGE_PATTERN.matcher(ArchitectureSourceSupport.readSource(source));
+        return matcher.find() ? matcher.group(1) : "";
+    }
+
+    private static void collectPomDependencyViolations(Path root, Path pom, List<String> violations) {
+        String normalizedPomPath = ArchitectureSourceSupport.normalizePath(root.relativize(pom));
+        PomModel model = readPom(pom);
+        boolean commonModule = normalizedPomPath.startsWith("backend/common/pretzel-common-");
+        boolean starterModule = normalizedPomPath.startsWith("backend/starter/");
+        DomainModule domainModule = domainModule(normalizedPomPath);
+        for (Dependency dependency : model.dependencies) {
+            if (isDirectSpringBootStarterTestDependency(dependency)
+                    && !isAllowedDirectSpringBootStarterTestDependency(normalizedPomPath)) {
+                violations.add(
+                        ArchitectureSourceSupport.repositoryPath(root, pom)
+                                + " test-dependency=spring-boot-starter-test allowed=[backend/common/pretzel-common-test/pom.xml]");
+            }
+            if (isCommonTestDependency(dependency) && !isAllowedCommonTestDependency(normalizedPomPath, dependency)) {
+                violations.add(ArchitectureSourceSupport.repositoryPath(root, pom)
+                        + " dependency=pretzel-common-test scope="
+                        + dependency.scope
+                        + " allowed=[scope=test]");
+            }
+            if (isDirectMybatisPlusStarterDependency(dependency)
+                    && !isAllowedDirectMybatisPlusStarterDependency(normalizedPomPath)) {
+                violations.add(
+                        ArchitectureSourceSupport.repositoryPath(root, pom)
+                                + " dependency=mybatis-plus-spring-boot3-starter allowed=[backend/pom.xml(dependencyManagement), backend/common/pretzel-common-mybatis/pom.xml]");
+            }
+            if (!"com.thundax".equals(dependency.groupId)) {
+                continue;
+            }
+            if (commonModule
+                    && dependency.artifactId.startsWith("pretzel-")
+                    && !dependency.artifactId.startsWith("pretzel-common")) {
+                violations.add(
+                        ArchitectureSourceSupport.repositoryPath(root, pom) + " dependency=" + dependency.artifactId);
+            }
+            if (!starterModule && STARTER_MODULES.contains(dependency.artifactId)) {
+                violations.add(
+                        ArchitectureSourceSupport.repositoryPath(root, pom) + " dependency=" + dependency.artifactId);
+            }
+            if (domainModule != null && !isAllowedDomainModuleDependency(domainModule, dependency.artifactId)) {
+                violations.add(ArchitectureSourceSupport.repositoryPath(root, pom)
+                        + " "
+                        + domainModule.layer
+                        + "-dependency="
+                        + dependency.artifactId
+                        + " allowed="
+                        + allowedDependenciesDescription(domainModule));
+            }
+        }
+    }
+
+    private static DomainModule domainModule(String normalizedPomPath) {
+        String[] segments = normalizedPomPath.split("/");
+        if (segments.length < 5 || !"backend".equals(segments[0]) || !"biz".equals(segments[1])) {
+            return null;
+        }
+        String domain = segments[2];
+        String module = segments[3];
+        String prefix = "pretzel-" + domain + "-";
+        if (!module.startsWith(prefix)) {
+            return null;
+        }
+        String layer = module.substring(prefix.length());
+        return DOMAIN_LAYERS.contains(layer) ? new DomainModule(domain, layer) : null;
+    }
+
+    private static boolean isAllowedDomainModuleDependency(DomainModule module, String artifactId) {
+        if (artifactId.startsWith("pretzel-common-")) {
+            return true;
+        }
+        if (COMMON_ONLY_LAYERS.contains(module.layer)) {
+            return false;
+        }
+        if ("application".equals(module.layer)) {
+            return ("pretzel-" + module.domain + "-domain").equals(artifactId) || artifactId.endsWith("-facade");
+        }
+        if ("interface".equals(module.layer)) {
+            return ("pretzel-" + module.domain + "-application").equals(artifactId) || artifactId.endsWith("-facade");
+        }
+        if ("infra".equals(module.layer)) {
+            return ("pretzel-" + module.domain + "-domain").equals(artifactId);
+        }
+        return false;
+    }
+
+    private static String allowedDependenciesDescription(DomainModule module) {
+        if ("application".equals(module.layer)) {
+            return "[pretzel-" + module.domain + "-domain, pretzel-*-facade, pretzel-common-*]";
+        }
+        if ("interface".equals(module.layer)) {
+            return "[pretzel-" + module.domain + "-application, pretzel-*-facade, pretzel-common-*]";
+        }
+        if ("facade".equals(module.layer)) {
+            return "[pretzel-common-*]";
+        }
+        if ("domain".equals(module.layer)) {
+            return "[pretzel-common-*]";
+        }
+        if ("infra".equals(module.layer)) {
+            return "[pretzel-" + module.domain + "-domain, pretzel-common-*]";
+        }
+        return "[]";
+    }
+
+    private static boolean isDirectSpringBootStarterTestDependency(Dependency dependency) {
+        return "org.springframework.boot".equals(dependency.groupId)
+                && "spring-boot-starter-test".equals(dependency.artifactId);
+    }
+
+    private static boolean isAllowedDirectSpringBootStarterTestDependency(String normalizedPomPath) {
+        return "backend/common/pretzel-common-test/pom.xml".equals(normalizedPomPath);
+    }
+
+    private static boolean isDirectMybatisPlusStarterDependency(Dependency dependency) {
+        return "com.baomidou".equals(dependency.groupId)
+                && "mybatis-plus-spring-boot3-starter".equals(dependency.artifactId);
+    }
+
+    private static boolean isCommonTestDependency(Dependency dependency) {
+        return "com.thundax".equals(dependency.groupId) && "pretzel-common-test".equals(dependency.artifactId);
+    }
+
+    private static boolean isAllowedCommonTestDependency(String normalizedPomPath, Dependency dependency) {
+        return !normalizedPomPath.startsWith("backend/biz/")
+                || "backend/common/pretzel-common-test/pom.xml".equals(normalizedPomPath)
+                || "test".equals(dependency.scope);
+    }
+
+    private static boolean isAllowedDirectMybatisPlusStarterDependency(String normalizedPomPath) {
+        return "backend/pom.xml".equals(normalizedPomPath)
+                || "backend/common/pretzel-common-mybatis/pom.xml".equals(normalizedPomPath);
+    }
+
+    private static final class DomainModule {
+        private final String domain;
+        private final String layer;
+
+        private DomainModule(String domain, String layer) {
+            this.domain = domain;
+            this.layer = layer;
+        }
+    }
+
+    private static PomModel readPom(Path pom) {
+        try {
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setNamespaceAware(true);
+            Document document = factory.newDocumentBuilder().parse(pom.toFile());
+            NodeList dependencyNodes = document.getElementsByTagNameNS("*", "dependency");
+            PomModel model = new PomModel();
+            for (int index = 0; index < dependencyNodes.getLength(); index++) {
+                Node node = dependencyNodes.item(index);
+                if (node instanceof Element) {
+                    Element dependency = (Element) node;
+                    model.dependencies.add(new Dependency(
+                            text(dependency, "groupId"), text(dependency, "artifactId"), text(dependency, "scope")));
+                }
+            }
+            return model;
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static String text(Element element, String tagName) {
+        NodeList nodes = element.getElementsByTagNameNS("*", tagName);
+        return nodes.getLength() == 0 ? "" : nodes.item(0).getTextContent().trim();
+    }
+
+    private static final class PomModel {
+        private final List<Dependency> dependencies = new ArrayList<Dependency>();
+    }
+
+    private static final class Dependency {
+        private final String groupId;
+        private final String artifactId;
+        private final String scope;
+
+        private Dependency(String groupId, String artifactId, String scope) {
+            this.groupId = groupId;
+            this.artifactId = artifactId;
+            this.scope = scope;
+        }
+    }
+}

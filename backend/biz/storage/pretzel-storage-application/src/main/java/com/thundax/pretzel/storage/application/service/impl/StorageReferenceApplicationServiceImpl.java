@@ -1,0 +1,43 @@
+package com.thundax.pretzel.storage.application.service.impl;
+
+import com.thundax.pretzel.storage.application.command.AddStorageReferencesCommand;
+import com.thundax.pretzel.storage.application.command.ChangeStorageReferenceStatusCommand;
+import com.thundax.pretzel.storage.application.command.RemoveStorageReferencesCommand;
+import com.thundax.pretzel.storage.application.query.ListStorageReferencesQuery;
+import com.thundax.pretzel.storage.application.query.StorageQuery;
+import com.thundax.pretzel.storage.application.service.StorageApplicationService;
+import com.thundax.pretzel.storage.application.service.StorageReferenceApplicationService;
+import com.thundax.pretzel.storage.domain.object.model.entity.StoredObjectReference;
+import java.util.List;
+import org.springframework.stereotype.Service;
+
+@Service
+public class StorageReferenceApplicationServiceImpl implements StorageReferenceApplicationService {
+
+    private final StorageApplicationService storageApplicationService;
+
+    public StorageReferenceApplicationServiceImpl(StorageApplicationService storageApplicationService) {
+        this.storageApplicationService = storageApplicationService;
+    }
+
+    @Override
+    public List<StoredObjectReference> list(ListStorageReferencesQuery query) {
+        return storageApplicationService.listReferences(new StorageQuery(
+                query == null ? null : query.id(), null, null, null, null, null, null, null, null, null));
+    }
+
+    @Override
+    public void addReferences(AddStorageReferencesCommand command) {
+        storageApplicationService.addReferences(command);
+    }
+
+    @Override
+    public int removeReferences(RemoveStorageReferencesCommand command) {
+        return storageApplicationService.removeReferences(command);
+    }
+
+    @Override
+    public int changeReferenceStatus(ChangeStorageReferenceStatusCommand command) {
+        return storageApplicationService.changeReferenceStatus(command);
+    }
+}

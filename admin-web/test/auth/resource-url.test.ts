@@ -1,0 +1,32 @@
+import { afterEach, describe, expect, it } from "vitest";
+import { clearAccessToken, saveTokenSession } from "@/auth/token-storage";
+import { toAuthenticatedResourceUrl } from "@/auth/resource-url";
+
+describe("resource url", () => {
+    afterEach(() => {
+        clearAccessToken();
+    });
+
+    it("adds current access token to relative resource url", () => {
+        saveTokenSession({ token: "token-1" });
+
+        expect(
+            toAuthenticatedResourceUrl(
+                "/pretzel-admin-api/api/storage/object/1001/content",
+            ),
+        ).toBe(
+            "/pretzel-admin-api/api/storage/object/1001/content?token=token-1",
+        );
+    });
+
+    it("uses the latest access token without mutating backend resource url", () => {
+        saveTokenSession({ token: "token-1" });
+        saveTokenSession({ token: "token-2" });
+
+        expect(
+            toAuthenticatedResourceUrl(
+                "/pretzel-admin-api/api/sys/user/avatar?id=1001",
+            ),
+        ).toBe("/pretzel-admin-api/api/sys/user/avatar?id=1001&token=token-2");
+    });
+});
