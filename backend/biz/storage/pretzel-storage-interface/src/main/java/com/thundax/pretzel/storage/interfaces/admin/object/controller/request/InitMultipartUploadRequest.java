@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
@@ -64,7 +65,7 @@ public class InitMultipartUploadRequest {
 
     @Schema(name = "uploadId", description = "上传会话ID")
     @JsonProperty("uploadId")
-    @Size(max = 128, message = "\"上传会话ID\"长度不能超过128")
+    @Pattern(regexp = "[A-Za-z0-9_-]{1,64}", message = "上传会话ID只能包含字母、数字、下划线和连字符，长度不超过64")
     private String uploadId;
 
     @Schema(name = "totalSize", description = "文件总大小")

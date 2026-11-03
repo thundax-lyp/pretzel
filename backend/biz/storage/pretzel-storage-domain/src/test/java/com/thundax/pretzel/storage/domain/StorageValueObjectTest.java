@@ -25,6 +25,20 @@ import org.junit.jupiter.api.Test;
 class StorageValueObjectTest {
 
     @Test
+    void multipartUploadIdsMustNotAliasFilesystemPaths() {
+        assertEquals(
+                "upload-1_abc",
+                new com.thundax.pretzel.storage.domain.object.model.valueobject.MultipartUploadId("upload-1_abc")
+                        .value());
+        for (String id : java.util.List.of(
+                "alias/../victim", "../victim", "alias\\..\\victim", ".", "..", "/victim", "victim/", "x".repeat(65))) {
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> new com.thundax.pretzel.storage.domain.object.model.valueobject.MultipartUploadId(id));
+        }
+    }
+
+    @Test
     void stringValueObjectsShouldTrimAndRejectBlankValues() {
         assertEquals("image/png", new StorageMimeType(" image/png ").value());
         assertEquals("storage-bucket", new StorageBucketName(" storage-bucket ").value());

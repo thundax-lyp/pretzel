@@ -44,6 +44,19 @@ class StorageObjectMultipartUploadContractTest {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Test
+    void initRequestRejectsPathAliasesBeforeCallingStorage() {
+        try (var factory = jakarta.validation.Validation.buildDefaultValidatorFactory()) {
+            var request = new InitMultipartUploadRequest();
+            request.setUploadId("alias/../victim");
+            assertTrue(factory.getValidator().validate(request).stream()
+                    .anyMatch(v -> "uploadId".equals(v.getPropertyPath().toString())));
+            request.setUploadId("victim-1_abc");
+            assertTrue(factory.getValidator().validate(request).stream()
+                    .noneMatch(v -> "uploadId".equals(v.getPropertyPath().toString())));
+        }
+    }
+
+    @Test
     void activeDocumentsMustDownloadWhileRasterImagesMayRenderInline() throws Exception {
         for (String mime : new String[] {"text/html", "image/svg+xml", "image/png"}) {
             var content = org.mockito.Mockito.mock(StorageContentApplicationService.class);
