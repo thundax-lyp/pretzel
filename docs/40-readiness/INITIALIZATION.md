@@ -20,16 +20,17 @@
 | admin       | 格式、结构 lint、Oxlint、结构检查回归测试、Vitest、TypeScript 与构建 |
 | backend     | MySQL/Redis 服务、Spotless、Checkstyle、ArchUnit 和 Maven 全量测试   |
 | miniprogram | 锁文件安装、严格类型检查、Oxlint、格式                               |
-| tooling     | Ruff 静态检查与格式、Shell 语法                                      |
+| tooling     | Ruff 静态检查与格式、Python 关卡设计规则测试、Shell 语法             |
 
 CI 支持 PR、push 和手动运行，同一分支的过期运行自动取消。GitHub Actions 使用只读仓库内容权限。
 
 ## 验证结果
 
-- 后端：112 个测试套件、400 项测试通过，包含领域架构、真实 MySQL 8.4/Redis 登录授权、撤权、刷新、退出、改密失效、联系方式加密及资料更新边界。
+- 后端：112 个测试套件、403 项测试通过，包含领域架构、真实 MySQL 8.4/Redis 登录授权、撤权、刷新、退出、改密失效、联系方式加密及资料更新边界。
 - 管理端：20 个测试文件、38 项测试及生产构建通过；真实浏览器验证登录、服务端菜单、用户抽屉、角色保存、主题和窄屏布局。
 - 小程序：类型、lint、格式与 TypeScript 转译后的页面导航检查通过。
-- 结构与评审工具：9 项回归测试通过；仓库格式、Oxlint、Ruff 与 Shell 语法检查通过。
+- 结构与评审工具：10 项回归测试通过；仓库格式、Oxlint、Ruff 与 Shell 语法检查通过。
+- 离线关卡设计 Skill：62 项 Node 规则与集成测试通过，另有共享研究工具 24 项 Python 回归；生成、真实布局统一导入、预算控制、自动报告与独立回放可复现，不代表微信游戏已交付。
 - 环境初始化：重复执行、私有权限与跨环境隔离检查通过。
 
 ## main 保护
