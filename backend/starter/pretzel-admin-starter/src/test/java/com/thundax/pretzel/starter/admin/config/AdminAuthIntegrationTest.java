@@ -61,6 +61,7 @@ class AdminAuthIntegrationTest {
         registry.add("spring.datasource.password", () -> System.getenv().getOrDefault("TEST_DB_PASSWORD", ""));
         registry.add("pretzel.auth.captcha.whitelist-enabled", () -> true);
         registry.add("pretzel.auth.captcha.whitelist-values", () -> "integration-only");
+        registry.add("pretzel.auth.pre-auth-request-limit", () -> 100);
     }
 
     @AfterAll
@@ -78,6 +79,69 @@ class AdminAuthIntegrationTest {
 
     @Autowired
     PlatformTransactionManager transactionManager;
+
+    @Autowired
+    com.thundax.pretzel.system.application.auth.config.AuthProperties authProperties;
+
+    @Autowired
+    com.thundax.pretzel.system.domain.auth.repository.PreAuthSessionRepository preAuthSessions;
+
+    @Test
+    void preAuthRequestsAreLimitedPerSourceRatherThanGlobally() {
+        int previous = authProperties.getPreAuthRequestLimit();
+        try {
+            authProperties.setPreAuthRequestLimit(2);
+            var headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("X-Forwarded-For", "192.0.2.41");
+            var request = new HttpEntity<>(Map.of(), headers);
+            success(http.exchange(
+                    "/api/auth/session/pre-auth-session/request", HttpMethod.POST, request, JsonNode.class));
+            success(http.exchange(
+                    "/api/auth/session/pre-auth-session/request", HttpMethod.POST, request, JsonNode.class));
+            assertEquals(
+                    "AUTH-00005",
+                    http.exchange(
+                                    "/api/auth/session/pre-auth-session/request",
+                                    HttpMethod.POST,
+                                    request,
+                                    JsonNode.class)
+                            .getBody()
+                            .path("code")
+                            .asText());
+            headers.set("X-Forwarded-For", "192.0.2.42");
+            success(http.exchange(
+                    "/api/auth/session/pre-auth-session/request",
+                    HttpMethod.POST,
+                    new HttpEntity<>(Map.of(), headers),
+                    JsonNode.class));
+        } finally {
+            authProperties.setPreAuthRequestLimit(previous);
+        }
+    }
+
+    @Test
+    void sourceLimitIsAtomicAndRecoversAfterWindowExpires() throws Exception {
+        String source = "integration-rate-" + UUID.randomUUID();
+        try (var workers = java.util.concurrent.Executors.newFixedThreadPool(8)) {
+            var jobs = new java.util.ArrayList<java.util.concurrent.Callable<Boolean>>();
+            for (int i = 0; i < 16; i++) {
+                jobs.add(() -> preAuthSessions.insertRequestSlot(source, 3, 60));
+            }
+            int accepted = 0;
+            for (var result : workers.invokeAll(jobs)) {
+                if (result.get()) {
+                    accepted++;
+                }
+            }
+            assertEquals(3, accepted);
+            String expiring = source + "-other";
+            assertTrue(preAuthSessions.insertRequestSlot(expiring, 1, 1));
+            assertFalse(preAuthSessions.insertRequestSlot(expiring, 1, 1));
+            Thread.sleep(1100);
+            assertTrue(preAuthSessions.insertRequestSlot(expiring, 1, 1));
+        }
+    }
 
     @Autowired
     com.thundax.pretzel.system.infra.auth.persistence.mapper.PrincipalCredentialMapper credentials;

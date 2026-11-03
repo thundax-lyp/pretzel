@@ -6,7 +6,7 @@ import com.thundax.pretzel.system.domain.auth.model.valueobject.PreAuthSessionTo
 
 public interface PreAuthSessionRepository {
 
-    int count();
+    boolean insertRequestSlot(String source, int limit, int windowSeconds);
 
     PreAuthSession getById(PreAuthSessionId id);
 

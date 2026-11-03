@@ -10,7 +10,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "pretzel.auth")
 public class AuthProperties {
 
-    private int maxLoginCount = 10;
+    private int preAuthRequestLimit = 10;
+
+    private int preAuthRequestWindowSeconds = 60;
 
     private int maxOnlineCount = 200;
 

@@ -34,12 +34,17 @@ public class PreAuthSessionApplicationServiceImpl implements PreAuthSessionAppli
     }
 
     @Override
-    public long summaryActiveSessionCount() {
-        return preAuthSessionRepository.count();
-    }
-
-    @Override
     public PreAuthSession create(CreatePreAuthSessionCommand command) {
+        if (command == null
+                || StringUtils.isBlank(command.source())
+                || command.requestLimit() <= 0
+                || command.windowSeconds() <= 0) {
+            throw new BizException("预认证来源及限流参数无效");
+        }
+        if (!preAuthSessionRepository.insertRequestSlot(
+                command.source(), command.requestLimit(), command.windowSeconds())) {
+            throw new BizException("AUTH-00005", "auth.exception.login-request-too-many", "登录请求过多");
+        }
         PreAuthSession session = PreAuthSession.create(command.expiredSeconds());
         preAuthSessionRepository.insert(session);
         return session;
@@ -91,17 +96,23 @@ public class PreAuthSessionApplicationServiceImpl implements PreAuthSessionAppli
 
     @Override
     public boolean existsValidatedValue(PreAuthSessionValueValidateQuery query) {
-        if (query == null) {
+        if (query == null || StringUtils.isBlank(query.value())) {
             return false;
         }
         if (captchaWhitelistPolicy.matches(query.value())) {
             return true;
         }
         PreAuthSession session = get(new PreAuthSessionQuery(query.id(), null, null));
-        if (!StringUtils.equals(query.value(), session.findValue(query.name()))) {
+        String storedValue = session.findValue(query.name());
+        if (StringUtils.isBlank(storedValue) || !StringUtils.equals(query.value(), storedValue)) {
             return false;
         }
-        return StringUtils.isBlank(query.bindName())
-                || StringUtils.equals(query.bindValue(), session.findValue(query.bindName()));
+        if (StringUtils.isBlank(query.bindName())) {
+            return true;
+        }
+        String storedBinding = session.findValue(query.bindName());
+        return StringUtils.isNotBlank(query.bindValue())
+                && StringUtils.isNotBlank(storedBinding)
+                && StringUtils.equals(query.bindValue(), storedBinding);
     }
 }

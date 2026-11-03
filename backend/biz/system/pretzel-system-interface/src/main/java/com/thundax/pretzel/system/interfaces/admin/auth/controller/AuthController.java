@@ -255,11 +255,11 @@ public class AuthController {
     }
 
     private PreAuthSession createPreAuthSession() {
-        if (preAuthSessionService.summaryActiveSessionCount() > properties.getMaxLoginCount()) {
-            throw AdminResponseExceptions.loginRequestTooMany();
-        }
-        PreAuthSession session = preAuthSessionService.create(
-                AuthInterfaceAssembler.toCreatePreAuthSessionCommand(properties.getLoginExpiredSeconds()));
+        PreAuthSession session = preAuthSessionService.create(AuthInterfaceAssembler.toCreatePreAuthSessionCommand(
+                properties.getLoginExpiredSeconds(),
+                RequestIpUtils.getIpAddr(currentRequest()),
+                properties.getPreAuthRequestLimit(),
+                properties.getPreAuthRequestWindowSeconds()));
         writeCaptcha(session.getId(), PreAuthCodeHelper.generateCaptcha());
         Sm2Crypto.StringKeyPair keyPair = Sm2Crypto.generateKeyPair();
         if (keyPair != null) {

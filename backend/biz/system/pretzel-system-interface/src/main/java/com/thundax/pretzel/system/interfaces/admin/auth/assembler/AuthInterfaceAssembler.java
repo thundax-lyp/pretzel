@@ -296,8 +296,10 @@ public final class AuthInterfaceAssembler {
     }
 
     @NonNull
-    public static CreatePreAuthSessionCommand toCreatePreAuthSessionCommand(int expiredSeconds) {
-        return new CreatePreAuthSessionCommand(expiredSeconds);
+    public static CreatePreAuthSessionCommand toCreatePreAuthSessionCommand(
+            int expiredSeconds, @NonNull String source, int requestLimit, int windowSeconds) {
+        Objects.requireNonNull(source, "source must not be null");
+        return new CreatePreAuthSessionCommand(expiredSeconds, source, requestLimit, windowSeconds);
     }
 
     @NonNull

@@ -5,6 +5,7 @@ import com.alicp.jetcache.anno.CacheType;
 import com.alicp.jetcache.anno.CreateCache;
 import com.thundax.pretzel.common.cache.CacheDTO;
 import com.thundax.pretzel.common.cache.PretzelCacheNames;
+import com.thundax.pretzel.common.core.crypto.Sha256Digest;
 import com.thundax.pretzel.system.domain.auth.codec.PreAuthSessionIdCodec;
 import com.thundax.pretzel.system.domain.auth.model.entity.PreAuthSession;
 import com.thundax.pretzel.system.domain.auth.model.entity.PreAuthSession.PreAuthSessionValue;
@@ -13,6 +14,7 @@ import com.thundax.pretzel.system.domain.auth.model.valueobject.PreAuthSessionId
 import com.thundax.pretzel.system.domain.auth.model.valueobject.PreAuthSessionToken;
 import com.thundax.pretzel.system.domain.auth.repository.PreAuthSessionRepository;
 import io.lettuce.core.RedisClient;
+import io.lettuce.core.ScriptOutputType;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.sync.RedisCommands;
 import jakarta.annotation.PreDestroy;
@@ -34,7 +36,15 @@ public class PreAuthSessionRepositoryImpl implements PreAuthSessionRepository {
     private static final String SESSION_PREFIX = CACHE_SECTION + "SESSION_";
     private static final String TOKEN_PREFIX = CACHE_SECTION + "TOKEN_";
     private static final String REFRESH_TOKEN_PREFIX = CACHE_SECTION + "REFRESH_";
-    private static final String ACTIVE_SESSION_KEY = CACHE_SECTION + "ACTIVE";
+    private static final String REQUEST_PREFIX = CACHE_SECTION + "REQUEST_";
+    private static final String ACQUIRE_REQUEST_SCRIPT =
+            """
+            local count = tonumber(redis.call('GET', KEYS[1]) or '0')
+            if count >= tonumber(ARGV[1]) then return 0 end
+            count = redis.call('INCR', KEYS[1])
+            if count == 1 then redis.call('EXPIRE', KEYS[1], ARGV[2]) end
+            return 1
+            """;
     private static final int SAFETY_SECONDS = 5;
 
     @CreateCache(name = CACHE_SECTION, cacheType = CacheType.BOTH)
@@ -50,9 +60,14 @@ public class PreAuthSessionRepositoryImpl implements PreAuthSessionRepository {
     }
 
     @Override
-    public int count() {
-        redis().zremrangebyscore(ACTIVE_SESSION_KEY, 0, System.currentTimeMillis());
-        return redis().zcard(ACTIVE_SESSION_KEY).intValue();
+    public boolean insertRequestSlot(String source, int limit, int windowSeconds) {
+        Long accepted = redis().eval(
+                        ACQUIRE_REQUEST_SCRIPT,
+                        ScriptOutputType.INTEGER,
+                        new String[] {REQUEST_PREFIX + Sha256Digest.hashBase64Url(source)},
+                        String.valueOf(limit),
+                        String.valueOf(windowSeconds));
+        return Long.valueOf(1).equals(accepted);
     }
 
     @Override
@@ -100,14 +115,12 @@ public class PreAuthSessionRepositoryImpl implements PreAuthSessionRepository {
         }
         cache.remove(SESSION_PREFIX + id.asString());
         removeIndexes(session);
-        redis().zrem(ACTIVE_SESSION_KEY, id.asString());
     }
 
     private void putSession(PreAuthSession session) {
         long seconds = remainingSeconds(session);
         String sessionKey = SESSION_PREFIX + session.getId().asString();
         cache.put(sessionKey, toCacheDTO(session), seconds + SAFETY_SECONDS, TimeUnit.SECONDS);
-        redis().zadd(ACTIVE_SESSION_KEY, session.getExpiredAt(), session.getId().asString());
         cache.put(TOKEN_PREFIX + session.getToken().asString(), session.getId().asString(), seconds, TimeUnit.SECONDS);
         for (RefreshTokenValue refreshToken : session.refreshTokenValues()) {
             long refreshTokenSeconds = ttlSeconds(refreshToken.getExpiredAt());

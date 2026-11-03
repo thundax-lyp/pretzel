@@ -12,8 +12,6 @@ import com.thundax.pretzel.system.domain.auth.model.valueobject.PreAuthSessionId
 
 public interface PreAuthSessionApplicationService {
 
-    long summaryActiveSessionCount();
-
     PreAuthSession create(CreatePreAuthSessionCommand command);
 
     PreAuthSessionId getIdByToken(PreAuthSessionQuery query);
