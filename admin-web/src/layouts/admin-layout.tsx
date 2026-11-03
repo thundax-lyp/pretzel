@@ -221,10 +221,13 @@ export const AdminLayout = () => {
 
             return logout();
         },
-        onSettled: () => {
+        onSuccess: () => {
             clearAccessToken();
             messageApi.success("已退出登录");
             navigate("/login", { replace: true });
+        },
+        onError: () => {
+            messageApi.error("退出失败，请重试");
         },
     });
     const menuItems = currentUserMenusQuery.data
