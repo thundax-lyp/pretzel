@@ -1,3 +1,4 @@
+import "fake-indexeddb/auto";
 import { postJson, postSessionLogout } from "./http";
 import {
     clearAccessToken,
@@ -72,6 +73,44 @@ it("deduplicates logout while a refresh is in progress", async () => {
     refresh.resolve(success({ token: "new", refreshToken: "next" }));
     await Promise.all([first, second]);
     expect(fetch).toHaveBeenCalledTimes(2);
+});
+it("preserves the session for retry when logout fails", async () => {
+    saveTokenSession({ token: "account-a", refreshToken: "refresh-a" });
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+    await expect(postSessionLogout()).rejects.toThrow("offline");
+    expect(getAccessToken()).toBe("account-a");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(success(true)));
+    await expect(postSessionLogout()).resolves.toBe(true);
+});
+it("serializes refreshes from independent tabs and reuses the rotated token", async () => {
+    vi.resetModules();
+    const firstTab = await import("./http");
+    vi.resetModules();
+    const secondTab = await import("./http");
+    saveTokenSession({
+        token: "old",
+        refreshToken: "refresh",
+        expireAt: Date.now() + 1,
+    });
+    const response = deferred<Response>();
+    const fetch = vi.fn(() => response.promise);
+    vi.stubGlobal("fetch", fetch);
+    const first = firstTab.refreshAccessTokenIfNeeded();
+    const second = secondTab.refreshAccessTokenIfNeeded();
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    response.resolve(
+        success({
+            token: "rotated",
+            refreshToken: "next",
+            expireAt: Date.now() + 300000,
+        }),
+    );
+    await expect(Promise.all([first, second])).resolves.toEqual([
+        "rotated",
+        "rotated",
+    ]);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(getAccessToken()).toBe("rotated");
 });
 it("does not retry an old account mutation or clear a later login", async () => {
     saveTokenSession({ token: "account-a", refreshToken: "refresh-a" });

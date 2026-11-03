@@ -6,6 +6,7 @@ import {
     getTokenSessionId,
     saveTokenSession,
 } from "../auth/token-storage";
+import { withTokenRefreshLock } from "../auth/token-refresh-lock";
 
 export const ADMIN_API_BASE_URL =
     import.meta.env.VITE_ADMIN_API_BASE_URL || "/pretzel-admin-api/api";
@@ -90,7 +91,7 @@ const shouldRefreshBeforeRequest = () => {
 let refreshPromise: Promise<AccessTokenPayload | null> | null = null;
 let logoutPromise: Promise<boolean> | null = null;
 
-const requestTokenRefresh = async () => {
+const requestTokenRefresh = async (signal: AbortSignal) => {
     const refreshToken = getRefreshToken();
     const sessionId = getTokenSessionId();
     if (!refreshToken) {
@@ -98,6 +99,7 @@ const requestTokenRefresh = async () => {
     }
 
     const response = await fetch(`${ADMIN_API_BASE_URL}${TOKEN_REFRESH_PATH}`, {
+        signal: AbortSignal.any([signal, AbortSignal.timeout(15000)]),
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -109,6 +111,7 @@ const requestTokenRefresh = async () => {
     });
 
     const payload = await safeReadApiResponse<AccessTokenPayload>(response);
+    signal.throwIfAborted();
     if (getTokenSessionId() !== sessionId || getRefreshToken() !== refreshToken)
         return null;
     if (
@@ -141,7 +144,16 @@ export const refreshAccessTokenIfNeeded = async () => {
 const refreshAccessToken = async () => {
     if (logoutPromise) return null;
     if (!refreshPromise) {
-        refreshPromise = requestTokenRefresh().finally(() => {
+        const refreshToken = getRefreshToken();
+        const sessionId = getTokenSessionId();
+        refreshPromise = withTokenRefreshLock(async (signal) => {
+            assertCurrentSession(sessionId);
+            if (getRefreshToken() !== refreshToken) {
+                const token = getAccessToken();
+                return token ? { token } : null;
+            }
+            return requestTokenRefresh(signal);
+        }).finally(() => {
             refreshPromise = null;
         });
     }
