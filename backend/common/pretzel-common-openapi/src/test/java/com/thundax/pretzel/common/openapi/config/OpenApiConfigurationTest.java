@@ -23,7 +23,7 @@ public class OpenApiConfigurationTest {
         contextRunner.run(context -> {
             assertNotNull(context.getBean(OpenApiProperties.class));
             assertNotNull(context.getBean(OpenAPI.class));
-            assertEquals(7, context.getBeansOfType(GroupedOpenApi.class).size());
+            assertEquals(2, context.getBeansOfType(GroupedOpenApi.class).size());
             assertEquals("Pretzel API", context.getBean(OpenAPI.class).getInfo().getTitle());
         });
     }
@@ -35,7 +35,7 @@ public class OpenApiConfigurationTest {
             Set<String> groups =
                     beans.values().stream().map(GroupedOpenApi::getGroup).collect(Collectors.toSet());
 
-            assertEquals(Set.of("system", "storage", "classics", "ai", "knowledge", "discovery", "operations"), groups);
+            assertEquals(Set.of("system", "storage"), groups);
             assertTrue(beans.values().stream()
                     .allMatch(groupedOpenApi ->
                             groupedOpenApi.getOpenApiMethodFilters().size() == 1));

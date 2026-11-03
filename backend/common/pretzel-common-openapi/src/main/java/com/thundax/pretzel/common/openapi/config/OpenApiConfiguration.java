@@ -42,36 +42,6 @@ public class OpenApiConfiguration {
     }
 
     @Bean
-    @ConditionalOnMissingBean(name = "classicsGroupedOpenApi")
-    public GroupedOpenApi classicsGroupedOpenApi(OpenApiProperties properties) {
-        return moduleGroupedOpenApi(properties, "classics", "古籍模块");
-    }
-
-    @Bean
-    @ConditionalOnMissingBean(name = "aiGroupedOpenApi")
-    public GroupedOpenApi aiGroupedOpenApi(OpenApiProperties properties) {
-        return moduleGroupedOpenApi(properties, "ai", "智能模块");
-    }
-
-    @Bean
-    @ConditionalOnMissingBean(name = "knowledgeGroupedOpenApi")
-    public GroupedOpenApi knowledgeGroupedOpenApi(OpenApiProperties properties) {
-        return moduleGroupedOpenApi(properties, "knowledge", "知识模块");
-    }
-
-    @Bean
-    @ConditionalOnMissingBean(name = "discoveryGroupedOpenApi")
-    public GroupedOpenApi discoveryGroupedOpenApi(OpenApiProperties properties) {
-        return moduleGroupedOpenApi(properties, "discovery", "发现模块");
-    }
-
-    @Bean
-    @ConditionalOnMissingBean(name = "operationsGroupedOpenApi")
-    public GroupedOpenApi operationsGroupedOpenApi(OpenApiProperties properties) {
-        return moduleGroupedOpenApi(properties, "operations", "运营模块");
-    }
-
-    @Bean
     @ConditionalOnMissingBean(name = "openApiOperationOrderingCustomizer")
     public OpenApiCustomizer openApiOperationOrderingCustomizer() {
         return OpenApiOperationOrdering::sort;
