@@ -32,6 +32,9 @@ jobs:
             - run: npm run lint
             - name: Structure and review helper tests
               run: node --test ../../scripts/*.test.mjs
+            - name: Level design skill tests
+              working-directory: ${{ github.workspace }}
+              run: node --test .agents/skills/pretzel-level-design/scripts/*.test.mjs
             - run: npm test
             - run: npm run build
     backend:
@@ -84,6 +87,7 @@ jobs:
             - run: python -m pip install -r requirements-dev.txt
             - run: ruff check scripts deploy
             - run: ruff format --check scripts deploy
+            - run: python scripts/game-design-test.py
             - run: sh -n scripts/infra-tunnel.sh
     miniprogram:
         runs-on: ubuntu-latest
