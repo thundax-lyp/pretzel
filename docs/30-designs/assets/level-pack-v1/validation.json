@@ -1,0 +1,31 @@
+{
+    "sets": 20,
+    "stages": 40,
+    "hardReferenceReplays": 20,
+    "easyReferenceReplays": 20,
+    "easyRandomReplays": 20000,
+    "gridBounds": "6x8x6",
+    "difficultyStatus": "第二关尚未做人类策略成功率或真人时长标定",
+    "hardInitialClickable": {
+        "castle": 7,
+        "turtle": 7,
+        "mushroom": 7,
+        "house": 7,
+        "tree": 7,
+        "windmill": 7,
+        "lighthouse": 7,
+        "rabbit": 7,
+        "whale": 7,
+        "crab": 7,
+        "rocket": 7,
+        "dinosaur": 7,
+        "robot": 7,
+        "train": 7,
+        "duck": 7,
+        "cat": 7,
+        "bear": 7,
+        "panda": 7,
+        "butterfly": 7,
+        "bridge": 7
+    }
+}

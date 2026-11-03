@@ -1,0 +1,324 @@
+{
+    "atlas": "animal-atlas.png",
+    "columns": 6,
+    "rows": 4,
+    "width": 1536,
+    "height": 1024,
+    "cellWidth": 256,
+    "cellHeight": 256,
+    "status": "原创生成的 3D 风格二维设计素材；幻想眼睛数量仍需校对",
+    "characters": [
+        {
+            "name": "泡泡鱼",
+            "eyes": 2,
+            "legs": 0,
+            "sprite": 0,
+            "id": "A01",
+            "rect": {
+                "x": 0,
+                "y": 0,
+                "width": 256,
+                "height": 256
+            }
+        },
+        {
+            "name": "跳跳鸟",
+            "eyes": 2,
+            "legs": 1,
+            "sprite": 1,
+            "id": "A02",
+            "rect": {
+                "x": 256,
+                "y": 0,
+                "width": 256,
+                "height": 256
+            }
+        },
+        {
+            "name": "小黄鸡",
+            "eyes": 2,
+            "legs": 2,
+            "sprite": 2,
+            "id": "A03",
+            "rect": {
+                "x": 512,
+                "y": 0,
+                "width": 256,
+                "height": 256
+            }
+        },
+        {
+            "name": "三脚鸭",
+            "eyes": 2,
+            "legs": 3,
+            "sprite": 3,
+            "id": "A04",
+            "rect": {
+                "x": 768,
+                "y": 0,
+                "width": 256,
+                "height": 256
+            }
+        },
+        {
+            "name": "短腿兔",
+            "eyes": 2,
+            "legs": 4,
+            "sprite": 4,
+            "id": "A05",
+            "rect": {
+                "x": 1024,
+                "y": 0,
+                "width": 256,
+                "height": 256
+            }
+        },
+        {
+            "name": "五脚蛙",
+            "eyes": 2,
+            "legs": 5,
+            "sprite": 5,
+            "id": "A06",
+            "rect": {
+                "x": 1280,
+                "y": 0,
+                "width": 256,
+                "height": 256
+            }
+        },
+        {
+            "name": "小甲虫",
+            "eyes": 2,
+            "legs": 6,
+            "sprite": 6,
+            "id": "A07",
+            "rect": {
+                "x": 0,
+                "y": 256,
+                "width": 256,
+                "height": 256
+            }
+        },
+        {
+            "name": "横横蟹",
+            "eyes": 2,
+            "legs": 8,
+            "sprite": 7,
+            "id": "A08",
+            "rect": {
+                "x": 256,
+                "y": 256,
+                "width": 256,
+                "height": 256
+            }
+        },
+        {
+            "name": "独眼蛇",
+            "eyes": 1,
+            "legs": 0,
+            "sprite": 8,
+            "id": "A09",
+            "rect": {
+                "x": 512,
+                "y": 256,
+                "width": 256,
+                "height": 256
+            }
+        },
+        {
+            "name": "独眼鸡",
+            "eyes": 1,
+            "legs": 2,
+            "sprite": 9,
+            "id": "A10",
+            "rect": {
+                "x": 768,
+                "y": 256,
+                "width": 256,
+                "height": 256
+            }
+        },
+        {
+            "name": "独眼猪",
+            "eyes": 1,
+            "legs": 4,
+            "sprite": 10,
+            "id": "A11",
+            "rect": {
+                "x": 1024,
+                "y": 256,
+                "width": 256,
+                "height": 256
+            }
+        },
+        {
+            "name": "独眼虫",
+            "eyes": 1,
+            "legs": 6,
+            "sprite": 11,
+            "id": "A12",
+            "rect": {
+                "x": 1280,
+                "y": 256,
+                "width": 256,
+                "height": 256
+            }
+        },
+        {
+            "name": "三眼跳跳",
+            "eyes": 3,
+            "legs": 1,
+            "sprite": 12,
+            "id": "A13",
+            "rect": {
+                "x": 0,
+                "y": 512,
+                "width": 256,
+                "height": 256
+            }
+        },
+        {
+            "name": "三眼企鹅",
+            "eyes": 3,
+            "legs": 2,
+            "sprite": 13,
+            "id": "A14",
+            "rect": {
+                "x": 256,
+                "y": 512,
+                "width": 256,
+                "height": 256
+            }
+        },
+        {
+            "name": "三眼猫",
+            "eyes": 3,
+            "legs": 4,
+            "sprite": 14,
+            "id": "A15",
+            "rect": {
+                "x": 512,
+                "y": 512,
+                "width": 256,
+                "height": 256
+            }
+        },
+        {
+            "name": "三眼蚂蚁",
+            "eyes": 3,
+            "legs": 6,
+            "sprite": 15,
+            "id": "A16",
+            "rect": {
+                "x": 768,
+                "y": 512,
+                "width": 256,
+                "height": 256
+            }
+        },
+        {
+            "name": "四眼鱼",
+            "eyes": 4,
+            "legs": 0,
+            "sprite": 16,
+            "id": "A17",
+            "rect": {
+                "x": 1024,
+                "y": 512,
+                "width": 256,
+                "height": 256
+            }
+        },
+        {
+            "name": "四眼鸭",
+            "eyes": 4,
+            "legs": 2,
+            "sprite": 17,
+            "id": "A18",
+            "rect": {
+                "x": 1280,
+                "y": 512,
+                "width": 256,
+                "height": 256
+            }
+        },
+        {
+            "name": "四眼狗",
+            "eyes": 4,
+            "legs": 4,
+            "sprite": 18,
+            "id": "A19",
+            "rect": {
+                "x": 0,
+                "y": 768,
+                "width": 256,
+                "height": 256
+            }
+        },
+        {
+            "name": "四眼蛛",
+            "eyes": 4,
+            "legs": 8,
+            "sprite": 19,
+            "id": "A20",
+            "rect": {
+                "x": 256,
+                "y": 768,
+                "width": 256,
+                "height": 256
+            }
+        },
+        {
+            "name": "五眼鸟",
+            "eyes": 5,
+            "legs": 2,
+            "sprite": 20,
+            "id": "A21",
+            "rect": {
+                "x": 512,
+                "y": 768,
+                "width": 256,
+                "height": 256
+            }
+        },
+        {
+            "name": "五眼兽",
+            "eyes": 5,
+            "legs": 4,
+            "sprite": 21,
+            "id": "A22",
+            "rect": {
+                "x": 768,
+                "y": 768,
+                "width": 256,
+                "height": 256
+            }
+        },
+        {
+            "name": "六眼牛",
+            "eyes": 6,
+            "legs": 4,
+            "sprite": 22,
+            "id": "A23",
+            "rect": {
+                "x": 1024,
+                "y": 768,
+                "width": 256,
+                "height": 256
+            }
+        },
+        {
+            "name": "六眼虫",
+            "eyes": 6,
+            "legs": 6,
+            "sprite": 23,
+            "id": "A24",
+            "rect": {
+                "x": 1280,
+                "y": 768,
+                "width": 256,
+                "height": 256
+            }
+        }
+    ]
+}

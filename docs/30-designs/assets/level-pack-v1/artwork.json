@@ -1,0 +1,7 @@
+{
+    "tool": "image_gen (built-in)",
+    "asset": "animal-atlas.png",
+    "type": "original generated 3D-style raster portraits, not 3D meshes",
+    "prompt": "Original 3D cartoon animal portrait sprite atlas for a mobile mahjong-tile puzzle. Exactly 6 columns x 4 rows, 1536x1024, equal square cells, warm ivory background, no grid lines, no text or numbers. Centered satin-clay 3D heads, generous margins. Row 1: two-eyed blue fish, mint bird, yellow chick, white duck, white rabbit, green frog. Row 2: two-eyed beetle, red crab; one-eyed purple snake, yellow chick, pink pig, green caterpillar. Row 3: three-eyed hopping creature, penguin, gray cat, ant; four-eyed turquoise fish, cream duck. Row 4: four-eyed tan dog, lavender spider; five-eyed coral bird, mint fluffy creature; six-eyed lavender cow, teal bug. Actual distinct eyes, not glasses or dots. Cohesive premium casual game art; no brands, copyrighted characters, watermark, frames or UI.",
+    "review": "Layout/data preview only. Verify exact fantasy eye counts before production."
+}

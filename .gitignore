@@ -28,3 +28,10 @@ dev.env
 # Local lint and Python environments
 .ruff_cache/
 .venv/
+
+# Local level-design exports; curated layouts and evidence remain tracked.
+/docs/30-designs/assets/level-pack-v1/*.zip
+/docs/30-designs/assets/level-pack-v1/height-study/*.zip
+/docs/30-designs/assets/level-pack-v1/height-study/*-runs.json
+/docs/30-designs/assets/level-pack-v1/height-study/original-previews/*.png
+/docs/30-designs/assets/level-pack-v1/svg/*-preview.png
