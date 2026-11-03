@@ -14,7 +14,6 @@ public interface PrincipalCredentialMapper extends BaseMapper<PrincipalCredentia
             """
             UPDATE system_auth_principal_credential
             SET failed_limit = #{failedLimit},
-                failed_count = failed_count + 1,
                 status = CASE
                     WHEN failed_count + 1 >= #{failedLimit} THEN 'LOCKED'
                     ELSE status
@@ -23,6 +22,7 @@ public interface PrincipalCredentialMapper extends BaseMapper<PrincipalCredentia
                     WHEN failed_count + 1 >= #{failedLimit} THEN #{lockedUntil}
                     ELSE locked_until
                 END,
+                failed_count = failed_count + 1,
                 last_verified_at = NULL
             WHERE id = #{id}
               AND status = 'ACTIVE'

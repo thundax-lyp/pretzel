@@ -79,6 +79,28 @@ class AdminAuthIntegrationTest {
     @Autowired
     PlatformTransactionManager transactionManager;
 
+    @Autowired
+    com.thundax.pretzel.system.infra.auth.persistence.mapper.PrincipalCredentialMapper credentials;
+
+    @Test
+    void locksExactlyAtConfiguredFailureLimit() {
+        seed(3004L, "integration-failure-limit", "NORMAL");
+        Long id = jdbc.queryForObject(
+                "SELECT id FROM system_auth_principal_credential WHERE principal_id=3004", Long.class);
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            assertEquals(
+                    1, credentials.recordFailure(id, 5, java.time.Instant.now().plusSeconds(900)));
+            assertEquals(
+                    attempt,
+                    jdbc.queryForObject(
+                            "SELECT failed_count FROM system_auth_principal_credential WHERE id=?", Integer.class, id));
+            assertEquals(
+                    attempt == 5 ? "LOCKED" : "ACTIVE",
+                    jdbc.queryForObject(
+                            "SELECT status FROM system_auth_principal_credential WHERE id=?", String.class, id));
+        }
+    }
+
     @Test
     void initializesSchemaAndMenusFromOneMigration() {
         assertEquals(
