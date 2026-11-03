@@ -67,6 +67,16 @@ describe("RoleEditDrawer", () => {
         await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
     });
 
+    it("validates required fields without sending a mutation", async () => {
+        vi.mocked(service.listMenus).mockResolvedValue([]);
+        renderDrawer();
+        const name = await screen.findByLabelText("角色名称");
+        fireEvent.change(name, { target: { value: "" } });
+        fireEvent.click(screen.getByRole("button", { name: /保\s*存/ }));
+        expect(await screen.findByText("请输入角色名称")).toBeInTheDocument();
+        expect(service.changeInfo).not.toHaveBeenCalled();
+    });
+
     it("blocks saving and offers retry when menu permissions fail", async () => {
         vi.mocked(service.listMenus).mockRejectedValue(
             new Error("菜单服务暂不可用"),

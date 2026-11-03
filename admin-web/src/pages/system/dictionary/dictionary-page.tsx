@@ -1,4 +1,4 @@
-import { hasPermission } from "@/auth/permission-storage";
+import { usePermissions } from "@/auth/hooks/use-permission";
 import { DEFAULT_PAGE_NO, DEFAULT_PAGE_SIZE } from "@/types/page";
 import {
     BookOutlined,
@@ -50,6 +50,7 @@ const normalizeSearch = (value?: string | null) => {
 };
 
 export const DictionaryPage = () => {
+    const hasPermission = usePermissions();
     const { message: messageApi } = App.useApp();
     const { modal } = App.useApp();
     const queryClient = useQueryClient();
@@ -261,7 +262,6 @@ export const DictionaryPage = () => {
             title: "备注",
             dataIndex: "remarks",
             key: "remarks",
-            width: DEFAULT_COLUMN_WIDTHS.remarks,
             ellipsis: true,
             renderText: (remarks?: string | null) =>
                 remarks || <Text type="secondary">未填写</Text>,

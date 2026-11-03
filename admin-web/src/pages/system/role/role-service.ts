@@ -28,7 +28,6 @@ export interface RoleStatusCommand {
 
 export interface RoleSortCommand {
     orderedIds: string[];
-    sortDirection?: "ASC" | "DESC";
 }
 
 export type RoleOptionKeys = "statusOptions" | "privilegeOptions";

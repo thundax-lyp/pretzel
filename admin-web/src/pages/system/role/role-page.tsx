@@ -1,4 +1,4 @@
-import { hasPermission } from "@/auth/permission-storage";
+import { usePermissions } from "@/auth/hooks/use-permission";
 import type { OptionsRecord } from "@/types/options";
 import {
     DeleteOutlined,
@@ -82,6 +82,7 @@ const sortByMove = (
 };
 
 export const RolePage = () => {
+    const hasPermission = usePermissions();
     const { message: messageApi } = App.useApp();
     const { modal } = App.useApp();
     const queryClient = useQueryClient();
@@ -97,8 +98,8 @@ export const RolePage = () => {
     const hasSelectedRoles = selectedRowKeys.length > 0;
 
     const rolePageQuery = useQuery({
-        queryKey: ["role", "list", query],
-        queryFn: () => service.list(query),
+        queryKey: ["role", "list"],
+        queryFn: () => service.list(),
         enabled: canViewRole,
         retry: false,
     });
@@ -128,16 +129,19 @@ export const RolePage = () => {
     }, [roleOptions.privilegeOptions]);
     const filteredRoles = useMemo(() => {
         const normalizedSearchText = searchText.trim().toLowerCase();
-        if (!normalizedSearchText) {
-            return roles;
-        }
         return roles.filter((role) => {
+            if (
+                query.enable !== undefined &&
+                (role.enable !== false) !== query.enable
+            )
+                return false;
             return (
+                !normalizedSearchText ||
                 role.name?.toLowerCase().includes(normalizedSearchText) ||
                 role.remarks?.toLowerCase().includes(normalizedSearchText)
             );
         });
-    }, [roles, searchText]);
+    }, [roles, searchText, query.enable]);
     const statusMutation = useMutation({
         mutationFn: service.changeStatus,
         onSuccess: async () => {
@@ -303,7 +307,6 @@ export const RolePage = () => {
         // Filtered rows are intentional visible anchors for the complete global role order.
         sortMutation.mutate({
             orderedIds: sortByMove(roles, sourceRole, targetRole, position),
-            sortDirection: "ASC",
         });
     };
 

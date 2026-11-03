@@ -1,4 +1,4 @@
-import { hasPermission } from "@/auth/permission-storage";
+import { usePermissions } from "@/auth/hooks/use-permission";
 import { MenuOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import {
     PageContainer,
@@ -85,6 +85,7 @@ const toMoveType = (position: "before" | "after"): MenuMoveCommand["type"] => {
 };
 
 export const MenuPage = () => {
+    const hasPermission = usePermissions();
     const { message: messageApi } = App.useApp();
     const { modal } = App.useApp();
     const queryClient = useQueryClient();

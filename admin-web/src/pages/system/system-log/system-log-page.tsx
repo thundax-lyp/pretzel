@@ -1,4 +1,4 @@
-import { hasPermission } from "@/auth/permission-storage";
+import { usePermissions } from "@/auth/hooks/use-permission";
 import { DEFAULT_PAGE_NO, DEFAULT_PAGE_SIZE } from "@/types/page";
 import {
     ClockCircleOutlined,
@@ -94,6 +94,7 @@ const methodTagType = (method?: string | null) => {
 };
 
 export const SystemLogPage = () => {
+    const hasPermission = usePermissions();
     const { message: messageApi } = App.useApp();
     const canViewSystemLog = hasPermission("system:log:view");
     const [query, setQuery] = useState<LogPageQuery>({

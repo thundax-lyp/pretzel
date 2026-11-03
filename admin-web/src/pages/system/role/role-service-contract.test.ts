@@ -94,11 +94,9 @@ describe("role service request contracts", () => {
 
         await roleService.sort({
             orderedIds: ["role-1", "role-2"],
-            sortDirection: "ASC",
         });
         expectLastRequest("/sys/role/sort", {
             orderedIds: ["role-1", "role-2"],
-            sortDirection: "ASC",
         });
 
         await roleService.remove(["role-1"]);

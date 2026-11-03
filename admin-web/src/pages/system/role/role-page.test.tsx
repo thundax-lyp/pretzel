@@ -118,7 +118,6 @@ describe("RolePage", () => {
         await waitFor(() => expect(service.sort).toHaveBeenCalledTimes(1));
         expect(vi.mocked(service.sort).mock.calls[0][0]).toEqual({
             orderedIds: ["hidden-1", "visible-1", "visible-2", "hidden-2"],
-            sortDirection: "ASC",
         });
     });
 });

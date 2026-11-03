@@ -176,9 +176,9 @@ export const RoleEditDrawer = ({
         }
     };
 
-    const saveRole = async () => {
-        const values = await form.validateFields();
+    const saveRole = async (values: RoleFormValues) => {
         saveRoleMutation.mutate(readFormRequest(values));
+        return false;
     };
 
     return (
@@ -187,6 +187,7 @@ export const RoleEditDrawer = ({
             open={visible}
             size={960}
             form={form}
+            onFinish={saveRole}
             className="system-role-edit-drawer-form"
             drawerProps={{
                 ...{ "data-testid": "system-role-role-edit-drawer" },
@@ -216,7 +217,7 @@ export const RoleEditDrawer = ({
                                 disabled={roleMenuTreeQuery.isError}
                                 loading={saveRoleMutation.isPending}
                                 data-testid={"system-role-role-save-button"}
-                                onClick={saveRole}
+                                onClick={() => form.submit()}
                             >
                                 {"保存"}
                             </Button>,

@@ -69,9 +69,9 @@ export const DictionaryEditDrawer = ({
         form.resetFields();
     }, [dictionary, form, open]);
 
-    const saveDictionary = async () => {
-        const values = await form.validateFields();
+    const saveDictionary = async (values: DictFormValues) => {
         onSave(readFormRequest(values));
+        return false;
     };
 
     return (
@@ -80,6 +80,7 @@ export const DictionaryEditDrawer = ({
             open={Boolean(open)}
             size={960}
             form={form}
+            onFinish={saveDictionary}
             className="dictionary-edit-drawer-form"
             drawerProps={{
                 ...{
@@ -115,7 +116,7 @@ export const DictionaryEditDrawer = ({
                                 data-testid={
                                     "system-dictionary-dictionary-save-button"
                                 }
-                                onClick={saveDictionary}
+                                onClick={() => form.submit()}
                             >
                                 {"保存"}
                             </Button>,

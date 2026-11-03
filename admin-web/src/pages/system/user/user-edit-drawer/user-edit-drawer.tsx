@@ -23,7 +23,7 @@ import {
     TreeSelect,
 } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { sm2 } from "sm-crypto";
+import { encryptPassword } from "@/auth/password-encryption";
 import { UserAvatarField } from "./user-avatar-field";
 import type { UserFormValues } from "./user-edit-drawer-form-values";
 import "./user-edit-drawer.css";
@@ -295,10 +295,9 @@ export const UserEditDrawer = ({
     const createMutation = useMutation({
         mutationFn: async (values: UserFormValues) => {
             const loginForm = await createLoginForm();
-            const encryptedPassword = sm2.doEncrypt(
+            const encryptedPassword = encryptPassword(
                 values.loginPass,
                 loginForm.publicKey,
-                0,
             );
             return service.create(
                 toCreateSaveCommand(
@@ -362,15 +361,15 @@ export const UserEditDrawer = ({
         },
     });
     const saving = createMutation.isPending || updateMutation.isPending;
-    const saveForm = async () => {
-        const values = await form.validateFields();
+    const saveForm = async (values: UserFormValues) => {
         if (creating) {
             createMutation.mutate(values);
-            return;
+            return false;
         }
         if (user) {
             updateMutation.mutate({ currentUser: user, values });
         }
+        return false;
     };
 
     return (
@@ -379,11 +378,14 @@ export const UserEditDrawer = ({
             open={visible}
             size={960}
             form={form}
+            onFinish={saveForm}
             className="user-edit-drawer-form"
             drawerProps={{
                 ...{ "data-testid": "system-user-user-edit-drawer" },
                 className: "user-edit-drawer",
-                onClose: onClose,
+                onClose: () => {
+                    if (!saving) onClose();
+                },
                 destroyOnHidden: true,
                 maskClosable: false,
             }}
@@ -408,7 +410,7 @@ export const UserEditDrawer = ({
                                 disabled={userRoleQuery.isError}
                                 loading={saving}
                                 data-testid={"system-user-user-action-button"}
-                                onClick={saveForm}
+                                onClick={() => form.submit()}
                             >
                                 {"保存"}
                             </Button>,

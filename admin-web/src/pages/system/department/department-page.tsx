@@ -1,4 +1,4 @@
-import { hasPermission } from "@/auth/permission-storage";
+import { usePermissions } from "@/auth/hooks/use-permission";
 import {
     ApartmentOutlined,
     BranchesOutlined,
@@ -92,6 +92,7 @@ const toMoveType = (
 };
 
 export const DepartmentPage = () => {
+    const hasPermission = usePermissions();
     const { message: messageApi } = App.useApp();
     const { modal } = App.useApp();
     const queryClient = useQueryClient();

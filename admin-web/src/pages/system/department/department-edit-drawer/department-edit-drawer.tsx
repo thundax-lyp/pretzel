@@ -73,9 +73,9 @@ export const DepartmentEditDrawer = ({
         form.resetFields();
     }, [department, form, open]);
 
-    const saveDepartment = async () => {
-        const values = await form.validateFields();
+    const saveDepartment = async (values: DepartmentFormValues) => {
         onSave(readFormRequest(values));
+        return false;
     };
 
     return (
@@ -84,6 +84,7 @@ export const DepartmentEditDrawer = ({
             open={Boolean(open)}
             size={960}
             form={form}
+            onFinish={saveDepartment}
             className="department-edit-drawer-form"
             drawerProps={{
                 ...{
@@ -119,7 +120,7 @@ export const DepartmentEditDrawer = ({
                                 data-testid={
                                     "system-department-department-save-button"
                                 }
-                                onClick={saveDepartment}
+                                onClick={() => form.submit()}
                             >
                                 {"保存"}
                             </Button>,

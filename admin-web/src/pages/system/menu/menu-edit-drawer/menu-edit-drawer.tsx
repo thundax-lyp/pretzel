@@ -84,9 +84,9 @@ export const MenuEditDrawer = ({
         form.setFieldsValue({ display: true, ranks: 0 });
     }, [form, menu, open]);
 
-    const saveMenu = async () => {
-        const values = await form.validateFields();
+    const saveMenu = async (values: MenuFormValues) => {
         onSave(readFormRequest(values));
+        return false;
     };
 
     return (
@@ -95,6 +95,7 @@ export const MenuEditDrawer = ({
             open={Boolean(open)}
             size={960}
             form={form}
+            onFinish={saveMenu}
             className="menu-edit-drawer-form"
             drawerProps={{
                 ...{ "data-testid": "system-menu-menu-edit-drawer" },
@@ -122,7 +123,7 @@ export const MenuEditDrawer = ({
                                 key={"system-menu-menu-save-button"}
                                 loading={saving}
                                 data-testid={"system-menu-menu-save-button"}
-                                onClick={saveMenu}
+                                onClick={() => form.submit()}
                             >
                                 {"保存"}
                             </Button>,
