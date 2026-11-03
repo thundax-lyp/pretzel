@@ -192,15 +192,6 @@ public class AdminSessionTokenApplicationServiceImpl implements AdminSessionToke
     }
 
     @Override
-    public void activeAccessToken(AdminAccessTokenQuery query) {
-        AdminAccessTokenResult accessToken = getAccessToken(query);
-        if (accessToken == null) {
-            return;
-        }
-        touchPrincipalAuthSession(accessToken.getPrincipalAccessToken());
-    }
-
-    @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteAccessToken(DeleteAdminAccessTokenCommand command) {
         AdminAccessTokenResult accessToken = getAccessToken(accessTokenQuery(command));
@@ -346,14 +337,6 @@ public class AdminSessionTokenApplicationServiceImpl implements AdminSessionToke
             return null;
         }
         return session;
-    }
-
-    private void touchPrincipalAuthSession(PrincipalAccessToken accessToken) {
-        PrincipalAuthSession session = getActivePrincipalAuthSession(accessToken, Instant.now());
-        if (session == null) {
-            return;
-        }
-        principalAuthSessionRepository.touch(session.getId(), Instant.now(), runtimeExpiredSeconds());
     }
 
     private void deletePrincipalAuthSession(PrincipalAccessToken accessToken) {

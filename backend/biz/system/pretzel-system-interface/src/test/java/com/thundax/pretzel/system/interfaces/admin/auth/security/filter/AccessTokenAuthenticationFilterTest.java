@@ -81,9 +81,6 @@ class AccessTokenAuthenticationFilterTest {
         }
 
         @Override
-        public void activeAccessToken(AdminAuthOperation command) {}
-
-        @Override
         public void deleteAccessToken(AdminAuthOperation command) {}
 
         @Override

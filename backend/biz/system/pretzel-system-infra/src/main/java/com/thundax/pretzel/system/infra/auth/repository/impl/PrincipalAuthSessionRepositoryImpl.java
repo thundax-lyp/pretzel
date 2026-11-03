@@ -49,17 +49,35 @@ public class PrincipalAuthSessionRepositoryImpl implements PrincipalAuthSessionR
         if (expireSeconds <= 0) {
             return;
         }
-        cache.put(sessionKey(session.getId()), toCacheDTO(session), expireSeconds, TimeUnit.SECONDS);
-    }
-
-    @Override
-    public void touch(PrincipalAuthSessionId id, Instant accessTime, int expireSeconds) {
-        PrincipalAuthSessionCacheDTO cacheDTO = cache.get(sessionKey(id));
-        if (cacheDTO == null || expireSeconds <= 0) {
-            return;
+        String key = sessionKey(session.getId());
+        for (int attempt = 0; attempt < 50; attempt++) {
+            try (var lock = cache.tryLock(key + "_WRITE", 5, TimeUnit.SECONDS)) {
+                if (lock != null) {
+                    PrincipalAuthSessionCacheDTO next = toCacheDTO(session);
+                    PrincipalAuthSessionCacheDTO current = cache.get(key);
+                    int ttl = expireSeconds;
+                    if (current != null && current.expireAt.isAfter(next.expireAt)) {
+                        next.issuedAt = current.issuedAt;
+                        next.lastAccessTime = current.lastAccessTime;
+                        next.expireAt = current.expireAt;
+                        ttl = Math.max(
+                                ttl,
+                                Math.toIntExact(java.time.Duration.between(Instant.now(), current.expireAt)
+                                                .toSeconds())
+                                        + 10);
+                    }
+                    cache.put(key, next, ttl, TimeUnit.SECONDS);
+                    return;
+                }
+            }
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new com.thundax.pretzel.common.core.exception.BizException("会话更新已中断");
+            }
         }
-        cacheDTO.lastAccessTime = accessTime;
-        cache.put(sessionKey(id), cacheDTO, expireSeconds, TimeUnit.SECONDS);
+        throw new com.thundax.pretzel.common.core.exception.BizException("会话正在更新，请重试");
     }
 
     @Override

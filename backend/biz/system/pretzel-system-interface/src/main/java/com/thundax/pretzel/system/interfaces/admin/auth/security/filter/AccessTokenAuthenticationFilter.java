@@ -113,7 +113,6 @@ public class AccessTokenAuthenticationFilter extends OncePerRequestFilter {
         }
         Set<String> permissionSnapshot = new LinkedHashSet<>(permissions);
 
-        authService.activeAccessToken(AdminAuthHelper.accessTokenOperation(accessToken));
         PretzelContextHolder.setSubject(new PretzelSubject(
                 accessToken.getUserId(),
                 PretzelSubjectType.ADMIN_USER,

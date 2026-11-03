@@ -20,8 +20,6 @@ public interface AdminAuthService {
 
     boolean validateToken(AdminAuthOperation operation);
 
-    void activeAccessToken(AdminAuthOperation operation);
-
     void deleteAccessToken(AdminAuthOperation operation);
 
     AuthTokenQueryDTO getTokenInfo(AdminAuthLookup lookup);

@@ -106,11 +106,6 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     }
 
     @Override
-    public void activeAccessToken(AdminAuthOperation operation) {
-        adminTokenService.activeAccessToken(accessTokenQuery(tokenValue(operation.getAccessToken())));
-    }
-
-    @Override
     public void deleteAccessToken(AdminAuthOperation operation) {
         adminTokenService.deleteAccessToken(AuthInterfaceAssembler.toDeleteAdminAccessTokenCommand(
                 operation, accessTokenCode(tokenValue(operation.getAccessToken()))));

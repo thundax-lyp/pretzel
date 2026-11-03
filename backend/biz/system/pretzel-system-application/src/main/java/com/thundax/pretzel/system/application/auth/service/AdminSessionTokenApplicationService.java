@@ -20,8 +20,6 @@ public interface AdminSessionTokenApplicationService {
 
     boolean validateToken(AdminAccessTokenQuery query);
 
-    void activeAccessToken(AdminAccessTokenQuery query);
-
     void deleteAccessToken(DeleteAdminAccessTokenCommand command);
 
     AdminTokenQueryResult getTokenInfo(AdminAccessTokenQuery query);
