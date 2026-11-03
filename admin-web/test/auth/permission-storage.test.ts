@@ -3,7 +3,7 @@ import {
     hasPermission,
     replacePermissions,
     subscribePermissionsChange,
-} from "./permission-storage";
+} from "@/auth/permission-storage";
 
 describe("permission-storage", () => {
     beforeEach(() => {

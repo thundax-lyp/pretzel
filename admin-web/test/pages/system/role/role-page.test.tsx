@@ -9,10 +9,10 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { replacePermissions } from "@/auth/permission-storage";
-import { RolePage } from "./role-page";
-import * as service from "./role-service";
+import { RolePage } from "@/pages/system/role/role-page";
+import * as service from "@/pages/system/role/role-service";
 
-vi.mock("./role-service", () => ({
+vi.mock("@/pages/system/role/role-service", () => ({
     changeInfo: vi.fn(),
     changeStatus: vi.fn(),
     create: vi.fn(),

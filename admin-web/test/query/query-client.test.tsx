@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { act, cleanup, render } from "@testing-library/react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { AdminQueryProvider } from "./query-client";
+import { AdminQueryProvider } from "@/query/query-client";
 import { clearAccessToken, saveTokenSession } from "@/auth/token-storage";
 
 afterEach(() => {

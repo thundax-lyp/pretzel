@@ -9,10 +9,10 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { replacePermissions } from "@/auth/permission-storage";
-import { SystemLogPage } from "./system-log-page";
-import * as service from "./system-log-service";
+import { SystemLogPage } from "@/pages/system/system-log/system-log-page";
+import * as service from "@/pages/system/system-log/system-log-service";
 
-vi.mock("./system-log-service", () => ({
+vi.mock("@/pages/system/system-log/system-log-service", () => ({
     pageEvents: vi.fn(),
 }));
 

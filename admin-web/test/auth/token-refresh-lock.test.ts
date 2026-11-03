@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import { withTokenRefreshLock } from "./token-refresh-lock";
+import { withTokenRefreshLock } from "@/auth/token-refresh-lock";
 
 it("releases a failed refresh so another tab can acquire the lock", async () => {
     const failed = withTokenRefreshLock(async () => {

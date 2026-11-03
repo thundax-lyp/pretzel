@@ -12,6 +12,8 @@
 
 src/pages 按业务域组织页面和服务。api 只提供传输能力，auth 保存底层认证与令牌，session 组织当前用户及会话建立。跨页面当前用户服务不混入用户管理页面的 CRUD 服务。
 
+生产源码放在 admin-web/src，测试放在独立的 admin-web/test，目录对应被测源码；测试初始化统一放在 test/setup.ts。测试通过 @/ 引用生产源码，生产源码不依赖测试目录。两者分别进行 TypeScript 检查，Vitest、格式与 lint 检查覆盖测试目录。
+
 布局直接使用 ProLayout，页面骨架使用 PageContainer，列表使用 ProTable，筛选使用 QueryFilter，表单使用 ProForm 或 DrawerForm，基础控件直接使用 Ant Design。角色菜单树、用户头像等业务组件可以封装自己的状态与协议，不包装官方组件的同义 props。
 
 ## 状态与验证

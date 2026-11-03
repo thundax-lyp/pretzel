@@ -5,8 +5,8 @@ import {
     logout,
     refreshAccessToken,
     refreshCaptcha,
-} from "./auth-service";
-import * as currentUserService from "../session/current-user-service";
+} from "@/auth/auth-service";
+import * as currentUserService from "@/session/current-user-service";
 
 interface CapturedCall {
     path: string;

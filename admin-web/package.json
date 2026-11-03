@@ -9,8 +9,8 @@
         "lint": "oxlint --deny-warnings && node ../scripts/check-structure.mjs",
         "preview": "vite preview",
         "test": "vitest run",
-        "format": "prettier --write src *.json vite.config.ts",
-        "format:check": "prettier --check src *.json vite.config.ts"
+        "format": "prettier --write src test *.json vite.config.ts",
+        "format:check": "prettier --check src test *.json vite.config.ts"
     },
     "dependencies": {
         "@ant-design/icons": "6.3.2",

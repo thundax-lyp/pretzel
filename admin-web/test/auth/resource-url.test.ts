@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { clearAccessToken, saveTokenSession } from "./token-storage";
-import { toAuthenticatedResourceUrl } from "./resource-url";
+import { clearAccessToken, saveTokenSession } from "@/auth/token-storage";
+import { toAuthenticatedResourceUrl } from "@/auth/resource-url";
 
 describe("resource url", () => {
     afterEach(() => {

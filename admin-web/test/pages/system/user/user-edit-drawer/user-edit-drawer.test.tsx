@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "antd";
 import type { CurrentUserRecord } from "@/session/current-user-types";
 import type { UserRecord } from "@/pages/system/user/user-types";
-import { UserEditDrawer } from "./user-edit-drawer";
+import { UserEditDrawer } from "@/pages/system/user/user-edit-drawer/user-edit-drawer";
 import * as service from "@/pages/system/user/user-service";
 
 vi.mock("@/pages/system/user/user-service", () => ({

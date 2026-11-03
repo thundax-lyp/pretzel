@@ -1,5 +1,5 @@
 import { sm2 } from "sm-crypto";
-import { encryptPassword } from "./password-encryption";
+import { encryptPassword } from "@/auth/password-encryption";
 
 vi.mock("sm-crypto", () => ({ sm2: { doEncrypt: vi.fn() } }));
 

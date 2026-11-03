@@ -42,7 +42,13 @@ for (const file of files(sourceRoot).filter((name) =>
         fail(file, "use kebab-case source filenames");
     if (relative.startsWith("service/"))
         fail(file, "place shared session capability in session, not service");
-    if (/\.test\.tsx?$/.test(file)) continue;
+    if (/\.test\.tsx?$/.test(file) || relative.startsWith("test/")) {
+        fail(
+            file,
+            "place tests and test support in admin-web/test, outside src",
+        );
+        continue;
+    }
     const text = fs.readFileSync(file, "utf8");
     const ast = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
     function visit(node) {
@@ -61,6 +67,8 @@ for (const file of files(sourceRoot).filter((name) =>
                             .replaceAll(path.sep, "/")
                       : null;
                 if (target) {
+                    if (/^(?:\.\.\/)+test(?:\/|$)/.test(target))
+                        fail(file, "production code must not depend on tests");
                     if (name.startsWith("../../"))
                         fail(
                             file,
@@ -115,6 +123,22 @@ for (const file of files(sourceRoot).filter((name) =>
         ts.forEachChild(node, visit);
     }
     visit(ast);
+}
+const testRoot = path.join(root, "admin-web/test");
+if (fs.existsSync(testRoot)) {
+    for (const file of files(testRoot).filter((name) =>
+        /\.test\.tsx?$/.test(name),
+    )) {
+        const relative = path.relative(testRoot, file);
+        if (
+            !/^[a-z0-9]+(?:[-.][a-z0-9]+)*\.test\.tsx?$/.test(
+                path.basename(file),
+            )
+        )
+            fail(file, "use kebab-case test filenames");
+        if (!fs.existsSync(path.join(sourceRoot, path.dirname(relative))))
+            fail(file, "test directory must mirror the source directory");
+    }
 }
 const all = files(root);
 for (const file of all) {

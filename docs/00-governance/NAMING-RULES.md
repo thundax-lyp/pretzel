@@ -12,7 +12,9 @@
 
 - 源文件使用小写 kebab-case，React 导出组件使用 PascalCase，hook 使用 useXxx，文件名为 use-xxx.ts。
 - 页面放在 src/pages/<module>/<domain>/<domain>-page.tsx，业务对象目录使用单数。
-- 业务类型为 <domain>-types.ts，服务为 <domain>-service.ts；测试和样式与被测对象就近放置，使用 .test.ts、.test.tsx 和 .css。
+- 业务类型为 <domain>-types.ts，服务为 <domain>-service.ts；样式与业务源码就近放置，使用 .css。
+- 生产代码放在 admin-web/src，测试独立放在 admin-web/test，按 src 的相对目录组织；普通逻辑使用 .test.ts，包含 JSX 的组件测试使用 .test.tsx。共享测试初始化为 test/setup.ts，测试通过 @/ 引用生产代码；生产代码不得依赖测试。
+- 生产代码与测试分别由 tsconfig.app.json、tsconfig.test.json 检查，测试框架全局类型仅在测试配置中启用；构建命令同时检查两者，Vitest 仅收集 test 下的测试。
 - 页面私有业务组件放在同业务目录内的同名子目录。仅父组件使用的子组件下沉到父目录。index.ts 只导出该目录公开能力。
 - api 负责 HTTP 传输；auth 负责认证协议、令牌和权限存储；session 负责当前用户、菜单、权限加载以及登录后会话建立；页面 service 负责本业务请求。
 - types 仅存放跨业务通用类型，不能成为页面类型的集中桶。pages、layouts 等集合目录可以使用复数。

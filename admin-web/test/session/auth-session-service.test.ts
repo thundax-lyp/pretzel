@@ -1,4 +1,4 @@
-import { loginWithPermissions } from "./auth-session-service";
+import { loginWithPermissions } from "@/session/auth-session-service";
 import { login } from "@/auth/auth-service";
 import { listCurrentUserPerms } from "@/session/current-user-service";
 import { getAccessToken, clearAccessToken } from "@/auth/token-storage";

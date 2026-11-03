@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import { postJson, postSessionLogout } from "./http";
+import { postJson, postSessionLogout } from "@/api/http";
 import {
     clearAccessToken,
     getAccessToken,
@@ -84,9 +84,9 @@ it("preserves the session for retry when logout fails", async () => {
 });
 it("serializes refreshes from independent tabs and reuses the rotated token", async () => {
     vi.resetModules();
-    const firstTab = await import("./http");
+    const firstTab = await import("@/api/http");
     vi.resetModules();
-    const secondTab = await import("./http");
+    const secondTab = await import("@/api/http");
     saveTokenSession({
         token: "old",
         refreshToken: "refresh",

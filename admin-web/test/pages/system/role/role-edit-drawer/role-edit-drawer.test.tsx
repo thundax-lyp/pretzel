@@ -9,7 +9,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RoleRecord } from "@/pages/system/role/role-types";
-import { RoleEditDrawer } from "./role-edit-drawer";
+import { RoleEditDrawer } from "@/pages/system/role/role-edit-drawer/role-edit-drawer";
 import * as service from "@/pages/system/role/role-service";
 
 vi.mock("@/pages/system/role/role-service", () => ({

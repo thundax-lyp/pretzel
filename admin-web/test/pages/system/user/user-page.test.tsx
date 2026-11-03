@@ -4,14 +4,14 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { replacePermissions } from "@/auth/permission-storage";
 import { getCurrentUserInfo } from "@/session/current-user-service";
-import { UserPage } from "./user-page";
-import * as service from "./user-service";
+import { UserPage } from "@/pages/system/user/user-page";
+import * as service from "@/pages/system/user/user-service";
 
 vi.mock("@/session/current-user-service", () => ({
     getCurrentUserInfo: vi.fn(),
 }));
 
-vi.mock("./user-service", () => ({
+vi.mock("@/pages/system/user/user-service", () => ({
     changeInfo: vi.fn(),
     changeStatus: vi.fn(),
     create: vi.fn(),

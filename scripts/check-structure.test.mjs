@@ -30,6 +30,22 @@ function fixture(t, entries = {}) {
 test("accepts a tree of documents and protocol-owned code", (t) => {
     assert.equal(fixture(t).status, 0);
 });
+test("separates production code from mirrored tests", (t) => {
+    assert.equal(
+        fixture(t, {
+            "admin-web/test/auth/token-storage.test.ts":
+                'import { token } from "@/auth/token-storage";\n',
+        }).status,
+        0,
+    );
+    const result = fixture(t, {
+        "admin-web/src/auth/token-storage.test.ts": "export {};\n",
+        "admin-web/src/auth/production.ts": 'import "../../test/setup";\n',
+    });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /outside src/);
+    assert.match(result.stderr, /must not depend on tests/);
+});
 test("rejects session code depending on a business page", (t) => {
     const result = fixture(t, {
         "admin-web/src/session/current-user-service.ts":
