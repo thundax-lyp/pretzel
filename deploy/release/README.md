@@ -51,7 +51,7 @@ python3 scripts/with-env.py --env-file dev.env -- java -jar backend/starter/pret
 
 `AdminAuthIntegrationTest`支持`TEST_DB_URL/TEST_DB_USERNAME/TEST_DB_PASSWORD/TEST_REDIS_URL`，使用临时验收库和Redis DB15，不针对正式库运行测试账号创建。未设置TEST_REDIS_URL时沿用本地测试Redis。
 
-本次实际服务器验收覆盖加密登录、创建用户/角色、无权限拒绝、角色授权后允许、撤权后立即拒绝、令牌刷新、登出失效、停用用户和bootstrap幂等。临时验收库/账号及DB15的测试数据验证后清理；正式库和DB0保留。V4迁移修正原菜单种子的非法访问等级；启动扫描补齐bootstrap配置。
+本次实际服务器验收覆盖加密登录、创建用户/角色、无权限拒绝、角色授权后允许、撤权后立即拒绝、令牌刷新、登出失效、停用用户和bootstrap幂等。临时验收库/账号及DB15的测试数据验证后清理；正式库和DB0保留。数据库使用唯一 V1 初始化结构与合法菜单等级，首次管理员通过显式 bootstrap 创建。
 
 所有过程未重启或修改服务器其他项目的基础设施。
 
