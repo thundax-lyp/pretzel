@@ -247,7 +247,7 @@ public class StorageApplicationServiceImpl implements StorageApplicationService 
         if (id == null) {
             return 0;
         }
-        StoredObject storage = dao.getById(id);
+        StoredObject storage = dao.getByIdForUpdate(id);
         if (storage == null) {
             return 0;
         }
@@ -277,6 +277,7 @@ public class StorageApplicationServiceImpl implements StorageApplicationService 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public int changeObjectStatus(ChangeStorageObjectStatusCommand command) {
+        dao.getByIdForUpdate(command.id());
         StoredObject storage = new StoredObject();
         storage.setId(command.id());
         storage.setObjectStatus(command.objectStatus());
@@ -289,6 +290,7 @@ public class StorageApplicationServiceImpl implements StorageApplicationService 
         if (command == null || command.id() == null) {
             return 0;
         }
+        dao.getByIdForUpdate(command.id());
         return updateReferenceStatusByObjectId(command.id());
     }
 
@@ -301,6 +303,7 @@ public class StorageApplicationServiceImpl implements StorageApplicationService 
         StorageOwnerRef ownerRef = command.ownerRef();
         Set<StoredObjectId> impactedObjectIds =
                 command.objectId() == null ? impactedObjectIdsByOwner(ownerRef) : Set.of(command.objectId());
+        lockObjects(impactedObjectIds, false);
         int removed = businessRepository.deleteByOwner(ownerRef, command.objectId());
         updateReferenceStatusByObjectId(impactedObjectIds);
         return removed;
@@ -317,6 +320,7 @@ public class StorageApplicationServiceImpl implements StorageApplicationService 
             return;
         }
         Set<StoredObjectId> impactedObjectIds = impactedObjectIds(candidates);
+        lockObjects(impactedObjectIds, true);
         List<StoredObjectReference> toInsert = uniqueReferences(candidates);
         if (toInsert.isEmpty() && impactedObjectIds.isEmpty()) {
             return;
@@ -325,6 +329,17 @@ public class StorageApplicationServiceImpl implements StorageApplicationService 
             businessRepository.insertReferences(toInsert);
         }
         updateReferenceStatusByObjectId(impactedObjectIds);
+    }
+
+    private void lockObjects(Set<StoredObjectId> objectIds, boolean requireActive) {
+        for (StoredObjectId id : objectIds.stream()
+                .sorted(java.util.Comparator.comparing(StoredObjectId::value))
+                .toList()) {
+            StoredObject object = dao.getByIdForUpdate(id);
+            if (requireActive && (object == null || object.getObjectStatus() != StoredObjectStatus.ACTIVE)) {
+                throw new BizException("Storage 对象不存在或已删除");
+            }
+        }
     }
 
     private int updateReferenceStatusByObjectId(StoredObjectId objectId) {
@@ -410,8 +425,12 @@ public class StorageApplicationServiceImpl implements StorageApplicationService 
                 command == null ? null : command.allowedSuffixes());
 
         StoredObject storage = new StoredObject();
-        storage.setObjectStatus(command.objectStatus());
-        storage.setReferenceStatus(command.referenceStatus());
+        if (command.objectStatus() != null) {
+            storage.setObjectStatus(command.objectStatus());
+        }
+        if (command.referenceStatus() != null) {
+            storage.setReferenceStatus(command.referenceStatus());
+        }
         storage.setRemarks(command.remarks());
         applyFileMetadata(command.originalFilename(), command.contentType(), storage);
         try {
@@ -426,6 +445,17 @@ public class StorageApplicationServiceImpl implements StorageApplicationService 
         if (!command.size().value().equals(storage.getSize())) {
             deleteStoredObjectContent(storage);
             throw new BizException("文件大小与声明大小不一致");
+        }
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCompletion(int status) {
+                            if (status == STATUS_ROLLED_BACK) {
+                                deleteStoredObjectContent(storage);
+                            }
+                        }
+                    });
         }
         StoredObject createdStorage = create(toCreateStorageCommand(storage));
         storage.setId(createdStorage == null ? null : createdStorage.getId());
@@ -572,13 +602,18 @@ public class StorageApplicationServiceImpl implements StorageApplicationService 
         storage.setObjectKeyRef(command.objectKey());
         storage.setSizeRef(command.size());
         storage.setAccessEndpoint(command.accessEndpoint());
-        storage.setObjectStatus(command.objectStatus());
-        storage.setReferenceStatus(command.referenceStatus());
+        if (command.objectStatus() != null) {
+            storage.setObjectStatus(command.objectStatus());
+        }
+        if (command.referenceStatus() != null) {
+            storage.setReferenceStatus(command.referenceStatus());
+        }
         storage.setRemarks(command.remarks());
         return storage;
     }
 
     private StoredObject toStoredObject(ChangeStorageCommand command) {
+        dao.getByIdForUpdate(command.id());
         StoredObject storage = new StoredObject();
         storage.setId(command.id());
         storage.setOriginalFilename(command.originalFilename());
@@ -590,8 +625,12 @@ public class StorageApplicationServiceImpl implements StorageApplicationService 
         storage.setObjectKeyRef(command.objectKey());
         storage.setSizeRef(command.size());
         storage.setAccessEndpoint(command.accessEndpoint());
-        storage.setObjectStatus(command.objectStatus());
-        storage.setReferenceStatus(command.referenceStatus());
+        if (command.objectStatus() != null) {
+            storage.setObjectStatus(command.objectStatus());
+        }
+        if (command.referenceStatus() != null) {
+            storage.setReferenceStatus(command.referenceStatus());
+        }
         storage.setRemarks(command.remarks());
         return storage;
     }

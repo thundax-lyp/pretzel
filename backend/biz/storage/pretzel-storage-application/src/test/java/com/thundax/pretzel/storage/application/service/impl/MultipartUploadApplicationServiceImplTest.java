@@ -89,7 +89,7 @@ class MultipartUploadApplicationServiceImplTest {
         when(contentRepository.open(any())).thenAnswer(invocation -> {
             StoredObject partStorage = invocation.getArgument(0);
             return "multipart/upload-1/3.part".equals(partStorage.getObjectKey())
-                    ? new ByteArrayInputStream("three".getBytes())
+                    ? new ByteArrayInputStream("tri".getBytes())
                     : "multipart/upload-1/2.part".equals(partStorage.getObjectKey())
                             ? new ByteArrayInputStream("two".getBytes())
                             : new ByteArrayInputStream("one".getBytes());
@@ -115,12 +115,21 @@ class MultipartUploadApplicationServiceImplTest {
         assertEquals(StoredObjectIdCodec.toDomain(11L), storage.getId());
         assertEquals("multipart-file.txt", storage.getOriginalFilename());
         assertEquals("/api/storage/object/11/content", storage.getAccessEndpoint());
-        assertEquals(11L, storage.getSize());
-        assertArrayEquals("onetwothree".getBytes(), savedBytes.get());
+        assertEquals(9L, storage.getSize());
+        assertArrayEquals("onetwotri".getBytes(), savedBytes.get());
         assertNotNull(session.getCompletedDate());
         assertEquals(MultipartUploadStatus.COMPLETED, session.getUploadStatus());
         verify(contentRepository).save(any(), any());
         verify(storageApplicationService).create(any());
+        verify(storageApplicationService)
+                .addReferences(org.mockito.ArgumentMatchers.argThat(command -> command.references()
+                                        .size()
+                                == 1
+                        && command.references().get(0).getReferenceOwnerId().equals("u-1")
+                        && command.references().get(0).getObjectId().equals(storage.getId())));
+        assertEquals(
+                com.thundax.pretzel.storage.domain.object.model.enums.StoredObjectReferenceStatus.REFERENCED,
+                storage.getReferenceStatus());
         verify(contentRepository, times(3)).delete(any());
         verify(multipartUploadRepository).deleteByUploadId(UPLOAD_ID_REF);
     }
@@ -165,6 +174,28 @@ class MultipartUploadApplicationServiceImplTest {
                         new ByteArrayInputStream("data".getBytes()))));
 
         verify(contentRepository, never()).save(any(), any());
+    }
+
+    @Test
+    void completeRejectsCorruptedMergedSizeWithoutCreatingMetadata() throws Exception {
+        MultipartUploadRepository repository = mock(MultipartUploadRepository.class);
+        StoredObjectContentRepository content = mock(StoredObjectContentRepository.class);
+        StorageApplicationServiceImpl objects = mock(StorageApplicationServiceImpl.class);
+        when(repository.getMultipartSessionByUploadId(UPLOAD_ID_REF)).thenReturn(session());
+        when(repository.updateMultipartSessionStatus(any(), any(), any())).thenReturn(1);
+        when(repository.listMultipartParts(UPLOAD_ID_REF)).thenReturn(parts());
+        when(content.open(any())).thenAnswer(call -> new ByteArrayInputStream(new byte[2]));
+        when(content.save(any(), any())).thenAnswer(call -> {
+            StoredObject object = call.getArgument(0);
+            object.setSize((long) ((InputStream) call.getArgument(1)).readAllBytes().length);
+            return object;
+        });
+        assertThrows(
+                RuntimeException.class, () -> new MultipartUploadApplicationServiceImpl(repository, content, objects)
+                        .complete(new CompleteMultipartUploadCommand(UPLOAD_ID_REF, null, null, null, null)));
+        verify(objects, never()).create(any());
+        verify(repository, never()).deleteByUploadId(any());
+        verify(content).delete(any());
     }
 
     private static MultipartUploadSession session() {

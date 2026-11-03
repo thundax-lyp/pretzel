@@ -44,6 +44,32 @@ class StorageObjectMultipartUploadContractTest {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Test
+    void activeDocumentsMustDownloadWhileRasterImagesMayRenderInline() throws Exception {
+        for (String mime : new String[] {"text/html", "image/svg+xml", "image/png"}) {
+            var content = org.mockito.Mockito.mock(StorageContentApplicationService.class);
+            StoredObject object = new StoredObject();
+            object.setName("sample");
+            object.setExtendName("html");
+            object.setContentType(mime);
+            object.setSize(1L);
+            org.mockito.Mockito.when(content.openReadableContent(org.mockito.ArgumentMatchers.any()))
+                    .thenReturn(new com.thundax.pretzel.storage.application.result.StoredObjectContentResult(
+                            object, new java.io.ByteArrayInputStream(new byte[] {1})));
+            var controller = new StorageObjectController(
+                    org.mockito.Mockito.mock(StorageObjectApplicationService.class),
+                    content,
+                    org.mockito.Mockito.mock(StorageUploadApplicationService.class),
+                    org.mockito.Mockito.mock(StorageMultipartUploadApplicationService.class));
+            var response = new org.springframework.mock.web.MockHttpServletResponse();
+            controller.content("1", false, response);
+            assertTrue(response.getHeader("Content-Disposition")
+                    .startsWith(mime.equals("image/png") ? "inline" : "attachment"));
+            assertEquals("nosniff", response.getHeader("X-Content-Type-Options"));
+            assertTrue(response.getHeader("Content-Security-Policy").contains("sandbox"));
+        }
+    }
+
+    @Test
     void initiateRouteShouldKeepMultipartContract() throws Exception {
         PostMapping methodMapping = StorageObjectController.class
                 .getDeclaredMethod("initMultipartUpload", InitMultipartUploadRequest.class)

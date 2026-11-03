@@ -63,6 +63,13 @@ public class StoredObjectRepositoryImpl implements StoredObjectRepository {
     }
 
     @Override
+    public StoredObject getByIdForUpdate(StoredObjectId id) {
+        return StoragePersistenceAssembler.toDomain(mapper.selectOne(new LambdaQueryWrapper<StoredObjectDO>()
+                .eq(StoredObjectDO::getId, id.value())
+                .last("FOR UPDATE")));
+    }
+
+    @Override
     public List<StoredObject> listByIds(List<StoredObjectId> idList) {
         List<StoredObject> storageList = new ArrayList<>();
         List<Long> uncachedIdList = new ArrayList<>();

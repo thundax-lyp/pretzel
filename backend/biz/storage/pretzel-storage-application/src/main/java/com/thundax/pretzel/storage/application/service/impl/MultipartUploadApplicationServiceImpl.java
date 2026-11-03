@@ -4,6 +4,7 @@ import com.thundax.pretzel.common.core.exception.BizException;
 import com.thundax.pretzel.common.core.exception.BizExceptionBoundary;
 import com.thundax.pretzel.common.core.id.UuidHelper;
 import com.thundax.pretzel.storage.application.command.AbortMultipartUploadCommand;
+import com.thundax.pretzel.storage.application.command.AddStorageReferencesCommand;
 import com.thundax.pretzel.storage.application.command.CompleteMultipartUploadCommand;
 import com.thundax.pretzel.storage.application.command.CreateStorageCommand;
 import com.thundax.pretzel.storage.application.command.InitMultipartUploadCommand;
@@ -13,6 +14,7 @@ import com.thundax.pretzel.storage.application.service.StorageApplicationService
 import com.thundax.pretzel.storage.domain.object.model.entity.MultipartUploadPart;
 import com.thundax.pretzel.storage.domain.object.model.entity.MultipartUploadSession;
 import com.thundax.pretzel.storage.domain.object.model.entity.StoredObject;
+import com.thundax.pretzel.storage.domain.object.model.entity.StoredObjectReference;
 import com.thundax.pretzel.storage.domain.object.model.enums.MultipartUploadStatus;
 import com.thundax.pretzel.storage.domain.object.model.enums.StoredObjectReferenceStatus;
 import com.thundax.pretzel.storage.domain.object.model.enums.StoredObjectStatus;
@@ -29,6 +31,8 @@ import java.util.Vector;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 @Transactional(readOnly = true)
@@ -118,12 +122,16 @@ public class MultipartUploadApplicationServiceImpl implements MultipartUploadApp
         StoredObject createdStorage = storageApplicationService.create(toCreateStorageCommand(storage));
         storage.setId(createdStorage == null ? null : createdStorage.getId());
 
+        storageApplicationService.addReferences(new AddStorageReferencesCommand(
+                List.of(new StoredObjectReference(storage.getId(), session.getOwnerRef(), null))));
+        storage.setReferenceStatus(StoredObjectReferenceStatus.REFERENCED);
         Instant now = Instant.now();
         session.setUploadStatus(MultipartUploadStatus.COMPLETED);
         session.setUploadedPartCount(parts.size());
         session.setCompletedDate(now);
         multipartUploadRepository.updateMultipartSession(session);
-        cleanupCompletedMultipartParts(session.getUploadIdRef(), parts);
+        multipartUploadRepository.deleteByUploadId(session.getUploadIdRef());
+        afterCommit(() -> parts.forEach(this::deleteMultipartPartContent));
         return storage;
     }
 
@@ -133,6 +141,7 @@ public class MultipartUploadApplicationServiceImpl implements MultipartUploadApp
             partStorage.setObjectKey(part.getPartPath());
             StoredObject savedStorage = storedObjectContentRepository.save(
                     partStorage, StorageInputStreamLimiter.limit(stream, part.getSize()));
+            deleteOnRollback(savedStorage);
             if (!part.getSize().equals(savedStorage.getSize())) {
                 deleteMultipartPartContent(part);
                 throw new BizException("Multipart upload part size mismatch: " + part.getPartNumber());
@@ -152,18 +161,51 @@ public class MultipartUploadApplicationServiceImpl implements MultipartUploadApp
         }
     }
 
-    private void cleanupCompletedMultipartParts(MultipartUploadId uploadId, List<MultipartUploadPart> parts) {
-        for (MultipartUploadPart part : parts) {
-            deleteMultipartPartContent(part);
+    private void deleteOnRollback(StoredObject object) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCompletion(int status) {
+                    if (status == STATUS_ROLLED_BACK) {
+                        try {
+                            storedObjectContentRepository.delete(object);
+                        } catch (IOException exception) {
+                            throw new BizException(
+                                    "STORAGE-90006",
+                                    "storage.rollback.cleanup-failed",
+                                    "Multipart rollback cleanup failed",
+                                    exception);
+                        }
+                    }
+                }
+            });
         }
-        multipartUploadRepository.deleteByUploadId(uploadId);
+    }
+
+    private void afterCommit(Runnable action) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    action.run();
+                }
+            });
+        } else {
+            action.run();
+        }
     }
 
     private void persistCompletedMultipartStorage(
             MultipartUploadSession session, List<MultipartUploadPart> parts, StoredObject storage) {
         List<InputStream> streams = new ArrayList<>();
         try (InputStream mergedStream = mergeParts(session, parts, streams)) {
-            StoredObject mergedStorage = storedObjectContentRepository.save(storage, mergedStream);
+            StoredObject mergedStorage = storedObjectContentRepository.save(
+                    storage, StorageInputStreamLimiter.limit(mergedStream, session.getTotalSize()));
+            deleteOnRollback(mergedStorage);
+            if (!session.getTotalSize().equals(mergedStorage.getSize())) {
+                storedObjectContentRepository.delete(mergedStorage);
+                throw new BizException("Multipart upload total size mismatch");
+            }
             storage.setObjectKey(mergedStorage.getObjectKey());
             storage.setBucketName(mergedStorage.getBucketName());
             storage.setSize(mergedStorage.getSize());
@@ -213,15 +255,7 @@ public class MultipartUploadApplicationServiceImpl implements MultipartUploadApp
     public int abort(AbortMultipartUploadCommand command) {
         MultipartUploadSession session = requireActiveMultipartSession(command == null ? null : command.uploadId());
         List<MultipartUploadPart> parts = multipartUploadRepository.listMultipartParts(session.getUploadIdRef());
-        for (MultipartUploadPart part : parts) {
-            StoredObject partStorage = new StoredObject();
-            partStorage.setObjectKey(part.getPartPath());
-            try {
-                storedObjectContentRepository.delete(partStorage);
-            } catch (IOException exception) {
-                throw new BizException("Multipart upload part delete failed: " + exception.getMessage());
-            }
-        }
+        afterCommit(() -> parts.forEach(this::deleteMultipartPartContent));
         multipartUploadRepository.deleteByUploadId(session.getUploadIdRef());
         Instant now = Instant.now();
         session.setUploadStatus(MultipartUploadStatus.ABORTED);

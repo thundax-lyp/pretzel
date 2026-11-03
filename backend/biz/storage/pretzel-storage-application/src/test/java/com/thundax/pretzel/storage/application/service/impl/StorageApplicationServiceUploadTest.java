@@ -55,6 +55,8 @@ class StorageApplicationServiceUploadTest {
                 new StorageApplicationServiceImpl(repository, referenceRepository, contentRepository);
         when(referenceRepository.countByObjectId(StoredObjectIdCodec.toDomain(100L)))
                 .thenReturn(1L);
+        when(repository.getByIdForUpdate(any()))
+                .thenReturn(storage(StoredObjectIdCodec.toDomain(100L), StoredObjectStatus.ACTIVE));
         when(repository.maxPriority()).thenReturn(0);
         when(repository.insert(any())).thenReturn(StoredObjectIdCodec.toDomain(100L));
         when(contentRepository.save(any(), any())).thenAnswer(invocation -> {
@@ -181,8 +183,11 @@ class StorageApplicationServiceUploadTest {
     @Test
     void addReferencesShouldDeduplicateAndSkipExistingRecords() {
         StoredObjectReferenceRepository referenceRepository = mock(StoredObjectReferenceRepository.class);
+        StoredObjectRepository objects = mock(StoredObjectRepository.class);
+        when(objects.getByIdForUpdate(any()))
+                .thenAnswer(call -> storage(call.getArgument(0), StoredObjectStatus.ACTIVE));
         StorageApplicationServiceImpl service = new StorageApplicationServiceImpl(
-                mock(StoredObjectRepository.class), referenceRepository, mock(StoredObjectContentRepository.class));
+                objects, referenceRepository, mock(StoredObjectContentRepository.class));
         when(referenceRepository.exists(any())).thenAnswer(invocation -> {
             StoredObjectReference reference = invocation.getArgument(0);
             return reference != null
@@ -235,6 +240,8 @@ class StorageApplicationServiceUploadTest {
         StoredObjectRepository storageRepository = mock(StoredObjectRepository.class);
         StorageApplicationServiceImpl service = new StorageApplicationServiceImpl(
                 storageRepository, referenceRepository, mock(StoredObjectContentRepository.class));
+        when(storageRepository.getByIdForUpdate(any()))
+                .thenReturn(storage(StoredObjectIdCodec.toDomain(100L), StoredObjectStatus.ACTIVE));
         when(referenceRepository.exists(any())).thenReturn(true);
         when(referenceRepository.countByObjectId(StoredObjectIdCodec.toDomain(100L)))
                 .thenReturn(1L);
@@ -255,6 +262,8 @@ class StorageApplicationServiceUploadTest {
         StoredObjectRepository storageRepository = mock(StoredObjectRepository.class);
         StorageApplicationServiceImpl service = new StorageApplicationServiceImpl(
                 storageRepository, referenceRepository, mock(StoredObjectContentRepository.class));
+        when(storageRepository.getByIdForUpdate(any()))
+                .thenReturn(storage(StoredObjectIdCodec.toDomain(100L), StoredObjectStatus.ACTIVE));
         when(referenceRepository.countByObjectId(StoredObjectIdCodec.toDomain(100L)))
                 .thenReturn(0L);
 
@@ -276,6 +285,8 @@ class StorageApplicationServiceUploadTest {
         StorageOwnerRef ownerRef = StorageOwnerRef.of(StorageOwnerType.USER, "owner-1");
         when(referenceRepository.listObjectIdsByOwner(ownerRef))
                 .thenReturn(List.of(StoredObjectIdCodec.toDomain(100L), StoredObjectIdCodec.toDomain(101L)));
+        when(storageRepository.getByIdForUpdate(any()))
+                .thenReturn(storage(StoredObjectIdCodec.toDomain(100L), StoredObjectStatus.ACTIVE));
         when(referenceRepository.countByObjectId(StoredObjectIdCodec.toDomain(100L)))
                 .thenReturn(0L);
         when(referenceRepository.countByObjectId(StoredObjectIdCodec.toDomain(101L)))

@@ -45,7 +45,8 @@ public class MultipartUploadRepositoryImpl implements MultipartUploadRepository 
     @Override
     public MultipartUploadSession getMultipartSessionByUploadId(MultipartUploadId uploadId) {
         LambdaQueryWrapper<MultipartUploadSessionDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(MultipartUploadSessionDO::getUploadId, MultipartUploadIdCodec.toValue(uploadId));
+        wrapper.eq(MultipartUploadSessionDO::getUploadId, MultipartUploadIdCodec.toValue(uploadId))
+                .last("FOR UPDATE");
         return StoragePersistenceAssembler.toMultipartSessionDomain(sessionMapper.selectOne(wrapper));
     }
 

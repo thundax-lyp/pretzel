@@ -295,9 +295,13 @@ public class StorageObjectController {
         if (storage.getSize() != null) {
             response.setContentLengthLong(storage.getSize());
         }
+        response.setHeader("X-Content-Type-Options", "nosniff");
+        response.setHeader("Content-Security-Policy", "sandbox; default-src 'none'");
+        boolean safeInline =
+                List.of("image/jpeg", "image/png", "image/gif", "image/webp").contains(storage.getContentType());
         response.setHeader(
                 "Content-Disposition",
-                contentDisposition(storage.getOriginalFilename(), Boolean.TRUE.equals(download)));
+                contentDisposition(storage.getOriginalFilename(), Boolean.TRUE.equals(download) || !safeInline));
         try (InputStream inputStream = content.getInputStream()) {
             inputStream.transferTo(response.getOutputStream());
         }
@@ -317,7 +321,7 @@ public class StorageObjectController {
     private static String contentDisposition(String originalFilename, boolean download) {
         String disposition = download ? "attachment" : "inline";
         String filename = StringUtils.defaultIfBlank(FilenameUtils.getName(originalFilename), "file");
-        String asciiFilename = filename.replace("\\", "").replace("\"", "");
+        String asciiFilename = filename.replaceAll("[\\p{Cntrl}\\\\\"]", "_");
         String encodedFilename =
                 URLEncoder.encode(filename, StandardCharsets.UTF_8).replace("+", "%20");
         return disposition + "; filename=\"" + asciiFilename + "\"; filename*=UTF-8''" + encodedFilename;

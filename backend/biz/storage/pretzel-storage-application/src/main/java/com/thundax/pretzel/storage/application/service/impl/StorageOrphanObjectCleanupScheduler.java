@@ -24,10 +24,14 @@ public class StorageOrphanObjectCleanupScheduler {
 
     private final StoredObjectRepository repository;
     private final StoredObjectContentRepository storedObjectContentRepository;
+    private final org.springframework.transaction.support.TransactionTemplate transactionTemplate;
     private Clock clock = Clock.systemUTC();
 
     public StorageOrphanObjectCleanupScheduler(
-            StoredObjectRepository repository, StoredObjectContentRepository storedObjectContentRepository) {
+            StoredObjectRepository repository,
+            StoredObjectContentRepository storedObjectContentRepository,
+            org.springframework.transaction.PlatformTransactionManager transactionManager) {
+        this.transactionTemplate = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
         this.repository = repository;
         this.storedObjectContentRepository = storedObjectContentRepository;
     }
@@ -41,17 +45,38 @@ public class StorageOrphanObjectCleanupScheduler {
 
     @Scheduled(cron = "0 0 0/4 * * ?")
     public int cleanupExpiredOrphans() {
+        Integer count = transactionTemplate.execute(status -> cleanup());
+        return count == null ? 0 : count;
+    }
+
+    private int cleanup() {
         Instant threshold = Instant.now(clock).minus(ORPHAN_ALIVE_TIME);
         List<StoredObject> activeOrphans = repository.listExpiredActiveUnreferenced(threshold);
         Set<StoredObjectId> markedThisRun = new HashSet<>();
-        for (StoredObject orphan : activeOrphans) {
+        for (StoredObject snapshot : activeOrphans.stream()
+                .sorted(java.util.Comparator.comparing(o -> o.getId().value()))
+                .toList()) {
+            StoredObject orphan = repository.getByIdForUpdate(snapshot.getId());
+            if (!isOrphan(orphan, threshold)
+                    || orphan.getObjectStatus()
+                            != com.thundax.pretzel.storage.domain.object.model.enums.StoredObjectStatus.ACTIVE) {
+                continue;
+            }
             orphan.setObjectStatus(com.thundax.pretzel.storage.domain.object.model.enums.StoredObjectStatus.DELETED);
             repository.updateObjectStatus(orphan);
             markedThisRun.add(orphan.getId());
         }
         List<StoredObject> candidates = repository.listExpiredDeletedUnreferenced(threshold);
         int count = 0;
-        for (StoredObject candidate : candidates) {
+        for (StoredObject snapshot : candidates.stream()
+                .sorted(java.util.Comparator.comparing(o -> o.getId().value()))
+                .toList()) {
+            StoredObject candidate = repository.getByIdForUpdate(snapshot.getId());
+            if (!isOrphan(candidate, threshold)
+                    || candidate.getObjectStatus()
+                            != com.thundax.pretzel.storage.domain.object.model.enums.StoredObjectStatus.DELETED) {
+                continue;
+            }
             if (markedThisRun.contains(candidate.getId())) {
                 continue;
             }
@@ -59,6 +84,15 @@ public class StorageOrphanObjectCleanupScheduler {
             count += repository.deleteByIdPermanently(candidate.getId());
         }
         return count;
+    }
+
+    private boolean isOrphan(StoredObject object, Instant threshold) {
+        return object != null
+                && object.getReferenceStatus()
+                        == com.thundax.pretzel.storage.domain.object.model.enums.StoredObjectReferenceStatus
+                                .UNREFERENCED
+                && object.getStoredAt() != null
+                && !object.getStoredAt().isAfter(threshold);
     }
 
     private void delete(StoredObject storage) {

@@ -145,9 +145,29 @@ class StorageOrphanObjectCleanupSchedulerTest {
         assertEquals(List.of(), store.deletedObjects);
     }
 
+    @Test
+    void cleanupMustRecheckReferenceAfterObtainingLock() {
+        StoredObject snapshot = storage(2000L, StoredObjectStatus.ACTIVE, 13);
+        StoredObject latest = storage(2000L, StoredObjectStatus.ACTIVE, 13);
+        latest.setReferenceStatus(StoredObjectReferenceStatus.REFERENCED);
+        StoredObjectRepository repository = org.mockito.Mockito.mock(StoredObjectRepository.class);
+        org.mockito.Mockito.when(repository.listExpiredActiveUnreferenced(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of(snapshot));
+        org.mockito.Mockito.when(repository.getByIdForUpdate(snapshot.getId())).thenReturn(latest);
+        RecordingStore store = new RecordingStore();
+        assertEquals(0, scheduler(repository, store).cleanupExpiredOrphans());
+        org.mockito.Mockito.verify(repository, org.mockito.Mockito.never())
+                .updateObjectStatus(org.mockito.ArgumentMatchers.any());
+        assertEquals(List.of(), store.deletedObjects);
+    }
+
     private static StorageOrphanObjectCleanupScheduler scheduler(
             StoredObjectRepository repository, StoredObjectContentRepository store) {
-        return new StorageOrphanObjectCleanupScheduler(repository, store).useClock(Clock.fixed(NOW, ZoneOffset.UTC));
+        return new StorageOrphanObjectCleanupScheduler(
+                        repository,
+                        store,
+                        org.mockito.Mockito.mock(org.springframework.transaction.PlatformTransactionManager.class))
+                .useClock(Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
@@ -220,6 +240,14 @@ class StorageOrphanObjectCleanupSchedulerTest {
         @Override
         public StoredObject getById(StoredObjectId id) {
             return null;
+        }
+
+        @Override
+        public StoredObject getByIdForUpdate(StoredObjectId id) {
+            return objects.stream()
+                    .filter(o -> o.getId().equals(id))
+                    .findFirst()
+                    .orElse(null);
         }
 
         @Override

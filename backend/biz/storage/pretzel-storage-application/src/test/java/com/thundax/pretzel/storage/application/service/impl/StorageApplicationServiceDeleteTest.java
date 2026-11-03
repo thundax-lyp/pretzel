@@ -29,7 +29,7 @@ class StorageApplicationServiceDeleteTest {
         StoredObjectReferenceRepository referenceRepository = Mockito.mock(StoredObjectReferenceRepository.class);
         StorageApplicationServiceImpl service = new StorageApplicationServiceImpl(
                 repository, referenceRepository, Mockito.mock(StoredObjectContentRepository.class));
-        when(repository.getById(StoredObjectIdCodec.toDomain(100L)))
+        when(repository.getByIdForUpdate(StoredObjectIdCodec.toDomain(100L)))
                 .thenReturn(storage(StoredObjectIdCodec.toDomain(100L), StoredObjectReferenceStatus.REFERENCED));
 
         assertThrows(
@@ -45,7 +45,7 @@ class StorageApplicationServiceDeleteTest {
         StoredObjectReferenceRepository referenceRepository = Mockito.mock(StoredObjectReferenceRepository.class);
         StorageApplicationServiceImpl service = new StorageApplicationServiceImpl(
                 repository, referenceRepository, Mockito.mock(StoredObjectContentRepository.class));
-        when(repository.getById(StoredObjectIdCodec.toDomain(100L)))
+        when(repository.getByIdForUpdate(StoredObjectIdCodec.toDomain(100L)))
                 .thenReturn(storage(StoredObjectIdCodec.toDomain(100L), StoredObjectReferenceStatus.UNREFERENCED));
         when(repository.deleteById(StoredObjectIdCodec.toDomain(100L))).thenReturn(1);
 
@@ -62,7 +62,7 @@ class StorageApplicationServiceDeleteTest {
         StoredObjectReferenceRepository referenceRepository = Mockito.mock(StoredObjectReferenceRepository.class);
         StorageApplicationServiceImpl service = new StorageApplicationServiceImpl(
                 repository, referenceRepository, Mockito.mock(StoredObjectContentRepository.class));
-        when(repository.getById(StoredObjectIdCodec.toDomain(100L)))
+        when(repository.getByIdForUpdate(StoredObjectIdCodec.toDomain(100L)))
                 .thenReturn(storage(StoredObjectIdCodec.toDomain(100L), StoredObjectReferenceStatus.UNREFERENCED));
         when(repository.deleteById(StoredObjectIdCodec.toDomain(100L))).thenReturn(0);
 

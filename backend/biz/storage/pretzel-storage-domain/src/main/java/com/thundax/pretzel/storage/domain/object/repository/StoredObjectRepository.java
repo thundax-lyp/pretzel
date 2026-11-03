@@ -15,6 +15,8 @@ public interface StoredObjectRepository {
 
     StoredObject getById(StoredObjectId id);
 
+    StoredObject getByIdForUpdate(StoredObjectId id);
+
     List<StoredObject> listByIds(List<StoredObjectId> idList);
 
     List<StoredObject> list(
