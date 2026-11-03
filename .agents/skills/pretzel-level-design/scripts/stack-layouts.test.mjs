@@ -22,6 +22,7 @@ import {
     STACK_PROFILES,
 } from "./stack-layouts.mjs";
 import { svgFor, writeStackPreview } from "./preview.mjs";
+import { geometry } from "./geometry.mjs";
 import { play } from "./simulation.mjs";
 import { replay } from "./replay.mjs";
 const base = generate(341, "aligned-control"),
@@ -31,6 +32,23 @@ const cli = path.join(
     "level-design.mjs",
 );
 
+test("paired prototypes discard source blockers when replacing coordinates", () => {
+    for (const original of [generate(341), base]) {
+        const source = { ...clone(original), blockers: geometry(original) };
+        const before = clone(source);
+        const imported = importLevels([source]);
+        const derived = pairedPrototypes(imported);
+        assert.equal(derived.length, STACK_PROFILES.length);
+        assert.deepEqual(derived, pairedPrototypes([original]));
+        assert.deepEqual(importLevels(derived), derived);
+        for (const level of derived) {
+            assert.equal(Object.hasOwn(level, "blockers"), false);
+            checkLevel(level);
+        }
+        assert.deepEqual(source, before);
+        assert.deepEqual(imported, [before]);
+    }
+});
 test("one covers two using a half-card shift", () =>
     assert.equal(
         stackMetrics([

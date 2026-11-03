@@ -361,6 +361,8 @@ export function pairedPrototypes(bases) {
                     card_footprint_cells: [2, 2],
                 },
             });
+            // Source coverage belongs to the original coordinates, not this layout.
+            delete provisional.blockers;
             const rng = new Random(`${base.seed}:paired-stack-placement`),
                 board = new Set(range(48)),
                 order = [];
