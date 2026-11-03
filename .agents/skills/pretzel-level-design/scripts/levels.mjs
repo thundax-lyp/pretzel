@@ -73,10 +73,17 @@ export function checkLevel(level) {
         ),
         "invalid target",
     );
+    const blockers = geometry(level);
     requireThat(
-        same(geometry(level), geometry(level, true)),
+        same(blockers, geometry(level, true)),
         "geometry oracles disagree",
     );
+    if (Object.hasOwn(level, "blockers")) {
+        requireThat(
+            same(blockers, level.blockers),
+            `source covering disagrees: ${level.source_id}`,
+        );
+    }
     if (level.layout_grid !== undefined) {
         requireThat(
             level.layout_grid.coordinate_unit === "tile" &&

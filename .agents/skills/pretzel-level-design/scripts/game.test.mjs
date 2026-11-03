@@ -256,6 +256,38 @@ test("native import roundtrips both models", () => {
         imported[0],
     ]);
 });
+test("native import preserves matching source blockers in both models", () => {
+    for (const original of [native, imported[0]]) {
+        const level = { ...clone(original), blockers: geometry(original) };
+        assert.deepEqual(importLevels([level]), [level]);
+        assert.deepEqual(importLevels({ levels: [level] }), [level]);
+    }
+});
+test("native input rejects inconsistent or malformed source blockers", () => {
+    for (const original of [native, imported[0]]) {
+        const blockers = geometry(original);
+        assert.ok(blockers.some((row) => row.length));
+        const missingEdge = clone(blockers);
+        missingEdge.find((row) => row.length).pop();
+        for (const invalid of [
+            range(48).map(() => []),
+            missingEdge,
+            [],
+            null,
+        ]) {
+            const level = { ...clone(original), blockers: invalid };
+            assert.throws(() => checkLevel(level), /source covering disagrees/);
+            assert.throws(
+                () => importLevels([level]),
+                /source covering disagrees/,
+            );
+            assert.throws(
+                () => importLevels({ levels: [level] }),
+                /source covering disagrees/,
+            );
+        }
+    }
+});
 test("catalog reorder maps animals without changing meaning", () => {
     const copy = clone(pack),
         original = importLevels(copy);
