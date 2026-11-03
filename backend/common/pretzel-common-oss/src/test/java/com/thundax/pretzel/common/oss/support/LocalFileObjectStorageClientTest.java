@@ -37,6 +37,25 @@ public class LocalFileObjectStorageClientTest {
     }
 
     @Test
+    public void failedUploadMustPreserveExistingContentAndRemoveTemporaryFile() throws Exception {
+        LocalFileObjectStorageClient client = new LocalFileObjectStorageClient(temporaryFolder.toString(), "file:");
+        client.put("original.txt", new ByteArrayInputStream("original".getBytes(StandardCharsets.UTF_8)));
+        java.io.InputStream broken = new java.io.InputStream() {
+            @Override
+            public int read() throws java.io.IOException {
+                throw new java.io.IOException("broken input");
+            }
+        };
+        assertThrows(java.io.IOException.class, () -> client.put("original.txt", broken));
+        try (var input = client.get("original.txt")) {
+            assertEquals("original", IOUtils.toString(input, StandardCharsets.UTF_8));
+        }
+        try (var files = java.nio.file.Files.list(temporaryFolder)) {
+            assertEquals(1L, files.count());
+        }
+    }
+
+    @Test
     public void shouldRejectEscapedKey() throws Exception {
         LocalFileObjectStorageClient client = new LocalFileObjectStorageClient(temporaryFolder.toString(), "file:");
 

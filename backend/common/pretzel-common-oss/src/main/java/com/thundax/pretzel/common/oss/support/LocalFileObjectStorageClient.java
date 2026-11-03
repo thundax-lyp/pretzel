@@ -25,7 +25,14 @@ public class LocalFileObjectStorageClient implements ObjectStorageClient {
         if (target.getParent() != null) {
             Files.createDirectories(target.getParent());
         }
-        long size = Files.copy(inputStream, target, StandardCopyOption.REPLACE_EXISTING);
+        Path temporary = Files.createTempFile(target.getParent(), ".upload-", ".tmp");
+        long size;
+        try {
+            size = Files.copy(inputStream, temporary, StandardCopyOption.REPLACE_EXISTING);
+            Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING);
+        } finally {
+            Files.deleteIfExists(temporary);
+        }
         ObjectStorageWriteResult result = new ObjectStorageWriteResult();
         result.setKey(key);
         result.setLocation(locationPrefix + key);
