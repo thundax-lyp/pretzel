@@ -1,0 +1,4 @@
+interface:
+    display_name: "Pretzel 关卡设计"
+    short_description: "导入真实立体关卡，在预算内验证可解性、道具效果与模拟难度并生成证据报告"
+    default_prompt: "使用 $pretzel-level-design 导入现有关卡，明确本轮预算，完成一次可复现的验证并交付自动报告。"
