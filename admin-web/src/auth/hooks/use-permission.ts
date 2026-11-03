@@ -1,16 +1,20 @@
 import { useSyncExternalStore } from "react";
 import {
     getPermissions,
+    hasPermission,
     subscribePermissionsChange,
 } from "@/auth/permission-storage";
 
 const getPermissionSnapshot = () => getPermissions().join("\n");
 
-export const usePermission = (permission: string) => {
-    const permissionSnapshot = useSyncExternalStore(
+export const usePermissions = () => {
+    useSyncExternalStore(
         subscribePermissionsChange,
         getPermissionSnapshot,
         getPermissionSnapshot,
     );
-    return permissionSnapshot.split("\n").includes(permission);
+    return hasPermission;
 };
+
+export const usePermission = (permission: string) =>
+    usePermissions()(permission);

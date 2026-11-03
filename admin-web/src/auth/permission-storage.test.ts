@@ -36,3 +36,13 @@ describe("permission-storage", () => {
         unsubscribe();
     });
 });
+
+it("matches built-in super and segment prefixes consistently with the server", () => {
+    replacePermissions(["sys:role"]);
+    expect(hasPermission("sys:role:view")).toBe(true);
+    expect(hasPermission("sys:roles:view")).toBe(false);
+    expect(hasPermission("super")).toBe(false);
+    replacePermissions(["super"]);
+    expect(hasPermission("system:log:view")).toBe(true);
+    expect(hasPermission("")).toBe(false);
+});

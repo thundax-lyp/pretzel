@@ -219,7 +219,7 @@ export const AdminLayout = () => {
                 return false;
             }
 
-            return logout({ token });
+            return logout();
         },
         onSettled: () => {
             clearAccessToken();
@@ -249,9 +249,9 @@ export const AdminLayout = () => {
     }, []);
 
     useEffect(() => {
-        void refreshAccessTokenIfNeeded();
+        void refreshAccessTokenIfNeeded().catch(() => undefined);
         const timer = window.setInterval(() => {
-            void refreshAccessTokenIfNeeded();
+            void refreshAccessTokenIfNeeded().catch(() => undefined);
         }, TOKEN_KEEP_ALIVE_INTERVAL_MS);
 
         return () => window.clearInterval(timer);

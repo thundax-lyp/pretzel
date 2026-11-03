@@ -1,5 +1,8 @@
 import { clearPermissions } from "./permission-storage";
 
+const SESSION_KEY = "pretzel.admin.session";
+export const getTokenSessionId = () => localStorage.getItem(SESSION_KEY);
+
 const ACCESS_TOKEN_KEY = "pretzel.admin.accessToken";
 const REFRESH_TOKEN_KEY = "pretzel.admin.refreshToken";
 const ACCESS_TOKEN_EXPIRE_AT_KEY = "pretzel.admin.accessTokenExpireAt";
@@ -34,6 +37,13 @@ export const getAccessTokenExpireAt = () => {
 };
 
 export const saveTokenSession = (session: TokenSession) => {
+    if (!getTokenSessionId())
+        localStorage.setItem(
+            SESSION_KEY,
+            Array.from(crypto.getRandomValues(new Uint8Array(16)), (value) =>
+                value.toString(16).padStart(2, "0"),
+            ).join(""),
+        );
     localStorage.setItem(ACCESS_TOKEN_KEY, session.token);
     if (session.refreshToken) {
         localStorage.setItem(REFRESH_TOKEN_KEY, session.refreshToken);
@@ -48,6 +58,7 @@ export const saveTokenSession = (session: TokenSession) => {
 };
 
 export const clearAccessToken = () => {
+    localStorage.removeItem(SESSION_KEY);
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(ACCESS_TOKEN_EXPIRE_AT_KEY);

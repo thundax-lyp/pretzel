@@ -16,7 +16,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Alert, App, Button, Card, Form, Input, Space, Typography } from "antd";
 import { useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { sm2 } from "sm-crypto";
+import { encryptPassword } from "@/auth/password-encryption";
 
 import "./login-page.css";
 
@@ -74,10 +74,9 @@ export const LoginPage = () => {
                 throw new Error("登录表单未初始化");
             }
 
-            const encryptedPassword = sm2.doEncrypt(
+            const encryptedPassword = encryptPassword(
                 values.password,
                 loginForm.publicKey,
-                0,
             );
 
             return loginWithPermissions({
@@ -101,7 +100,7 @@ export const LoginPage = () => {
         },
     });
 
-    if (getAccessToken()) {
+    if (getAccessToken() && !loginMutation.isPending) {
         return <Navigate to={resolveRedirectPath(location.state)} replace />;
     }
 

@@ -11,6 +11,7 @@ import { clearAccessToken, saveTokenSession } from "@/auth/token-storage";
 export const loginWithPermissions = async (
     request: LoginCommand,
 ): Promise<AccessTokenRecord> => {
+    clearAccessToken();
     clearPermissions();
     const response = await login(request);
     saveTokenSession(response);

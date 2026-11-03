@@ -1,4 +1,4 @@
-import { ADMIN_API_BASE_URL, postJson } from "@/api/http";
+import { ADMIN_API_BASE_URL, postJson, postSessionLogout } from "@/api/http";
 import type { AccessTokenRecord, LoginFormRecord } from "./auth-types";
 
 export interface LoginCommand {
@@ -6,10 +6,6 @@ export interface LoginCommand {
     userName: string;
     password: string;
     captcha?: string;
-}
-
-export interface LogoutCommand {
-    token: string;
 }
 
 export interface TokenRefreshCommand {
@@ -45,11 +41,7 @@ export const refreshAccessToken = (request: TokenRefreshCommand) => {
     );
 };
 
-export const logout = (request: LogoutCommand) => {
-    return postJson<boolean, LogoutCommand>("/auth/session/logout", {
-        body: request,
-    });
-};
+export const logout = postSessionLogout;
 
 export const getCaptchaUrl = (loginToken: string, version: number) => {
     const params = new URLSearchParams({

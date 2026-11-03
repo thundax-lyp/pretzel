@@ -106,9 +106,7 @@ describe("auth and current user service request contracts", () => {
             refreshToken: "refresh-token",
         });
 
-        await logout({
-            token: "test-token",
-        });
+        await logout();
         expectLastCall("/auth/session/logout", {
             token: "test-token",
         });

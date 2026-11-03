@@ -3,6 +3,7 @@ import {
     getAccessToken,
     getAccessTokenExpireAt,
     getRefreshToken,
+    getTokenSessionId,
     saveTokenSession,
 } from "../auth/token-storage";
 
@@ -27,17 +28,6 @@ interface RequestOptions<TBody> {
 
 interface FormDataProgressOptions {
     signal?: AbortSignal;
-    onProgress?: (uploadedBytes: number, totalBytes: number) => void;
-}
-
-interface EventStreamOptions {
-    onChunk: (chunk: string) => void;
-    signal?: AbortSignal;
-}
-
-interface PostEventStreamOptions<TBody> extends RequestOptions<TBody> {
-    onChunk: (chunk: string) => void;
-    signal?: AbortSignal;
 }
 
 interface AccessTokenPayload {
@@ -55,6 +45,12 @@ export class ApiError extends Error {
         this.code = code;
     }
 }
+
+const assertCurrentSession = (sessionId: string | null) => {
+    if (getTokenSessionId() !== sessionId) {
+        throw new ApiError("SESSION_CHANGED", "登录会话已变化，请重新操作");
+    }
+};
 
 const isSuccessCode = (code: string | undefined) => {
     return code === "COMMON-00000";
@@ -92,9 +88,11 @@ const shouldRefreshBeforeRequest = () => {
 };
 
 let refreshPromise: Promise<AccessTokenPayload | null> | null = null;
+let logoutPromise: Promise<boolean> | null = null;
 
 const requestTokenRefresh = async () => {
     const refreshToken = getRefreshToken();
+    const sessionId = getTokenSessionId();
     if (!refreshToken) {
         return null;
     }
@@ -111,6 +109,8 @@ const requestTokenRefresh = async () => {
     });
 
     const payload = await safeReadApiResponse<AccessTokenPayload>(response);
+    if (getTokenSessionId() !== sessionId || getRefreshToken() !== refreshToken)
+        return null;
     if (
         !response.ok ||
         !isSuccessCode(payload?.code) ||
@@ -139,6 +139,7 @@ export const refreshAccessTokenIfNeeded = async () => {
 };
 
 const refreshAccessToken = async () => {
+    if (logoutPromise) return null;
     if (!refreshPromise) {
         refreshPromise = requestTokenRefresh().finally(() => {
             refreshPromise = null;
@@ -174,48 +175,6 @@ const requestJson = async <TResponse, TBody = unknown>(
     return { response, payload };
 };
 
-const requestPostEventStream = async <TBody>(
-    path: string,
-    options: PostEventStreamOptions<TBody>,
-    token: string | null,
-) => {
-    const headers: HeadersInit = {
-        Accept: "text/event-stream",
-        "Content-Type": "application/json",
-    };
-    if (token) {
-        headers[ACCESS_TOKEN_HEADER] = token;
-    }
-
-    return fetch(`${ADMIN_API_BASE_URL}${path}`, {
-        body:
-            options.body === undefined
-                ? undefined
-                : JSON.stringify(options.body),
-        headers,
-        method: "POST",
-        signal: options.signal,
-    });
-};
-
-const requestGetJson = async <TResponse>(
-    path: string,
-    token: string | null,
-) => {
-    const headers: HeadersInit = {};
-    if (token) {
-        headers[ACCESS_TOKEN_HEADER] = token;
-    }
-
-    const response = await fetch(`${ADMIN_API_BASE_URL}${path}`, {
-        method: "GET",
-        headers,
-    });
-
-    const payload = (await response.json()) as ApiResponse<TResponse>;
-    return { response, payload };
-};
-
 const requestFormData = async <TResponse>(
     path: string,
     body: FormData,
@@ -238,77 +197,15 @@ const requestFormData = async <TResponse>(
     return { response, payload };
 };
 
-const requestFormDataWithProgress = async <TResponse>(
-    path: string,
-    body: FormData,
-    token: string | null,
-    options: FormDataProgressOptions = {},
-) => {
-    const signal = options.signal;
-    const onProgress = options.onProgress;
-
-    const response = await new Promise<Response>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        const url = `${ADMIN_API_BASE_URL}${path}`;
-        xhr.open("POST", url, true);
-
-        if (token) {
-            xhr.setRequestHeader(ACCESS_TOKEN_HEADER, token);
-        }
-
-        if (onProgress) {
-            xhr.upload.onprogress = (event) => {
-                if (event.lengthComputable) {
-                    onProgress(event.loaded, event.total);
-                }
-            };
-        }
-
-        if (signal) {
-            if (signal.aborted) {
-                reject(new ApiError("ABORTED", "Request was aborted"));
-                return;
-            }
-
-            const abortHandler = () => {
-                xhr.abort();
-                reject(new ApiError("ABORTED", "Request was aborted"));
-            };
-            signal.addEventListener("abort", abortHandler, { once: true });
-            xhr.addEventListener("loadend", () => {
-                signal.removeEventListener("abort", abortHandler);
-            });
-        }
-
-        xhr.onload = () => {
-            const payloadText = xhr.responseText;
-            resolve(
-                new Response(payloadText, {
-                    status: xhr.status,
-                    statusText: xhr.statusText,
-                    headers: { "Content-Type": "application/json" },
-                }),
-            );
-        };
-
-        xhr.onerror = () => {
-            reject(new ApiError("NETWORK_ERROR", "network error"));
-        };
-
-        xhr.send(body);
-    });
-
-    const payload = (await response.json()) as ApiResponse<TResponse>;
-    return { response, payload };
-};
-
 export const postJson = async <TResponse, TBody = unknown>(
     path: string,
     options: RequestOptions<TBody> = {},
 ) => {
+    const sessionId = getTokenSessionId();
     if (path !== TOKEN_REFRESH_PATH) {
         await refreshAccessTokenIfNeeded();
     }
+    assertCurrentSession(sessionId);
 
     const token = getAccessToken();
     let { response, payload } = await requestJson<TResponse, TBody>(
@@ -317,6 +214,7 @@ export const postJson = async <TResponse, TBody = unknown>(
         token,
     );
 
+    assertCurrentSession(sessionId);
     if (!response.ok || !isSuccessCode(payload.code)) {
         const code = payload.code ?? response.status;
         if (
@@ -325,6 +223,7 @@ export const postJson = async <TResponse, TBody = unknown>(
             getRefreshToken()
         ) {
             const refreshedToken = await refreshAccessToken();
+            assertCurrentSession(sessionId);
             if (refreshedToken?.token) {
                 const retryResult = await requestJson<TResponse, TBody>(
                     path,
@@ -334,52 +233,49 @@ export const postJson = async <TResponse, TBody = unknown>(
                 response = retryResult.response;
                 payload = retryResult.payload;
 
+                assertCurrentSession(sessionId);
                 if (response.ok && isSuccessCode(payload.code)) {
                     return payload.data;
                 }
             }
         }
 
-        if (isAuthInvalid(response, code)) {
+        const finalCode = payload.code ?? response.status;
+        if (isAuthInvalid(response, finalCode)) {
             clearAccessToken();
         }
-        throw new ApiError(code, payload.message || "请求失败");
+        throw new ApiError(finalCode, payload.message || "请求失败");
     }
 
     return payload.data;
 };
 
-export const getJson = async <TResponse>(path: string) => {
-    await refreshAccessTokenIfNeeded();
-
-    const token = getAccessToken();
-    let { response, payload } = await requestGetJson<TResponse>(path, token);
-
-    if (!response.ok || !isSuccessCode(payload.code)) {
-        const code = payload.code ?? response.status;
-        if (isAuthInvalid(response, code) && getRefreshToken()) {
-            const refreshedToken = await refreshAccessToken();
-            if (refreshedToken?.token) {
-                const retryResult = await requestGetJson<TResponse>(
-                    path,
-                    refreshedToken.token,
-                );
-                response = retryResult.response;
-                payload = retryResult.payload;
-
-                if (response.ok && isSuccessCode(payload.code)) {
-                    return payload.data;
-                }
-            }
+export const postSessionLogout = () => {
+    if (logoutPromise) return logoutPromise;
+    const sessionId = getTokenSessionId();
+    const ready = refreshAccessTokenIfNeeded();
+    logoutPromise = (async () => {
+        await ready;
+        assertCurrentSession(sessionId);
+        const token = getAccessToken();
+        if (!token) return false;
+        const { response, payload } = await requestJson<boolean>(
+            "/auth/session/logout",
+            { body: { token } },
+            token,
+        );
+        assertCurrentSession(sessionId);
+        if (!response.ok || !isSuccessCode(payload.code)) {
+            throw new ApiError(
+                payload.code ?? response.status,
+                payload.message || "退出失败",
+            );
         }
-
-        if (isAuthInvalid(response, code)) {
-            clearAccessToken();
-        }
-        throw new ApiError(code, payload.message || "请求失败");
-    }
-
-    return payload.data;
+        return payload.data;
+    })().finally(() => {
+        logoutPromise = null;
+    });
+    return logoutPromise;
 };
 
 export const postFormData = async <TResponse>(
@@ -387,7 +283,9 @@ export const postFormData = async <TResponse>(
     body: FormData,
     options: FormDataProgressOptions = {},
 ) => {
+    const sessionId = getTokenSessionId();
     await refreshAccessTokenIfNeeded();
+    assertCurrentSession(sessionId);
 
     const token = getAccessToken();
     let { response, payload } = await requestFormData<TResponse>(
@@ -397,10 +295,12 @@ export const postFormData = async <TResponse>(
         options,
     );
 
+    assertCurrentSession(sessionId);
     if (!response.ok || !isSuccessCode(payload.code)) {
         const code = payload.code ?? response.status;
         if (isAuthInvalid(response, code) && getRefreshToken()) {
             const refreshedToken = await refreshAccessToken();
+            assertCurrentSession(sessionId);
             if (refreshedToken?.token) {
                 const retryResult = await requestFormData<TResponse>(
                     path,
@@ -411,153 +311,19 @@ export const postFormData = async <TResponse>(
                 response = retryResult.response;
                 payload = retryResult.payload;
 
+                assertCurrentSession(sessionId);
                 if (response.ok && isSuccessCode(payload.code)) {
                     return payload.data;
                 }
             }
         }
 
-        if (isAuthInvalid(response, code)) {
+        const finalCode = payload.code ?? response.status;
+        if (isAuthInvalid(response, finalCode)) {
             clearAccessToken();
         }
-        throw new ApiError(code, payload.message || "请求失败");
+        throw new ApiError(finalCode, payload.message || "请求失败");
     }
 
     return payload.data;
-};
-
-export const postFormDataWithProgress = async <TResponse>(
-    path: string,
-    body: FormData,
-    options: FormDataProgressOptions = {},
-) => {
-    await refreshAccessTokenIfNeeded();
-
-    const token = getAccessToken();
-    let { response, payload } = await requestFormDataWithProgress<TResponse>(
-        path,
-        body,
-        token,
-        options,
-    );
-
-    if (!response.ok || !isSuccessCode(payload.code)) {
-        const code = payload.code ?? response.status;
-        if (isAuthInvalid(response, code) && getRefreshToken()) {
-            const refreshedToken = await refreshAccessToken();
-            if (refreshedToken?.token) {
-                const retryResult =
-                    await requestFormDataWithProgress<TResponse>(
-                        path,
-                        body,
-                        refreshedToken.token,
-                        options,
-                    );
-                response = retryResult.response;
-                payload = retryResult.payload;
-
-                if (response.ok && isSuccessCode(payload.code)) {
-                    return payload.data;
-                }
-            }
-        }
-
-        if (isAuthInvalid(response, code)) {
-            clearAccessToken();
-        }
-        throw new ApiError(code, payload.message || "请求失败");
-    }
-
-    return payload.data;
-};
-
-export const getEventStream = async (
-    path: string,
-    options: EventStreamOptions,
-) => {
-    await refreshAccessTokenIfNeeded();
-
-    const token = getAccessToken();
-    const headers: HeadersInit = {};
-    if (token) {
-        headers[ACCESS_TOKEN_HEADER] = token;
-    }
-
-    const response = await fetch(`${ADMIN_API_BASE_URL}${path}`, {
-        headers,
-        method: "GET",
-        signal: options.signal,
-    });
-
-    if (!response.ok) {
-        throw new ApiError(response.status, `流式请求失败：${response.status}`);
-    }
-    if (!response.body) {
-        throw new ApiError("EMPTY_STREAM", "流式响应为空");
-    }
-
-    const decoder = new TextDecoder();
-    const reader = response.body.getReader();
-    try {
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) {
-                break;
-            }
-            options.onChunk(decoder.decode(value, { stream: true }));
-        }
-        options.onChunk(decoder.decode());
-    } finally {
-        reader.releaseLock();
-    }
-};
-
-export const postEventStream = async <TBody = unknown>(
-    path: string,
-    options: PostEventStreamOptions<TBody>,
-) => {
-    await refreshAccessTokenIfNeeded();
-
-    const token = getAccessToken();
-    let response = await requestPostEventStream(path, options, token);
-
-    if (
-        !response.ok &&
-        isAuthInvalid(response, response.status) &&
-        getRefreshToken()
-    ) {
-        const refreshedToken = await refreshAccessToken();
-        if (refreshedToken?.token) {
-            response = await requestPostEventStream(
-                path,
-                options,
-                refreshedToken.token,
-            );
-        }
-    }
-
-    if (!response.ok) {
-        if (isAuthInvalid(response, response.status)) {
-            clearAccessToken();
-        }
-        throw new ApiError(response.status, `流式请求失败：${response.status}`);
-    }
-    if (!response.body) {
-        throw new ApiError("EMPTY_STREAM", "流式响应为空");
-    }
-
-    const decoder = new TextDecoder();
-    const reader = response.body.getReader();
-    try {
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) {
-                break;
-            }
-            options.onChunk(decoder.decode(value, { stream: true }));
-        }
-        options.onChunk(decoder.decode());
-    } finally {
-        reader.releaseLock();
-    }
 };

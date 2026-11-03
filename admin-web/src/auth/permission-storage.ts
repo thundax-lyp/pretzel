@@ -43,7 +43,16 @@ export const getPermissions = () => {
 };
 
 export const hasPermission = (permission: string) => {
-    return permissionSet.has(permission);
+    return (
+        Boolean(permission.trim()) &&
+        (permissionSet.has("super") ||
+            Array.from(permissionSet).some(
+                (granted) =>
+                    Boolean(granted.trim()) &&
+                    (granted === permission ||
+                        permission.startsWith(`${granted}:`)),
+            ))
+    );
 };
 
 export const subscribePermissionsChange = (listener: () => void) => {
