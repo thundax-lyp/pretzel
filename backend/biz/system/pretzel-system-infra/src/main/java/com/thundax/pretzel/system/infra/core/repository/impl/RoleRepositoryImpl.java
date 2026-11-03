@@ -14,8 +14,6 @@ import com.thundax.pretzel.system.domain.core.model.valueobject.MenuId;
 import com.thundax.pretzel.system.domain.core.model.valueobject.RoleId;
 import com.thundax.pretzel.system.domain.core.model.valueobject.UserId;
 import com.thundax.pretzel.system.domain.core.repository.RoleRepository;
-import com.thundax.pretzel.system.infra.core.cache.RoleCacheSupport;
-import com.thundax.pretzel.system.infra.core.cache.UserCacheSupport;
 import com.thundax.pretzel.system.infra.core.persistence.assembler.RolePersistenceAssembler;
 import com.thundax.pretzel.system.infra.core.persistence.dataobject.MenuRoleDO;
 import com.thundax.pretzel.system.infra.core.persistence.dataobject.RoleDO;
@@ -35,54 +33,24 @@ public class RoleRepositoryImpl implements RoleRepository {
     private final RoleMapper mapper;
     private final MenuRoleMapper menuRoleMapper;
     private final UserRoleMapper userRoleMapper;
-    private final RoleCacheSupport cacheSupport;
-    private final UserCacheSupport userCacheSupport;
 
-    public RoleRepositoryImpl(
-            RoleMapper mapper,
-            MenuRoleMapper menuRoleMapper,
-            UserRoleMapper userRoleMapper,
-            RoleCacheSupport cacheSupport,
-            UserCacheSupport userCacheSupport) {
+    public RoleRepositoryImpl(RoleMapper mapper, MenuRoleMapper menuRoleMapper, UserRoleMapper userRoleMapper) {
         this.mapper = mapper;
         this.menuRoleMapper = menuRoleMapper;
         this.userRoleMapper = userRoleMapper;
-        this.cacheSupport = cacheSupport;
-        this.userCacheSupport = userCacheSupport;
     }
 
     @Override
     public Role getById(RoleId id) {
-        Role role = cacheSupport.getById(id.value());
-        if (role != null) {
-            return role;
-        }
-        role = RolePersistenceAssembler.toDomain(mapper.selectById(id.value()));
-        cacheSupport.putById(role);
-        return role;
+        return RolePersistenceAssembler.toDomain(mapper.selectById(id.value()));
     }
 
     @Override
     public List<Role> listByIds(List<RoleId> idList) {
-        List<Role> roleList = new ArrayList<>();
-        List<Long> uncachedIdList = new ArrayList<>();
-        for (RoleId id : idList) {
-            Long value = RoleIdCodec.toValue(id);
-            Role role = cacheSupport.getById(value);
-            if (role == null) {
-                uncachedIdList.add(value);
-            } else {
-                roleList.add(role);
-            }
+        if (idList == null || idList.isEmpty()) {
+            return new ArrayList<>();
         }
-        if (!uncachedIdList.isEmpty()) {
-            List<Role> uncachedRoleList = RolePersistenceAssembler.toDomainList(mapper.selectBatchIds(uncachedIdList));
-            for (Role role : uncachedRoleList) {
-                cacheSupport.putById(role);
-                roleList.add(role);
-            }
-        }
-        return roleList;
+        return RolePersistenceAssembler.toDomainList(mapper.selectBatchIds(RoleIdCodec.toValues(idList)));
     }
 
     @Override
@@ -129,7 +97,6 @@ public class RoleRepositoryImpl implements RoleRepository {
     public RoleId insert(Role entity) {
         RoleDO dataObject = RolePersistenceAssembler.toObject(entity);
         mapper.insert(dataObject);
-        cacheSupport.removeById(dataObject.getId());
         return RoleIdCodec.toDomain(dataObject.getId());
     }
 
@@ -143,7 +110,6 @@ public class RoleRepositoryImpl implements RoleRepository {
                         .set(RoleDO::getPrivilege, dataObject.getPrivilege())
                         .set(RoleDO::getStatus, dataObject.getStatus())
                         .set(RoleDO::getRemarks, dataObject.getRemarks()));
-        cacheSupport.removeById(RoleIdCodec.toValue(entity.getId()));
         return count;
     }
 
@@ -152,14 +118,12 @@ public class RoleRepositoryImpl implements RoleRepository {
         RoleDO dataObject = RolePersistenceAssembler.toObject(entity);
         int count = mapper.update(
                 null, buildIdUpdateWrapper(dataObject).set(RoleDO::getPriority, dataObject.getPriority()));
-        cacheSupport.removeById(RoleIdCodec.toValue(entity.getId()));
         return count;
     }
 
     @Override
     public int deleteById(RoleId id) {
         int count = mapper.deleteById(id.value());
-        removeRoleCaches(id.value());
         return count;
     }
 
@@ -168,23 +132,16 @@ public class RoleRepositoryImpl implements RoleRepository {
         RoleDO dataObject = RolePersistenceAssembler.toObject(role);
         int count =
                 mapper.update(null, buildIdUpdateWrapper(dataObject).set(RoleDO::getStatus, dataObject.getStatus()));
-        cacheSupport.removeById(RoleIdCodec.toValue(role.getId()));
         return count;
     }
 
     @Override
     public List<MenuId> listRoleMenus(RoleId roleId) {
-        Long roleIdValue = RoleIdCodec.toValue(roleId);
-        List<Long> menuIds = cacheSupport.getRoleMenuIds(roleIdValue);
-        if (menuIds == null) {
-            LambdaQueryWrapper<MenuRoleDO> wrapper = new LambdaQueryWrapper<>();
-            wrapper.eq(MenuRoleDO::getRoleId, roleIdValue);
-            menuIds = menuRoleMapper.selectList(wrapper).stream()
-                    .map(MenuRoleDO::getMenuId)
-                    .collect(Collectors.toList());
-            cacheSupport.putRoleMenuIds(roleIdValue, menuIds);
-        }
-        return MenuIdCodec.toDomains(menuIds);
+        LambdaQueryWrapper<MenuRoleDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(MenuRoleDO::getRoleId, RoleIdCodec.toValue(roleId));
+        return MenuIdCodec.toDomains(menuRoleMapper.selectList(wrapper).stream()
+                .map(MenuRoleDO::getMenuId)
+                .collect(Collectors.toList()));
     }
 
     @Override
@@ -193,7 +150,6 @@ public class RoleRepositoryImpl implements RoleRepository {
         LambdaQueryWrapper<MenuRoleDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(MenuRoleDO::getRoleId, roleIdValue);
         menuRoleMapper.delete(wrapper);
-        removeRoleCaches(roleIdValue);
     }
 
     @Override
@@ -202,22 +158,15 @@ public class RoleRepositoryImpl implements RoleRepository {
         for (Long menuId : MenuIdCodec.toValues(menuIdList)) {
             menuRoleMapper.insert(RolePersistenceAssembler.toMenuRoleObject(roleIdValue, menuId));
         }
-        removeRoleCaches(roleIdValue);
     }
 
     @Override
     public List<UserId> listRoleUsers(RoleId roleId) {
-        Long roleIdValue = RoleIdCodec.toValue(roleId);
-        List<Long> userIds = cacheSupport.getRoleUserIds(roleIdValue);
-        if (userIds == null) {
-            LambdaQueryWrapper<UserRoleDO> wrapper = new LambdaQueryWrapper<>();
-            wrapper.eq(UserRoleDO::getRoleId, roleIdValue);
-            userIds = userRoleMapper.selectList(wrapper).stream()
-                    .map(UserRoleDO::getUserId)
-                    .collect(Collectors.toList());
-            cacheSupport.putRoleUserIds(roleIdValue, userIds);
-        }
-        return UserIdCodec.toDomains(userIds);
+        LambdaQueryWrapper<UserRoleDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(UserRoleDO::getRoleId, RoleIdCodec.toValue(roleId));
+        return UserIdCodec.toDomains(userRoleMapper.selectList(wrapper).stream()
+                .map(UserRoleDO::getUserId)
+                .collect(Collectors.toList()));
     }
 
     @Override
@@ -226,7 +175,6 @@ public class RoleRepositoryImpl implements RoleRepository {
         LambdaQueryWrapper<UserRoleDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(UserRoleDO::getRoleId, roleIdValue);
         userRoleMapper.delete(wrapper);
-        removeRoleCaches(roleIdValue);
     }
 
     @Override
@@ -235,7 +183,6 @@ public class RoleRepositoryImpl implements RoleRepository {
         for (Long userId : UserIdCodec.toValues(userIdList)) {
             userRoleMapper.insert(RolePersistenceAssembler.toUserRoleObject(userId, roleIdValue));
         }
-        removeRoleCaches(roleIdValue);
     }
 
     private LambdaUpdateWrapper<RoleDO> buildIdUpdateWrapper(RoleDO dataObject) {
@@ -262,12 +209,5 @@ public class RoleRepositoryImpl implements RoleRepository {
         }
         wrapper.orderByAsc(RoleDO::getId);
         return wrapper;
-    }
-
-    private void removeRoleCaches(Long roleId) {
-        cacheSupport.removeById(roleId);
-        cacheSupport.removeRoleUserIds(roleId);
-        cacheSupport.removeRoleMenuIds(roleId);
-        userCacheSupport.removeAll();
     }
 }

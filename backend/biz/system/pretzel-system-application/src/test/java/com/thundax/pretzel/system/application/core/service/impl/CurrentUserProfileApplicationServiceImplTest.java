@@ -275,8 +275,6 @@ class CurrentUserProfileApplicationServiceImplTest {
     private static StorageObjectFacadeDto avatar(long userId, long storageObjectId) {
         return StorageObjectFacadeDto.builder()
                 .id(storageObjectId)
-                .ownerId(String.valueOf(userId))
-                .ownerType("USER")
                 .objectStatus("ACTIVE")
                 .remarks("avatar")
                 .build();

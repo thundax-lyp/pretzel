@@ -90,6 +90,7 @@ class AdminSessionTokenApplicationServiceImplTest {
         beans.addBean("access", access);
         beans.addBean("refresh", refresh);
         AdminSessionTokenApplicationServiceImpl service = new AdminSessionTokenApplicationServiceImpl(
+                mock(com.thundax.pretzel.system.domain.core.repository.UserRepository.class),
                 new AuthProperties(),
                 sessions,
                 mock(PrincipalIdentityApplicationService.class),
@@ -118,6 +119,7 @@ class AdminSessionTokenApplicationServiceImplTest {
         beans.addBean("access", access);
         beans.addBean("refresh", refresh);
         return new AdminSessionTokenApplicationServiceImpl(
+                mock(com.thundax.pretzel.system.domain.core.repository.UserRepository.class),
                 new AuthProperties(),
                 mock(PrincipalAuthSessionRepository.class),
                 mock(PrincipalIdentityApplicationService.class),

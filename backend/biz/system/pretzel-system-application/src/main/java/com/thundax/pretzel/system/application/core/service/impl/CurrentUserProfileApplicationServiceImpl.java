@@ -22,7 +22,6 @@ import com.thundax.pretzel.system.application.auth.util.PasswordHelper;
 import com.thundax.pretzel.system.application.core.command.ChangeCurrentUserAvatarCommand;
 import com.thundax.pretzel.system.application.core.command.ChangeCurrentUserInfoCommand;
 import com.thundax.pretzel.system.application.core.command.ChangeCurrentUserPasswordCommand;
-import com.thundax.pretzel.system.application.core.command.ChangeUserInfoCommand;
 import com.thundax.pretzel.system.application.core.command.RemoveCurrentUserAvatarCommand;
 import com.thundax.pretzel.system.application.core.query.CurrentUserAvatarQuery;
 import com.thundax.pretzel.system.application.core.query.CurrentUserQuery;
@@ -113,20 +112,7 @@ public class CurrentUserProfileApplicationServiceImpl implements CurrentUserProf
     @Override
     @Transactional(rollbackFor = Exception.class)
     public User changeInfo(ChangeCurrentUserInfoCommand command) {
-        userService.changeInfo(new ChangeUserInfoCommand(
-                command.userId(),
-                command.departmentId(),
-                command.email(),
-                command.mobile(),
-                command.tel(),
-                command.name(),
-                command.rank(),
-                command.privilege(),
-                command.status(),
-                command.remarks(),
-                getAccountLoginName(command.userId()),
-                null));
-        return toUser(command);
+        return userService.changeProfile(command);
     }
 
     @Override
@@ -192,7 +178,7 @@ public class CurrentUserProfileApplicationServiceImpl implements CurrentUserProf
         if (avatars.isEmpty()) {
             return null;
         }
-        return toAvatarResult(avatars.get(avatars.size() - 1));
+        return toAvatarResult(avatars.get(avatars.size() - 1), userId);
     }
 
     @Override
@@ -458,7 +444,7 @@ public class CurrentUserProfileApplicationServiceImpl implements CurrentUserProf
 
     private UserAvatarResult latestAvatar(UserId userId) {
         List<StorageObjectFacadeDto> avatars = listAvatarDtos(userId);
-        return avatars.isEmpty() ? null : toAvatarResult(avatars.get(avatars.size() - 1));
+        return avatars.isEmpty() ? null : toAvatarResult(avatars.get(avatars.size() - 1), userId);
     }
 
     private OpenStorageFacadeRequest toReadableContentRequest(UserAvatarResult avatar) {
@@ -488,7 +474,7 @@ public class CurrentUserProfileApplicationServiceImpl implements CurrentUserProf
                 .build();
     }
 
-    private UserAvatarResult toAvatarResult(StorageObjectFacadeDto dto) {
+    private UserAvatarResult toAvatarResult(StorageObjectFacadeDto dto, UserId userId) {
         if (dto == null) {
             return null;
         }
@@ -497,8 +483,8 @@ public class CurrentUserProfileApplicationServiceImpl implements CurrentUserProf
                 .originalFilename(dto.getOriginalFilename())
                 .contentType(dto.getContentType())
                 .sizeBytes(dto.getSize())
-                .ownerId(dto.getOwnerId())
-                .ownerType(dto.getOwnerType())
+                .ownerId(String.valueOf(userId.value()))
+                .ownerType(STORAGE_OWNER_TYPE_USER)
                 .objectStatus(dto.getObjectStatus())
                 .referenceStatus(dto.getReferenceStatus())
                 .remarks(dto.getRemarks())
@@ -521,20 +507,5 @@ public class CurrentUserProfileApplicationServiceImpl implements CurrentUserProf
     private PrincipalCredentialQuery credentialQuery(
             PrincipalIdentityId identityId, PrincipalCredentialType credentialType) {
         return new PrincipalCredentialQuery(null, identityId, credentialType, null, null);
-    }
-
-    private User toUser(ChangeCurrentUserInfoCommand command) {
-        User user = new User();
-        user.setId(command.userId());
-        user.setDepartmentId(command.departmentId());
-        user.setEmail(command.email());
-        user.setMobile(command.mobile());
-        user.setTel(command.tel());
-        user.setName(command.name());
-        user.setRank(command.rank());
-        user.setPrivilege(command.privilege());
-        user.setStatus(command.status());
-        user.setRemarks(command.remarks());
-        return user;
     }
 }

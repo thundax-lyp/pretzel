@@ -19,8 +19,15 @@ import org.springframework.stereotype.Service;
 public class PrincipalCredentialApplicationServiceImpl implements PrincipalCredentialApplicationService {
 
     private final PrincipalCredentialRepository principalCredentialRepository;
+    private final com.thundax.pretzel.system.domain.core.repository.UserRepository userRepository;
+    private final com.thundax.pretzel.system.application.auth.service.AdminSessionTokenApplicationService tokenService;
 
-    public PrincipalCredentialApplicationServiceImpl(PrincipalCredentialRepository principalCredentialRepository) {
+    public PrincipalCredentialApplicationServiceImpl(
+            PrincipalCredentialRepository principalCredentialRepository,
+            com.thundax.pretzel.system.domain.core.repository.UserRepository userRepository,
+            com.thundax.pretzel.system.application.auth.service.AdminSessionTokenApplicationService tokenService) {
+        this.userRepository = userRepository;
+        this.tokenService = tokenService;
         this.principalCredentialRepository = principalCredentialRepository;
     }
 
@@ -55,8 +62,29 @@ public class PrincipalCredentialApplicationServiceImpl implements PrincipalCrede
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional(rollbackFor = Exception.class)
     public void change(ChangePrincipalCredentialCommand command) {
+        var userId = com.thundax.pretzel.system.domain.core.codec.UserIdCodec.toDomain(
+                command.principalKey().getPrincipalId());
+        userRepository.getByIdForUpdate(userId);
+        PrincipalCredential previous = principalCredentialRepository.getById(command.id());
         principalCredentialRepository.update(principalCredential(command));
+        if (previous != null && !java.util.Objects.equals(previous.getCredentialValue(), command.credentialValue())) {
+            Runnable invalidate = () -> tokenService.invalidateSessionsByUserId(
+                    new com.thundax.pretzel.system.application.auth.command.InvalidateAdminSessionCommand(
+                            null, userId, "PASSWORD_CHANGED"));
+            if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+                org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                        new org.springframework.transaction.support.TransactionSynchronization() {
+                            @Override
+                            public void afterCommit() {
+                                invalidate.run();
+                            }
+                        });
+            } else {
+                invalidate.run();
+            }
+        }
     }
 
     @Override

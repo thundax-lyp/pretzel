@@ -145,8 +145,11 @@ public class LogRepositoryImpl implements LogRepository {
         if (StringUtils.isNotBlank(requestUri)) {
             wrapper.like("request_uri", requestUri);
         }
-        if (beginDate != null && endDate != null) {
-            wrapper.between("log_date", beginDate, endDate);
+        if (beginDate != null) {
+            wrapper.ge("log_date", beginDate);
+        }
+        if (endDate != null) {
+            wrapper.le("log_date", endDate);
         }
         return wrapper;
     }

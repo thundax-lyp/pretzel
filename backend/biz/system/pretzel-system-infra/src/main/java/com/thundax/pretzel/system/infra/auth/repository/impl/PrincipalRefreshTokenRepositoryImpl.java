@@ -52,7 +52,7 @@ public class PrincipalRefreshTokenRepositoryImpl implements PrincipalRefreshToke
     private final RedisClient redisClient;
     private StatefulRedisConnection<String, String> redisConnection;
 
-    @CreateCache(name = CACHE_SECTION, cacheType = CacheType.BOTH)
+    @CreateCache(name = CACHE_SECTION, cacheType = CacheType.REMOTE)
     private Cache<String, Object> cache;
 
     public PrincipalRefreshTokenRepositoryImpl(

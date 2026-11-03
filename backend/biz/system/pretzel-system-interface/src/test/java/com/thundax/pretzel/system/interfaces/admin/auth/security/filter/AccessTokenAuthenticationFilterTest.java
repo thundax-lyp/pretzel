@@ -185,6 +185,12 @@ class AccessTokenAuthenticationFilterTest {
         public void changeInfo(ChangeUserInfoCommand command) {}
 
         @Override
+        public User changeProfile(
+                com.thundax.pretzel.system.application.core.command.ChangeCurrentUserInfoCommand command) {
+            return null;
+        }
+
+        @Override
         public int remove(RemoveUserCommand command) {
             return 0;
         }

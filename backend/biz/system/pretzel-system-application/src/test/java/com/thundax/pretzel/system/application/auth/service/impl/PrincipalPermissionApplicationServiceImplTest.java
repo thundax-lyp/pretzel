@@ -85,6 +85,35 @@ class PrincipalPermissionApplicationServiceImplTest {
         verify(authSessionRepository, times(2)).insert(any(PrincipalAuthSession.class), any(Integer.class));
     }
 
+    @Test
+    void newProcessEpochMustRejectSurvivingRedisSnapshot() {
+        var access = mock(PrincipalAccessTokenRepository.class);
+        var sessions = mock(PrincipalAuthSessionRepository.class);
+        var users = mock(UserManagementApplicationService.class);
+        var profile = mock(CurrentUserProfileApplicationService.class);
+        var session =
+                PrincipalAuthSession.create(PrincipalKey.of(PrincipalType.USER, 1L), "admin-api", Instant.now(), 3600);
+        var token = new PrincipalAccessToken();
+        token.setSessionId(session.getId());
+        token.setPrincipalKey(session.getPrincipalKey());
+        var user = new User();
+        user.setId(UserIdCodec.toDomain(1L));
+        user.setStatus(UserStatus.ENABLED);
+        when(access.getByToken("token")).thenReturn(token);
+        when(sessions.getById(session.getId())).thenReturn(session);
+        when(users.get(any(GetUserQuery.class))).thenReturn(user);
+        when(profile.listAccessibleMenus(any())).thenReturn(List.of(menu("sys:user:edit")));
+        var first = new PrincipalPermissionApplicationServiceImpl(access, sessions, users, profile);
+        first.createPermissions(new CreatePermissionsCommand(PrincipalAccessTokenCode.of("token"), user.getId()));
+        first.onRoleCacheChanged();
+        when(profile.listAccessibleMenus(any())).thenReturn(List.of());
+        var restarted = new PrincipalPermissionApplicationServiceImpl(access, sessions, users, profile);
+        org.junit.jupiter.api.Assertions.assertFalse(restarted
+                .getPermissions(new PermissionQuery(PrincipalAccessTokenCode.of("token"), null))
+                .contains(PermissionCode.of("sys:user:edit")));
+        verify(profile, times(2)).listAccessibleMenus(any());
+    }
+
     private static Menu menu(String permission) {
         Menu menu = new Menu();
         menu.setId(MenuIdCodec.toDomain(1L));

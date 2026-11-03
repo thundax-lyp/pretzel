@@ -13,6 +13,10 @@ public interface UserRepository {
 
     User getById(UserId id);
 
+    User getByIdForUpdate(UserId id);
+
+    int updateProfile(User user);
+
     List<User> listByIds(List<UserId> idList);
 
     List<User> list(

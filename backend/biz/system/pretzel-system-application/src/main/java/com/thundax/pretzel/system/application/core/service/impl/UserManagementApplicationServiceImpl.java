@@ -110,6 +110,25 @@ public class UserManagementApplicationServiceImpl implements UserManagementAppli
         rewriteUserRoles(user.getId(), command.roleIdList());
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    @AuditLog(
+            type = "User",
+            id = "#command.userId.value()",
+            action = AuditAction.UPDATE,
+            summary = "更新个人资料",
+            recordWhenUnchanged = true)
+    public User changeProfile(
+            com.thundax.pretzel.system.application.core.command.ChangeCurrentUserInfoCommand command) {
+        User user = new User();
+        user.setId(command.userId());
+        user.setEmail(command.email());
+        user.setMobile(command.mobile());
+        user.setName(command.name());
+        dao.updateProfile(user);
+        return dao.getById(command.userId());
+    }
+
     private void rewriteUserRoles(UserId userId, List<RoleId> roleIdList) {
         if (roleIdList != null) {
             dao.deleteUserRole(userId);

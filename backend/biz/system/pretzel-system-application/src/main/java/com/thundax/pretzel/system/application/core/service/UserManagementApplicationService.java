@@ -33,6 +33,8 @@ public interface UserManagementApplicationService {
 
     void changeInfo(ChangeUserInfoCommand command);
 
+    User changeProfile(com.thundax.pretzel.system.application.core.command.ChangeCurrentUserInfoCommand command);
+
     int remove(RemoveUserCommand command);
 
     int changeStatus(ChangeUserStatusCommand command);

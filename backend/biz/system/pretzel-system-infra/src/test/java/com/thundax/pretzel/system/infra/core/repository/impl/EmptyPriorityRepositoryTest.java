@@ -15,7 +15,7 @@ class EmptyPriorityRepositoryTest {
     void firstRoleCanBeCreatedWhenSqlMaxReturnsNull() {
         RoleMapper mapper = mock(RoleMapper.class);
         when(mapper.selectObjs(any())).thenReturn(Collections.singletonList(null));
-        assertEquals(0, new RoleRepositoryImpl(mapper, null, null, null, null).maxPriority());
+        assertEquals(0, new RoleRepositoryImpl(mapper, null, null).maxPriority());
     }
 
     @Test

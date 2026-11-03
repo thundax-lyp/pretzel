@@ -1,19 +1,5 @@
 package com.thundax.pretzel.system.application.core.command;
 
-import com.thundax.pretzel.system.domain.core.model.enums.UserPrivilege;
-import com.thundax.pretzel.system.domain.core.model.enums.UserStatus;
-import com.thundax.pretzel.system.domain.core.model.valueobject.AccessRank;
-import com.thundax.pretzel.system.domain.core.model.valueobject.DepartmentId;
 import com.thundax.pretzel.system.domain.core.model.valueobject.UserId;
 
-public record ChangeCurrentUserInfoCommand(
-        UserId userId,
-        DepartmentId departmentId,
-        String email,
-        String mobile,
-        String tel,
-        String name,
-        AccessRank rank,
-        UserPrivilege privilege,
-        UserStatus status,
-        String remarks) {}
+public record ChangeCurrentUserInfoCommand(UserId userId, String email, String mobile, String name) {}

@@ -197,6 +197,20 @@ class AdminAuthIntegrationTest {
                 }),
                 token));
         success(post("/sys/user/page", Map.of(), readerToken));
+        success(post("/sys/role/user/update", Map.of("roleId", roleId, "users", new Object[] {}), token));
+        assertEquals(
+                "COMMON-00003",
+                post("/sys/user/page", Map.of(), readerToken)
+                        .getBody()
+                        .path("code")
+                        .asText());
+        success(post(
+                "/sys/role/user/update",
+                Map.of("roleId", roleId, "users", new Object[] {
+                    Map.of("id", createdUser.path("id").asText())
+                }),
+                token));
+        success(post("/sys/user/page", Map.of(), readerToken));
         success(post(
                 "/sys/role/update",
                 Map.of(
@@ -260,6 +274,135 @@ class AdminAuthIntegrationTest {
                         .asText());
     }
 
+    @Autowired
+    com.thundax.pretzel.system.domain.core.repository.UserRepository users;
+
+    @Test
+    void contactsStayEncryptedAndProfileChangesCannotOverwriteAuthorization() {
+        seed(3001L, "integration-profile", "NORMAL");
+        var id = com.thundax.pretzel.system.domain.core.codec.UserIdCodec.toDomain(3001L);
+        new TransactionTemplate(transactionManager).executeWithoutResult(tx -> {
+            var user = users.getById(id);
+            user.setEmail("before@example.test");
+            user.setMobile("13800003001");
+            users.update(user);
+        });
+        assertNotEquals(
+                "before@example.test",
+                jdbc.queryForObject("SELECT email FROM system_user WHERE id=3001", String.class));
+        assertEquals(1, users.countByEmail("before@example.test", null));
+        assertEquals(0, users.countByEmail("before@example.test", id));
+        jdbc.update("UPDATE system_user SET privilege='ADMIN', status='DISABLED', ranks=7 WHERE id=3001");
+        var profile = new com.thundax.pretzel.system.domain.core.model.entity.User();
+        profile.setId(id);
+        profile.setName("new name");
+        profile.setEmail("after@example.test");
+        profile.setMobile("13800003002");
+        new TransactionTemplate(transactionManager).executeWithoutResult(tx -> users.updateProfile(profile));
+        var actual = users.getById(id);
+        assertEquals("after@example.test", actual.getEmail());
+        assertEquals("13800003002", actual.getMobile());
+        assertEquals(com.thundax.pretzel.system.domain.core.model.enums.UserPrivilege.ADMIN, actual.getPrivilege());
+        assertEquals(com.thundax.pretzel.system.domain.core.model.enums.UserStatus.DISABLED, actual.getStatus());
+        assertEquals(1, users.countByMobile("13800003002", null));
+        assertEquals(0, users.countByEmail("before@example.test", null));
+    }
+
+    @Test
+    void logoutOfOriginalAccessAlsoRevokesAlreadyRotatedRefresh() {
+        seed(3002L, "integration-rotation", "NORMAL");
+        JsonNode original = login("integration-rotation");
+        JsonNode rotated = success(post(
+                "/auth/session/token/refresh",
+                Map.of(
+                        "clientId",
+                        "admin-api",
+                        "refreshToken",
+                        original.path("refreshToken").asText()),
+                null));
+        String originalToken = original.path("token").asText();
+        success(post("/auth/session/logout", Map.of("token", originalToken), originalToken));
+        assertEquals(
+                "COMMON-00002",
+                post(
+                                "/sys/current-user/permission/list",
+                                Map.of(),
+                                rotated.path("token").asText())
+                        .getBody()
+                        .path("code")
+                        .asText());
+        assertEquals(
+                "AUTH-00006",
+                post(
+                                "/auth/session/token/refresh",
+                                Map.of(
+                                        "clientId",
+                                        "admin-api",
+                                        "refreshToken",
+                                        rotated.path("refreshToken").asText()),
+                                null)
+                        .getBody()
+                        .path("code")
+                        .asText());
+    }
+
+    @Test
+    void passwordChangeRevokesAccessAndRefreshCredentials() {
+        seed(3003L, "integration-password", "NORMAL");
+        JsonNode original = login("integration-password");
+        JsonNode form = success(post("/auth/session/pre-auth-session/request", Map.of(), null));
+        String changedPassword = "Changed!Password2026";
+        String token = original.path("token").asText();
+        success(post(
+                "/sys/current-user/password/update",
+                Map.of(
+                        "token",
+                        form.path("loginToken").asText(),
+                        "oldPassword",
+                        Sm2Crypto.encrypt(PASSWORD, form.path("publicKey").asText()),
+                        "password",
+                        Sm2Crypto.encrypt(
+                                changedPassword, form.path("publicKey").asText())),
+                token));
+        assertEquals(
+                "COMMON-00002",
+                post("/sys/current-user/permission/list", Map.of(), token)
+                        .getBody()
+                        .path("code")
+                        .asText());
+        assertEquals(
+                "AUTH-00006",
+                post(
+                                "/auth/session/token/refresh",
+                                Map.of(
+                                        "clientId",
+                                        "admin-api",
+                                        "refreshToken",
+                                        original.path("refreshToken").asText()),
+                                null)
+                        .getBody()
+                        .path("code")
+                        .asText());
+        assertFalse(login("integration-password", changedPassword)
+                .path("token")
+                .asText()
+                .isBlank());
+    }
+
+    @Test
+    void exposesRealActuatorProbeGroups() {
+        assertEquals(
+                "UP",
+                http.getForObject("/actuator/health/readiness", JsonNode.class)
+                        .path("status")
+                        .asText());
+        assertEquals(
+                "UP",
+                http.getForObject("/actuator/health/liveness", JsonNode.class)
+                        .path("status")
+                        .asText());
+    }
+
     private void seed(long id, String name, String privilege) {
         jdbc.update(
                 "INSERT INTO system_user (id,department_id,name,privilege,status,ranks) VALUES (?,1,?,?,'ENABLED',9)",
@@ -280,6 +423,10 @@ class AdminAuthIntegrationTest {
     }
 
     private JsonNode login(String username) {
+        return login(username, PASSWORD);
+    }
+
+    private JsonNode login(String username, String password) {
         JsonNode form = success(post("/auth/session/pre-auth-session/request", Map.of(), null));
         return success(post(
                 "/auth/session/login",
@@ -289,7 +436,7 @@ class AdminAuthIntegrationTest {
                         "userName",
                         username,
                         "password",
-                        Sm2Crypto.encrypt(PASSWORD, form.path("publicKey").asText()),
+                        Sm2Crypto.encrypt(password, form.path("publicKey").asText()),
                         "captcha",
                         "integration-only"),
                 null));

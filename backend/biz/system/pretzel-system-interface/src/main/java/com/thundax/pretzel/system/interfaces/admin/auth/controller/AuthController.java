@@ -158,8 +158,6 @@ public class AuthController {
 
         releasePreAuthSession(request.getLoginToken());
 
-        authService.deleteAccessTokensByUserId(AdminAuthHelper.userIdOperation(user.getId()));
-
         return loginSuccess(
                 user,
                 request.getUsername(),
@@ -371,10 +369,10 @@ public class AuthController {
             return null;
         }
         AuthLoginRequest maskedRequest = new AuthLoginRequest();
-        maskedRequest.setLoginToken(request.getLoginToken());
+        maskedRequest.setLoginToken("******");
         maskedRequest.setUsername(request.getUsername());
         maskedRequest.setPassword("******");
-        maskedRequest.setCaptcha(request.getCaptcha());
+        maskedRequest.setCaptcha("******");
         return toJson(maskedRequest);
     }
 
@@ -398,7 +396,6 @@ public class AuthController {
             String logTitle,
             PrincipalAuthenticationMethod authenticationMethod,
             PrincipalIdentityType identityType) {
-        authService.deleteAccessTokensByUserId(AdminAuthHelper.userIdOperation(user.getId()));
         HttpServletRequest currentRequest = currentRequest();
         writeLog(currentRequest, logTitle, user, loginName);
         var operation = AdminAuthHelper.accessTokenOperation(user.getId(), loginName, currentRequest);

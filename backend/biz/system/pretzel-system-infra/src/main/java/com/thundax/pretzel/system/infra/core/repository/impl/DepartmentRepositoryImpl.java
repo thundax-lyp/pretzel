@@ -99,6 +99,10 @@ public class DepartmentRepositoryImpl implements DepartmentRepository {
         normalizeParentId(dataObject);
         entity.setParentId(DepartmentIdCodec.toDomain(dataObject.getParentId()));
         if (oldNode != null && !Objects.equals(oldNode.getParentId(), dataObject.getParentId())) {
+            DepartmentDO parent = dataObject.getParentId() == null ? null : getTreeNode(dataObject.getParentId());
+            if (parent != null && parent.getLft() >= oldNode.getLft() && parent.getRgt() <= oldNode.getRgt()) {
+                throw new com.thundax.pretzel.common.core.exception.BizException("不能移动到自身或子节点下");
+            }
             moveNodeToParent(oldNode, dataObject.getParentId());
         }
         int count = mapper.update(

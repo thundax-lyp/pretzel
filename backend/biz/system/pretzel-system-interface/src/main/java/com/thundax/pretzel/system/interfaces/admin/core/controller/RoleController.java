@@ -433,11 +433,14 @@ public class RoleController {
         }
 
         validateAdminRole(roleBean.isAdmin());
-        if (request.getUsers() == null || request.getUsers().isEmpty()) {
+        if (request.getUsers() == null) {
             throw AdminResponseExceptions.invalidParameter("users");
         }
 
         for (RoleUserRequest userRequest : request.getUsers()) {
+            if (userRequest == null || userRequest.getId() == null) {
+                throw AdminResponseExceptions.invalidParameter("users.id");
+            }
             User userBean =
                     userService.get(UserInterfaceAssembler.toGetQuery(UserIdCodec.toDomain(userRequest.getId())));
             if (userBean == null) {

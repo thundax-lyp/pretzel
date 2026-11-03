@@ -32,7 +32,7 @@ public class PrincipalAuthSessionRepositoryImpl implements PrincipalAuthSessionR
     private static final String CACHE_SECTION = PretzelCacheNames.PREFIX + "PRINCIPAL_AUTH_SESSION_V2_";
     private static final String SESSION_PREFIX = CACHE_SECTION + "SESSION_";
 
-    @CreateCache(name = CACHE_SECTION, cacheType = CacheType.BOTH)
+    @CreateCache(name = CACHE_SECTION, cacheType = CacheType.REMOTE)
     private Cache<String, PrincipalAuthSessionCacheDTO> cache;
 
     @Override

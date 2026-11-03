@@ -53,6 +53,7 @@ public class PrincipalPermissionApplicationServiceImpl
     private final UserManagementApplicationService userService;
     private final CurrentUserProfileApplicationService currentUserService;
     private final PermissionMatcher permissionMatcher = new PrefixPermissionMatcher();
+    private final String permissionEpoch = java.util.UUID.randomUUID().toString();
     private final AtomicLong permissionVersion = new AtomicLong();
 
     public PrincipalPermissionApplicationServiceImpl(
@@ -134,13 +135,13 @@ public class PrincipalPermissionApplicationServiceImpl
 
     private void savePermissions(PrincipalAuthSession session, Set<PermissionCode> permissions, long version) {
         session.getValues().put(SESSION_VALUE_PERMISSIONS, toPermissionValues(permissions));
-        session.getValues().put(SESSION_VALUE_PERMISSION_VERSION, version);
+        session.getValues().put(SESSION_VALUE_PERMISSION_VERSION, permissionEpoch + ":" + version);
         principalAuthSessionRepository.insert(session, expiredSeconds(session));
     }
 
     private boolean isCurrentPermissionVersion(PrincipalAuthSession session) {
         Object sessionVersion = session.getValues().get(SESSION_VALUE_PERMISSION_VERSION);
-        return sessionVersion instanceof Number && ((Number) sessionVersion).longValue() == permissionVersion.get();
+        return (permissionEpoch + ":" + permissionVersion.get()).equals(sessionVersion);
     }
 
     private Set<PermissionCode> loadPermissions(String userId) {

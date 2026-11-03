@@ -12,7 +12,6 @@ import com.thundax.pretzel.system.domain.core.codec.MenuIdCodec;
 import com.thundax.pretzel.system.domain.core.model.entity.Menu;
 import com.thundax.pretzel.system.domain.core.model.valueobject.MenuId;
 import com.thundax.pretzel.system.domain.core.repository.MenuRepository;
-import com.thundax.pretzel.system.infra.core.cache.MenuCacheSupport;
 import com.thundax.pretzel.system.infra.core.persistence.assembler.MenuPersistenceAssembler;
 import com.thundax.pretzel.system.infra.core.persistence.dataobject.MenuDO;
 import com.thundax.pretzel.system.infra.core.persistence.dataobject.MenuRoleDO;
@@ -31,24 +30,15 @@ public class MenuRepositoryImpl implements MenuRepository {
 
     private final MenuMapper mapper;
     private final MenuRoleMapper menuRoleMapper;
-    private final MenuCacheSupport cacheSupport;
 
-    public MenuRepositoryImpl(MenuMapper mapper, MenuRoleMapper menuRoleMapper, MenuCacheSupport cacheSupport) {
+    public MenuRepositoryImpl(MenuMapper mapper, MenuRoleMapper menuRoleMapper) {
         this.mapper = mapper;
         this.menuRoleMapper = menuRoleMapper;
-        this.cacheSupport = cacheSupport;
     }
 
     @Override
     public Menu getById(MenuId id) {
-        Menu menu = cacheSupport.getById(id.value());
-        if (menu != null) {
-            return menu;
-        }
-
-        menu = MenuPersistenceAssembler.toDomain(mapper.selectById(id.value()));
-        cacheSupport.putById(menu);
-        return menu;
+        return MenuPersistenceAssembler.toDomain(mapper.selectById(id.value()));
     }
 
     @Override
@@ -59,9 +49,6 @@ public class MenuRepositoryImpl implements MenuRepository {
         LambdaQueryWrapper<MenuDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.in(MenuDO::getId, MenuIdCodec.toValues(idList)).orderByAsc(MenuDO::getLft);
         List<Menu> menuList = MenuPersistenceAssembler.toDomainList(mapper.selectList(wrapper));
-        for (Menu menu : menuList) {
-            cacheSupport.putById(menu);
-        }
         return menuList;
     }
 
@@ -92,7 +79,6 @@ public class MenuRepositoryImpl implements MenuRepository {
         moveTreeRgts(newPosition, 2);
         moveTreeLfts(newPosition, 2);
         mapper.insert(dataObject);
-        cacheSupport.removeAll();
         return MenuIdCodec.toDomain(dataObject.getId());
     }
 
@@ -103,6 +89,10 @@ public class MenuRepositoryImpl implements MenuRepository {
         normalizeParentId(dataObject);
         entity.setParentId(MenuIdCodec.toDomain(dataObject.getParentId()));
         if (oldNode != null && !Objects.equals(oldNode.getParentId(), dataObject.getParentId())) {
+            MenuDO parent = dataObject.getParentId() == null ? null : getTreeNode(dataObject.getParentId());
+            if (parent != null && parent.getLft() >= oldNode.getLft() && parent.getRgt() <= oldNode.getRgt()) {
+                throw new com.thundax.pretzel.common.core.exception.BizException("不能移动到自身或子节点下");
+            }
             moveNodeToParent(oldNode, dataObject.getParentId());
         }
         int count = mapper.update(
@@ -117,7 +107,6 @@ public class MenuRepositoryImpl implements MenuRepository {
                         .set(MenuDO::getVisibility, dataObject.getVisibility())
                         .set(MenuDO::getDisplayParams, dataObject.getDisplayParams())
                         .set(MenuDO::getRemarks, dataObject.getRemarks()));
-        cacheSupport.removeAll();
         return count;
     }
 
@@ -133,7 +122,6 @@ public class MenuRepositoryImpl implements MenuRepository {
         moveTreeRgts(node.getLft(), -treeSpan(node));
         moveTreeLfts(node.getLft(), -treeSpan(node));
         int count = mapper.deleteById(id.value());
-        cacheSupport.removeAll();
         return count;
     }
 
@@ -175,7 +163,6 @@ public class MenuRepositoryImpl implements MenuRepository {
                 null,
                 buildIdUpdateWrapper(parentUpdateDataObject)
                         .set(MenuDO::getParentId, parentUpdateDataObject.getParentId()));
-        cacheSupport.removeAll();
     }
 
     @Override
@@ -190,7 +177,6 @@ public class MenuRepositoryImpl implements MenuRepository {
         MenuDO dataObject = MenuPersistenceAssembler.toObject(menu);
         int count = mapper.update(
                 null, buildIdUpdateWrapper(dataObject).set(MenuDO::getVisibility, dataObject.getVisibility()));
-        cacheSupport.removeById(MenuIdCodec.toValue(menu.getId()));
         return count;
     }
 

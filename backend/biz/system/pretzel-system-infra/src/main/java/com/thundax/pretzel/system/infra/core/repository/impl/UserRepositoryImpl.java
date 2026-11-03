@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.thundax.pretzel.common.core.page.PageResult;
+import com.thundax.pretzel.common.mybatis.typehandler.DefaultEncryptTypeHandler;
 import com.thundax.pretzel.system.domain.core.codec.DepartmentIdCodec;
 import com.thundax.pretzel.system.domain.core.codec.RoleIdCodec;
 import com.thundax.pretzel.system.domain.core.codec.UserIdCodec;
@@ -15,8 +16,6 @@ import com.thundax.pretzel.system.domain.core.model.valueobject.DepartmentId;
 import com.thundax.pretzel.system.domain.core.model.valueobject.RoleId;
 import com.thundax.pretzel.system.domain.core.model.valueobject.UserId;
 import com.thundax.pretzel.system.domain.core.repository.UserRepository;
-import com.thundax.pretzel.system.infra.core.cache.RoleCacheSupport;
-import com.thundax.pretzel.system.infra.core.cache.UserCacheSupport;
 import com.thundax.pretzel.system.infra.core.persistence.assembler.UserPersistenceAssembler;
 import com.thundax.pretzel.system.infra.core.persistence.dataobject.UserDO;
 import com.thundax.pretzel.system.infra.core.persistence.dataobject.UserRoleDO;
@@ -40,52 +39,46 @@ public class UserRepositoryImpl implements UserRepository {
             + "AND identity_value LIKE CONCAT('%',{0},'%'))";
     private final UserMapper mapper;
     private final UserRoleMapper userRoleMapper;
-    private final UserCacheSupport cacheSupport;
-    private final RoleCacheSupport roleCacheSupport;
 
-    public UserRepositoryImpl(
-            UserMapper mapper,
-            UserRoleMapper userRoleMapper,
-            UserCacheSupport cacheSupport,
-            RoleCacheSupport roleCacheSupport) {
+    public UserRepositoryImpl(UserMapper mapper, UserRoleMapper userRoleMapper) {
         this.mapper = mapper;
         this.userRoleMapper = userRoleMapper;
-        this.cacheSupport = cacheSupport;
-        this.roleCacheSupport = roleCacheSupport;
     }
 
     @Override
     public User getById(UserId id) {
-        User user = cacheSupport.getById(id.value());
-        if (user != null) {
-            return user;
-        }
-        user = UserPersistenceAssembler.toDomain(mapper.selectById(id.value()));
-        cacheSupport.putById(user);
-        return user;
+        return UserPersistenceAssembler.toDomain(mapper.selectById(id.value()));
+    }
+
+    @Override
+    public User getByIdForUpdate(UserId id) {
+        return UserPersistenceAssembler.toDomain(mapper.selectOne(
+                new LambdaQueryWrapper<UserDO>().eq(UserDO::getId, id.value()).last("FOR UPDATE")));
+    }
+
+    @Override
+    public int updateProfile(User user) {
+        return mapper.update(
+                null,
+                new LambdaUpdateWrapper<UserDO>()
+                        .eq(UserDO::getId, user.getId().value())
+                        .set(UserDO::getName, user.getName())
+                        .set(
+                                UserDO::getEmail,
+                                user.getEmail(),
+                                "typeHandler=" + DefaultEncryptTypeHandler.class.getName())
+                        .set(
+                                UserDO::getMobile,
+                                user.getMobile(),
+                                "typeHandler=" + DefaultEncryptTypeHandler.class.getName()));
     }
 
     @Override
     public List<User> listByIds(List<UserId> idList) {
-        List<User> userList = new ArrayList<>();
-        List<Long> uncachedIdList = new ArrayList<>();
-        for (UserId id : idList) {
-            Long value = UserIdCodec.toValue(id);
-            User user = cacheSupport.getById(value);
-            if (user == null) {
-                uncachedIdList.add(value);
-            } else {
-                userList.add(user);
-            }
+        if (idList == null || idList.isEmpty()) {
+            return new ArrayList<>();
         }
-        if (!uncachedIdList.isEmpty()) {
-            List<User> uncachedUserList = UserPersistenceAssembler.toDomainList(mapper.selectBatchIds(uncachedIdList));
-            for (User user : uncachedUserList) {
-                cacheSupport.putById(user);
-                userList.add(user);
-            }
-        }
-        return userList;
+        return UserPersistenceAssembler.toDomainList(mapper.selectBatchIds(UserIdCodec.toValues(idList)));
     }
 
     @Override
@@ -128,7 +121,6 @@ public class UserRepositoryImpl implements UserRepository {
     public UserId insert(User entity) {
         UserDO dataObject = UserPersistenceAssembler.toObject(entity);
         mapper.insert(dataObject);
-        removeUserCaches(dataObject.getId());
         return UserIdCodec.toDomain(dataObject.getId());
     }
 
@@ -140,22 +132,25 @@ public class UserRepositoryImpl implements UserRepository {
                 buildIdUpdateWrapper(dataObject)
                         .set(UserDO::getName, dataObject.getName())
                         .set(UserDO::getDepartmentId, dataObject.getDepartmentId())
-                        .set(UserDO::getEmail, dataObject.getEmail())
-                        .set(UserDO::getMobile, dataObject.getMobile())
+                        .set(
+                                UserDO::getEmail,
+                                dataObject.getEmail(),
+                                "typeHandler=" + DefaultEncryptTypeHandler.class.getName())
+                        .set(
+                                UserDO::getMobile,
+                                dataObject.getMobile(),
+                                "typeHandler=" + DefaultEncryptTypeHandler.class.getName())
                         .set(UserDO::getTel, dataObject.getTel())
                         .set(UserDO::getRanks, dataObject.getRanks())
                         .set(UserDO::getPrivilege, dataObject.getPrivilege())
                         .set(UserDO::getStatus, dataObject.getStatus())
                         .set(UserDO::getRemarks, dataObject.getRemarks()));
-        removeUserCaches(UserIdCodec.toValue(entity.getId()));
         return count;
     }
 
     @Override
     public int deleteById(UserId id) {
         int count = mapper.deleteById(id.value());
-        removeUserCaches(id.value());
-        roleCacheSupport.removeAll();
         return count;
     }
 
@@ -164,23 +159,16 @@ public class UserRepositoryImpl implements UserRepository {
         UserDO dataObject = UserPersistenceAssembler.toObject(user);
         int count =
                 mapper.update(null, buildIdUpdateWrapper(dataObject).set(UserDO::getStatus, dataObject.getStatus()));
-        removeUserCaches(UserIdCodec.toValue(user.getId()));
         return count;
     }
 
     @Override
     public List<RoleId> listUserRoles(UserId userId) {
-        Long userIdValue = UserIdCodec.toValue(userId);
-        List<Long> roleIds = cacheSupport.getUserRoleIds(userIdValue);
-        if (roleIds == null) {
-            LambdaQueryWrapper<UserRoleDO> wrapper = new LambdaQueryWrapper<>();
-            wrapper.eq(UserRoleDO::getUserId, userIdValue);
-            roleIds = userRoleMapper.selectList(wrapper).stream()
-                    .map(UserRoleDO::getRoleId)
-                    .collect(Collectors.toList());
-            cacheSupport.putUserRoleIds(userIdValue, roleIds);
-        }
-        return RoleIdCodec.toDomains(roleIds);
+        LambdaQueryWrapper<UserRoleDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(UserRoleDO::getUserId, UserIdCodec.toValue(userId));
+        return RoleIdCodec.toDomains(userRoleMapper.selectList(wrapper).stream()
+                .map(UserRoleDO::getRoleId)
+                .collect(Collectors.toList()));
     }
 
     @Override
@@ -189,7 +177,6 @@ public class UserRepositoryImpl implements UserRepository {
         LambdaQueryWrapper<UserRoleDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(UserRoleDO::getUserId, userIdValue);
         userRoleMapper.delete(wrapper);
-        removeUserCaches(userIdValue);
     }
 
     @Override
@@ -198,7 +185,6 @@ public class UserRepositoryImpl implements UserRepository {
         for (Long roleId : RoleIdCodec.toValues(roleIdList)) {
             userRoleMapper.insert(UserPersistenceAssembler.toUserRoleObject(userIdValue, roleId));
         }
-        removeUserCaches(userIdValue);
     }
 
     private LambdaUpdateWrapper<UserDO> buildIdUpdateWrapper(UserDO dataObject) {
@@ -234,16 +220,11 @@ public class UserRepositoryImpl implements UserRepository {
             return 0;
         }
         QueryWrapper<UserDO> wrapper = new QueryWrapper<>();
-        wrapper.eq(column, value);
+        wrapper.eq(column, DefaultEncryptTypeHandler.encrypt(value));
         if (excludedId != null) {
             wrapper.ne("id", UserIdCodec.toValue(excludedId));
         }
         Long count = mapper.selectCount(wrapper);
         return count == null ? 0 : count.intValue();
-    }
-
-    private void removeUserCaches(Long userId) {
-        cacheSupport.removeById(userId);
-        cacheSupport.removeUserRoleIds(userId);
     }
 }

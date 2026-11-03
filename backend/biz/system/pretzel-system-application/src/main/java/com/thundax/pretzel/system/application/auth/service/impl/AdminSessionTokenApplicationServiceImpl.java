@@ -38,6 +38,7 @@ import com.thundax.pretzel.system.domain.auth.repository.PrincipalRefreshTokenRe
 import com.thundax.pretzel.system.domain.core.codec.UserIdCodec;
 import com.thundax.pretzel.system.domain.core.model.entity.User;
 import com.thundax.pretzel.system.domain.core.model.valueobject.UserId;
+import com.thundax.pretzel.system.domain.core.repository.UserRepository;
 import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -47,6 +48,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AdminSessionTokenApplicationServiceImpl implements AdminSessionTokenApplicationService {
@@ -54,6 +56,7 @@ public class AdminSessionTokenApplicationServiceImpl implements AdminSessionToke
     private static final int SESSION_RUNTIME_SAFETY_SECONDS = 10;
     private static final PrincipalClientId ADMIN_CLIENT_ID = PrincipalClientIdCodec.toDomain("admin-api");
 
+    private final UserRepository userRepository;
     private final AuthProperties properties;
     private final PrincipalAuthSessionRepository principalAuthSessionRepository;
     private final PrincipalIdentityApplicationService principalIdentityService;
@@ -63,6 +66,7 @@ public class AdminSessionTokenApplicationServiceImpl implements AdminSessionToke
     private final ObjectProvider<PrincipalLoginEventRepository> principalLoginEventRepositoryProvider;
 
     public AdminSessionTokenApplicationServiceImpl(
+            UserRepository userRepository,
             AuthProperties properties,
             PrincipalAuthSessionRepository principalAuthSessionRepository,
             PrincipalIdentityApplicationService principalIdentityService,
@@ -70,6 +74,7 @@ public class AdminSessionTokenApplicationServiceImpl implements AdminSessionToke
             ObjectProvider<PrincipalAccessTokenRepository> principalAccessTokenRepositoryProvider,
             ObjectProvider<PrincipalRefreshTokenRepository> principalRefreshTokenRepositoryProvider,
             ObjectProvider<PrincipalLoginEventRepository> principalLoginEventRepositoryProvider) {
+        this.userRepository = userRepository;
         this.properties = properties;
         this.principalAuthSessionRepository = principalAuthSessionRepository;
         this.principalIdentityService = principalIdentityService;
@@ -81,9 +86,20 @@ public class AdminSessionTokenApplicationServiceImpl implements AdminSessionToke
 
     @Override
     @NonNull
+    @Transactional(rollbackFor = Exception.class)
     public AdminAccessTokenResult createAccessToken(CreateAdminAccessTokenCommand command) {
+        return createAccessToken(command, null);
+    }
+
+    private AdminAccessTokenResult createAccessToken(
+            CreateAdminAccessTokenCommand command,
+            com.thundax.pretzel.system.domain.auth.model.valueobject.PrincipalAuthSessionId existingSessionId) {
         UserId userId = command == null ? null : command.userId();
+        userRepository.getByIdForUpdate(userId);
         String loginName = command == null ? null : command.loginName();
+        if (StringUtils.isNotBlank(loginName)) {
+            deleteAccessTokensByUserId(new DeleteAdminAccessTokenCommand(null, userId, null, null));
+        }
         String ip = command == null ? null : command.ip();
         String userAgent = command == null ? null : command.userAgent();
         PrincipalAuthenticationMethod authenticationMethod = command == null ? null : command.authenticationMethod();
@@ -102,6 +118,9 @@ public class AdminSessionTokenApplicationServiceImpl implements AdminSessionToke
                 properties.getLoginExpiredSeconds());
         PrincipalAuthSession session = PrincipalAuthSession.create(
                 accessToken.getPrincipalKey(), ADMIN_CLIENT_ID, now, properties.getLoginExpiredSeconds());
+        if (existingSessionId != null) {
+            session.setId(existingSessionId);
+        }
         principalAuthSessionRepository.insert(session, runtimeExpiredSeconds(properties.getLoginExpiredSeconds()));
         accessToken.setSessionId(session.getId());
         accessToken.setId(requirePrincipalAccessTokenRepository().insert(accessToken, token));
@@ -142,8 +161,10 @@ public class AdminSessionTokenApplicationServiceImpl implements AdminSessionToke
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public int deleteAccessTokensByUserId(DeleteAdminAccessTokenCommand command) {
         UserId userId = command == null ? null : command.userId();
+        userRepository.getByIdForUpdate(userId);
         List<PrincipalAccessToken> tokens = requirePrincipalAccessTokenRepository()
                 .listByPrincipalKeyAndClientIdAndStatus(
                         PrincipalKey.of(PrincipalType.USER, UserIdCodec.toValue(userId)),
@@ -180,16 +201,29 @@ public class AdminSessionTokenApplicationServiceImpl implements AdminSessionToke
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void deleteAccessToken(DeleteAdminAccessTokenCommand command) {
         AdminAccessTokenResult accessToken = getAccessToken(accessTokenQuery(command));
         if (accessToken == null) {
             return;
         }
-        PrincipalAccessToken principalAccessToken = accessToken.getPrincipalAccessToken();
-        if (principalAccessToken != null && principalAccessToken.isActive()) {
-            principalAccessToken.revoke();
-            requirePrincipalAccessTokenRepository().updateStatus(principalAccessToken);
+        userRepository.getByIdForUpdate(UserIdCodec.toDomain(
+                accessToken.getPrincipalAccessToken().getPrincipalKey().getPrincipalId()));
+        accessToken = getAccessToken(accessTokenQuery(command));
+        if (accessToken == null) {
+            return;
         }
+        PrincipalAccessToken principalAccessToken = accessToken.getPrincipalAccessToken();
+        for (PrincipalAccessToken candidate : requirePrincipalAccessTokenRepository()
+                .listByPrincipalKeyAndClientIdAndStatus(
+                        principalAccessToken.getPrincipalKey(), ADMIN_CLIENT_ID, PrincipalTokenStatus.ACTIVE)) {
+            if (Objects.equals(candidate.getSessionId(), principalAccessToken.getSessionId())) {
+                candidate.revoke();
+                requirePrincipalAccessTokenRepository().updateStatus(candidate);
+            }
+        }
+        principalAccessToken.revoke();
+        requirePrincipalAccessTokenRepository().updateStatus(principalAccessToken);
         revokeRefreshTokens(principalAccessToken.getPrincipalKey(), principalAccessToken);
         deletePrincipalAuthSession(principalAccessToken);
         if (principalAccessToken != null) {
@@ -226,6 +260,7 @@ public class AdminSessionTokenApplicationServiceImpl implements AdminSessionToke
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public AdminTokenRefreshResult refreshAccessToken(RefreshAdminAccessTokenCommand command) {
         PrincipalRefreshTokenRepository refreshTokenRepository =
                 principalRefreshTokenRepositoryProvider.getIfAvailable();
@@ -241,6 +276,12 @@ public class AdminSessionTokenApplicationServiceImpl implements AdminSessionToke
         if (current == null || !current.canRefresh(now) || !requestedClientId.equals(current.getClientId())) {
             throw invalidToken();
         }
+        userRepository.getByIdForUpdate(
+                UserIdCodec.toDomain(current.getPrincipalKey().getPrincipalId()));
+        current = refreshTokenRepository.getByToken(refreshTokenValue(command));
+        if (current == null || !current.canRefresh(now)) {
+            throw invalidToken();
+        }
         PrincipalAccessToken original = requirePrincipalAccessTokenRepository().getById(current.getAccessTokenId());
         if (original != null && original.getStatus() == PrincipalTokenStatus.REVOKED) {
             throw invalidToken();
@@ -249,13 +290,15 @@ public class AdminSessionTokenApplicationServiceImpl implements AdminSessionToke
             throw invalidToken();
         }
 
-        AdminAccessTokenResult accessToken = createAccessToken(new CreateAdminAccessTokenCommand(
-                UserIdCodec.toDomain(current.getPrincipalKey().getPrincipalId()),
-                null,
-                command == null ? null : command.ip(),
-                command == null ? null : command.userAgent(),
-                null,
-                null));
+        AdminAccessTokenResult accessToken = createAccessToken(
+                new CreateAdminAccessTokenCommand(
+                        UserIdCodec.toDomain(current.getPrincipalKey().getPrincipalId()),
+                        null,
+                        command == null ? null : command.ip(),
+                        command == null ? null : command.userAgent(),
+                        null,
+                        null),
+                current.getSessionId());
         writeLoginEvent(
                 current.getPrincipalKey(),
                 requestedClientId,
@@ -269,11 +312,13 @@ public class AdminSessionTokenApplicationServiceImpl implements AdminSessionToke
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void invalidateSessionByToken(InvalidateAdminSessionCommand command) {
-        invalidatePrincipalAuthSession(tokenValue(command));
+        deleteAccessToken(new DeleteAdminAccessTokenCommand(command.token(), command.userId(), null, null));
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public int invalidateSessionsByUserId(InvalidateAdminSessionCommand command) {
         return deleteAccessTokensByUserId(
                 new DeleteAdminAccessTokenCommand(null, command == null ? null : command.userId(), null, null));
@@ -314,17 +359,6 @@ public class AdminSessionTokenApplicationServiceImpl implements AdminSessionToke
     private void deletePrincipalAuthSession(PrincipalAccessToken accessToken) {
         if (accessToken != null) {
             principalAuthSessionRepository.deleteById(accessToken.getSessionId());
-        }
-    }
-
-    private void invalidatePrincipalAuthSession(String token) {
-        AdminAccessTokenResult accessToken = getAccessToken(accessTokenQuery(token));
-        if (accessToken != null && accessToken.getPrincipalAccessToken() != null) {
-            PrincipalAccessToken principalAccessToken = accessToken.getPrincipalAccessToken();
-            revokeRefreshTokens(principalAccessToken.getPrincipalKey(), principalAccessToken);
-            principalAccessToken.revoke();
-            requirePrincipalAccessTokenRepository().updateStatus(principalAccessToken);
-            principalAuthSessionRepository.deleteById(principalAccessToken.getSessionId());
         }
     }
 

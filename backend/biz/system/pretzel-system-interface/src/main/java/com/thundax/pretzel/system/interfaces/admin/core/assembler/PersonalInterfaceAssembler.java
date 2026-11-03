@@ -64,16 +64,7 @@ public final class PersonalInterfaceAssembler {
         Objects.requireNonNull(currentUser, "currentUser must not be null");
         Objects.requireNonNull(request, "request must not be null");
         return new ChangeCurrentUserInfoCommand(
-                currentUser.getId(),
-                currentUser.getDepartmentId(),
-                request.getEmail(),
-                request.getMobile(),
-                currentUser.getTel(),
-                request.getName(),
-                currentUser.getRank(),
-                currentUser.getPrivilege(),
-                currentUser.getStatus(),
-                currentUser.getRemarks());
+                currentUser.getId(), request.getEmail(), request.getMobile(), request.getName());
     }
 
     @NonNull
