@@ -47,15 +47,17 @@ describe("UserTable authorization", () => {
         const user = userEvent.setup();
         const { onEdit, onDelete } = renderTable(true);
         for (const name of ["操作员", "同级用户"]) {
+            const row = within(screen.getByText(name).closest("tr")!);
             expect(
-                screen.getByRole("button", { name: `编辑 ${name}` }),
+                row.getByRole("button", { name: `编辑 ${name}` }),
             ).toBeDisabled();
             expect(
-                screen.getByRole("button", { name: `删除 ${name}` }),
+                row.getByRole("button", { name: `删除 ${name}` }),
             ).toBeDisabled();
         }
-        await user.click(screen.getByRole("button", { name: "编辑 下级用户" }));
-        await user.click(screen.getByRole("button", { name: "删除 下级用户" }));
+        const junior = within(screen.getByText("下级用户").closest("tr")!);
+        await user.click(junior.getByRole("button", { name: "编辑 下级用户" }));
+        await user.click(junior.getByRole("button", { name: "删除 下级用户" }));
         expect(onEdit).toHaveBeenCalledWith(users[2]);
         expect(onDelete).toHaveBeenCalledWith(users[2]);
         const row = screen.getByText("同级用户").closest("tr")!;
@@ -66,11 +68,12 @@ describe("UserTable authorization", () => {
     it("disables row actions and selection without edit permission", () => {
         renderTable(false);
         for (const name of users.map((record) => record.name)) {
+            const row = within(screen.getByText(name).closest("tr")!);
             expect(
-                screen.getByRole("button", { name: `编辑 ${name}` }),
+                row.getByRole("button", { name: `编辑 ${name}` }),
             ).toBeDisabled();
             expect(
-                screen.getByRole("button", { name: `删除 ${name}` }),
+                row.getByRole("button", { name: `删除 ${name}` }),
             ).toBeDisabled();
         }
         const row = screen.getByText("下级用户").closest("tr")!;
