@@ -56,6 +56,11 @@ public class PrincipalIdentityRepositoryImpl implements PrincipalIdentityReposit
     }
 
     @Override
+    public int deleteByPrincipalKey(PrincipalKey principalKey) {
+        return mapper.delete(principalKeyWrapper(principalKey));
+    }
+
+    @Override
     public PrincipalIdentityId insert(PrincipalIdentity principalIdentity) {
         PrincipalIdentityDO dataObject = PrincipalIdentityPersistenceAssembler.toObject(principalIdentity);
         mapper.insert(dataObject);

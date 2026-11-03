@@ -5,6 +5,8 @@ import com.thundax.pretzel.common.audit.model.enums.AuditAction;
 import com.thundax.pretzel.common.core.exception.BizExceptionBoundary;
 import com.thundax.pretzel.common.core.page.PageQuery;
 import com.thundax.pretzel.common.core.page.PageResult;
+import com.thundax.pretzel.system.application.auth.command.InvalidateAdminSessionCommand;
+import com.thundax.pretzel.system.application.auth.service.AdminSessionTokenApplicationService;
 import com.thundax.pretzel.system.application.core.command.ChangeUserInfoCommand;
 import com.thundax.pretzel.system.application.core.command.ChangeUserStatusCommand;
 import com.thundax.pretzel.system.application.core.command.CreateUserCommand;
@@ -12,7 +14,10 @@ import com.thundax.pretzel.system.application.core.command.RemoveUserCommand;
 import com.thundax.pretzel.system.application.core.query.GetUserQuery;
 import com.thundax.pretzel.system.application.core.query.UserQuery;
 import com.thundax.pretzel.system.application.core.service.UserManagementApplicationService;
-import com.thundax.pretzel.system.application.core.service.handler.UserDeleteCascadeHandler;
+import com.thundax.pretzel.system.domain.auth.model.enums.PrincipalType;
+import com.thundax.pretzel.system.domain.auth.model.valueobject.PrincipalKey;
+import com.thundax.pretzel.system.domain.auth.repository.PrincipalCredentialRepository;
+import com.thundax.pretzel.system.domain.auth.repository.PrincipalIdentityRepository;
 import com.thundax.pretzel.system.domain.core.model.entity.Role;
 import com.thundax.pretzel.system.domain.core.model.entity.User;
 import com.thundax.pretzel.system.domain.core.model.valueobject.RoleId;
@@ -33,18 +38,22 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 public class UserManagementApplicationServiceImpl implements UserManagementApplicationService {
 
     private final UserRepository dao;
-    private final List<UserDeleteCascadeHandler> deleteCascadeHandlers;
+    private final PrincipalIdentityRepository identities;
+    private final PrincipalCredentialRepository credentials;
+    private final ObjectProvider<AdminSessionTokenApplicationService> tokens;
     private final ObjectProvider<List<RoleManagementApplicationServiceImpl.CacheChangedListener>>
             roleCacheChangedListeners;
 
     public UserManagementApplicationServiceImpl(
             UserRepository dao,
-            ObjectProvider<List<UserDeleteCascadeHandler>> deleteCascadeHandlers,
+            PrincipalIdentityRepository identities,
+            PrincipalCredentialRepository credentials,
+            ObjectProvider<AdminSessionTokenApplicationService> tokens,
             ObjectProvider<List<RoleManagementApplicationServiceImpl.CacheChangedListener>> roleCacheChangedListeners) {
         this.dao = dao;
-        this.deleteCascadeHandlers = deleteCascadeHandlers == null
-                ? Collections.emptyList()
-                : deleteCascadeHandlers.getIfAvailable(Collections::emptyList);
+        this.identities = identities;
+        this.credentials = credentials;
+        this.tokens = tokens;
         this.roleCacheChangedListeners = roleCacheChangedListeners;
     }
 
@@ -171,9 +180,10 @@ public class UserManagementApplicationServiceImpl implements UserManagementAppli
             return 0;
         }
 
-        for (UserDeleteCascadeHandler deleteCascadeHandler : deleteCascadeHandlers) {
-            deleteCascadeHandler.beforeDelete(user);
-        }
+        tokens.getObject().invalidateSessionsByUserId(new InvalidateAdminSessionCommand(null, id, "USER_DELETED"));
+        PrincipalKey principal = PrincipalKey.of(PrincipalType.USER, id.value());
+        credentials.deleteByPrincipalKey(principal);
+        identities.deleteByPrincipalKey(principal);
         dao.deleteUserRole(id);
         notifyRoleCacheChanged();
 
