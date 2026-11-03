@@ -6,9 +6,7 @@ import com.tngtech.archunit.core.domain.JavaClasses;
 
 public final class ModuleAndDependencyArchitectureRuleSupport {
 
-    private static final String[] DOMAINS = {
-        "ai", "classics", "discovery", "knowledge", "operations", "storage", "system"
-    };
+    private static final String[] DOMAINS = {"game", "storage", "system"};
 
     private ModuleAndDependencyArchitectureRuleSupport() {}
 

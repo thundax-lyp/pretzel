@@ -23,11 +23,6 @@
         </dependency>
         <dependency>
             <groupId>com.thundax</groupId>
-            <artifactId>pretzel-system-application</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.thundax</groupId>
             <artifactId>pretzel-common-mybatis</artifactId>
             <version>${project.version}</version>
         </dependency>

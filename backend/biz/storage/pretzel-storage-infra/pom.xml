@@ -18,11 +18,6 @@
         </dependency>
         <dependency>
             <groupId>com.thundax</groupId>
-            <artifactId>pretzel-storage-application</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.thundax</groupId>
             <artifactId>pretzel-common-mybatis</artifactId>
             <version>${project.version}</version>
         </dependency>

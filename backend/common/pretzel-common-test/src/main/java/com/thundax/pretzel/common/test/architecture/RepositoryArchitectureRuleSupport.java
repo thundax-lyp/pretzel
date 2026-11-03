@@ -7,10 +7,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -30,14 +28,6 @@ public final class RepositoryArchitectureRuleSupport {
             new HashSet<String>(Arrays.asList("pretzel-admin-starter", "pretzel-portal-starter"));
     private static final Pattern PACKAGE_PATTERN = Pattern.compile("(?m)^\\s*package\\s+([A-Za-z0-9_.]+)\\s*;");
     private static final Set<String> COMMON_ONLY_LAYERS = new HashSet<String>(Arrays.asList("domain", "facade"));
-    // Legacy allowlists are the explicit debt register for pre-rule modules. New dependencies must fit
-    // the whitelist rules directly; cleanup work should only shrink these allowlists until they reach zero.
-    private static final Map<String, Set<String>> LEGACY_APPLICATION_POM_DEPENDENCY_ALLOWLIST =
-            legacyApplicationPomDependencyAllowlist();
-    private static final Map<String, Set<String>> LEGACY_INTERFACE_POM_DEPENDENCY_ALLOWLIST =
-            legacyInterfacePomDependencyAllowlist();
-    private static final Map<String, Set<String>> LEGACY_INFRA_POM_DEPENDENCY_ALLOWLIST =
-            legacyInfraPomDependencyAllowlist();
 
     private RepositoryArchitectureRuleSupport() {}
 
@@ -243,9 +233,7 @@ public final class RepositoryArchitectureRuleSupport {
                 violations.add(
                         ArchitectureSourceSupport.repositoryPath(root, pom) + " dependency=" + dependency.artifactId);
             }
-            if (domainModule != null
-                    && !isAllowedDomainModuleDependency(domainModule, dependency.artifactId)
-                    && !isAllowlistedDomainModuleDependency(domainModule, dependency.artifactId)) {
+            if (domainModule != null && !isAllowedDomainModuleDependency(domainModule, dependency.artifactId)) {
                 violations.add(ArchitectureSourceSupport.repositoryPath(root, pom)
                         + " "
                         + domainModule.layer
@@ -291,24 +279,6 @@ public final class RepositoryArchitectureRuleSupport {
         return false;
     }
 
-    private static boolean isAllowlistedDomainModuleDependency(DomainModule module, String artifactId) {
-        Set<String> dependencies = legacyPomDependencyAllowlist(module.layer).get(module.domain);
-        return dependencies != null && dependencies.contains(artifactId);
-    }
-
-    private static Map<String, Set<String>> legacyPomDependencyAllowlist(String layer) {
-        if ("application".equals(layer)) {
-            return LEGACY_APPLICATION_POM_DEPENDENCY_ALLOWLIST;
-        }
-        if ("interface".equals(layer)) {
-            return LEGACY_INTERFACE_POM_DEPENDENCY_ALLOWLIST;
-        }
-        if ("infra".equals(layer)) {
-            return LEGACY_INFRA_POM_DEPENDENCY_ALLOWLIST;
-        }
-        return java.util.Collections.emptyMap();
-    }
-
     private static String allowedDependenciesDescription(DomainModule module) {
         if ("application".equals(module.layer)) {
             return "[pretzel-" + module.domain + "-domain, pretzel-*-facade, pretzel-common-*]";
@@ -326,23 +296,6 @@ public final class RepositoryArchitectureRuleSupport {
             return "[pretzel-" + module.domain + "-domain, pretzel-common-*]";
         }
         return "[]";
-    }
-
-    private static Map<String, Set<String>> legacyApplicationPomDependencyAllowlist() {
-        return new HashMap<String, Set<String>>();
-    }
-
-    private static Map<String, Set<String>> legacyInterfacePomDependencyAllowlist() {
-        return new HashMap<String, Set<String>>();
-    }
-
-    private static Map<String, Set<String>> legacyInfraPomDependencyAllowlist() {
-        Map<String, Set<String>> allowlist = new HashMap<String, Set<String>>();
-        put(allowlist, "ai", "pretzel-ai-application");
-        put(allowlist, "discovery", "pretzel-discovery-application");
-        put(allowlist, "storage", "pretzel-storage-application");
-        put(allowlist, "system", "pretzel-system-application");
-        return allowlist;
     }
 
     private static boolean isDirectSpringBootStarterTestDependency(Dependency dependency) {
@@ -372,10 +325,6 @@ public final class RepositoryArchitectureRuleSupport {
     private static boolean isAllowedDirectMybatisPlusStarterDependency(String normalizedPomPath) {
         return "backend/pom.xml".equals(normalizedPomPath)
                 || "backend/common/pretzel-common-mybatis/pom.xml".equals(normalizedPomPath);
-    }
-
-    private static void put(Map<String, Set<String>> allowlist, String domain, String dependencyArtifactId) {
-        allowlist.computeIfAbsent(domain, key -> new HashSet<String>()).add(dependencyArtifactId);
     }
 
     private static final class DomainModule {

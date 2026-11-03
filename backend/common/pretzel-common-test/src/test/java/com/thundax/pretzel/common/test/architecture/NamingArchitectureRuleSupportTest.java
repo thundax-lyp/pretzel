@@ -866,31 +866,6 @@ class NamingArchitectureRuleSupportTest {
     }
 
     @Test
-    void boundaryAssemblerLegacyClassesShouldNotScanCurrentSourceViolations() throws Exception {
-        Path source = tempDir.resolve("src/main/java/com/thundax/pretzel/sample/interfaces/admin/assembler");
-        Files.createDirectories(source);
-        Path assembler = source.resolve("SampleInterfaceAssembler.java");
-        Files.writeString(
-                assembler,
-                """
-                package com.thundax.pretzel.sample.interfaces.admin.assembler;
-
-                public class SampleInterfaceAssembler {
-                    public String existing(String result) {
-                        return result;
-                    }
-                }
-                """);
-        List<ArchitectureRuleAllowance> allowances = BoundaryAssemblerNullnessAllowances.legacyClasses(
-                "com.thundax.pretzel.sample.interfaces.admin.assembler.SampleInterfaceAssembler");
-
-        assertThrows(
-                AssertionError.class,
-                () -> NamingArchitectureRuleSupport.assertBoundaryAssemblerPublicMethodsUseNonNullContracts(
-                        List.of(tempDir.resolve("src/main/java")), allowances));
-    }
-
-    @Test
     void domainServiceGateShouldRejectConcreteDomainServiceClassInInterfacePackage() throws Exception {
         Path source = tempDir.resolve("src/main/java/com/thundax/pretzel/sample/domain/service");
         Files.createDirectories(source);

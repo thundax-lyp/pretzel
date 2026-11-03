@@ -109,8 +109,7 @@ public final class TransactionArchitectureRuleSupport {
     }
 
     private static boolean isApplicationServiceOrFacadeOrOperator(String packageName, String simpleName) {
-        if (!packageName.matches(
-                "com\\.thundax\\.pretzel\\.(?:ai|classics|discovery|knowledge|operations|storage|system)\\.application(?:\\..*)?")) {
+        if (!packageName.matches("com\\.thundax\\.pretzel\\.(?:game|storage|system)\\.application(?:\\..*)?")) {
             return false;
         }
         boolean applicationService = simpleName.endsWith("ApplicationServiceImpl") || simpleName.endsWith("FacadeImpl");
