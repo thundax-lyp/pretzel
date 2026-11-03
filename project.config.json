@@ -2,7 +2,7 @@
     "appid": "touristappid",
     "projectname": "pretzel",
     "compileType": "miniprogram",
-    "miniprogramRoot": "miniprogram/",
+    "miniprogramRoot": "frontend/miniprogram/",
     "setting": {
         "es6": true,
         "useCompilerPlugins": ["typescript"]

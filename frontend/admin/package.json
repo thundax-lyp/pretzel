@@ -1,12 +1,12 @@
 {
-    "name": "pretzel-admin-web",
+    "name": "pretzel-admin",
     "private": true,
     "version": "0.0.0",
     "type": "module",
     "scripts": {
         "dev": "vite",
         "build": "tsc -b && vite build",
-        "lint": "oxlint --deny-warnings && node ../scripts/check-structure.mjs",
+        "lint": "oxlint --deny-warnings && node ../../scripts/check-structure.mjs",
         "preview": "vite preview",
         "test": "vitest run",
         "format": "prettier --write src test *.json vite.config.ts",

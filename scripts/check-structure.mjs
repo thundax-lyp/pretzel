@@ -8,7 +8,9 @@ const toolRoot = path.resolve(
     "..",
 );
 const root = process.argv[2] ? path.resolve(process.argv[2]) : toolRoot;
-const require = createRequire(path.join(toolRoot, "admin-web/package.json"));
+const require = createRequire(
+    path.join(toolRoot, "frontend/admin/package.json"),
+);
 const ts = require("typescript");
 const errors = [];
 const skip = new Set([
@@ -33,7 +35,15 @@ function files(directory) {
 function fail(file, message) {
     errors.push(`${path.relative(root, file)}: ${message}`);
 }
-const sourceRoot = path.join(root, "admin-web/src");
+for (const retired of ["admin-web", "miniprogram"]) {
+    const directory = path.join(root, retired);
+    if (fs.existsSync(directory))
+        fail(
+            directory,
+            "place frontend applications in frontend/admin and frontend/miniprogram",
+        );
+}
+const sourceRoot = path.join(root, "frontend/admin/src");
 for (const file of files(sourceRoot).filter((name) =>
     /\.(ts|tsx)$/.test(name),
 )) {
@@ -45,7 +55,7 @@ for (const file of files(sourceRoot).filter((name) =>
     if (/\.test\.tsx?$/.test(file) || relative.startsWith("test/")) {
         fail(
             file,
-            "place tests and test support in admin-web/test, outside src",
+            "place tests and test support in frontend/admin/test, outside src",
         );
         continue;
     }
@@ -124,7 +134,7 @@ for (const file of files(sourceRoot).filter((name) =>
     }
     visit(ast);
 }
-const testRoot = path.join(root, "admin-web/test");
+const testRoot = path.join(root, "frontend/admin/test");
 if (fs.existsSync(testRoot)) {
     for (const file of files(testRoot).filter((name) =>
         /\.test\.tsx?$/.test(name),

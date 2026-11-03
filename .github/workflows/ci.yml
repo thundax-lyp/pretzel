@@ -14,24 +14,24 @@ jobs:
         runs-on: ubuntu-latest
         defaults:
             run:
-                working-directory: admin-web
+                working-directory: frontend/admin
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-node@v4
               with:
                   node-version: "22"
                   cache: npm
-                  cache-dependency-path: admin-web/package-lock.json
+                  cache-dependency-path: frontend/admin/package-lock.json
             - run: npm ci
             - name: Repository format (4 spaces)
-              run: node ../scripts/check-format.mjs
+              run: node ../../scripts/check-format.mjs
             - name: Tool lint
               working-directory: ${{ github.workspace }}
-              run: admin-web/node_modules/.bin/oxlint --config .oxlintrc.json --deny-warnings scripts .agents
+              run: frontend/admin/node_modules/.bin/oxlint --config .oxlintrc.json --deny-warnings scripts .agents
             - run: npm run format:check
             - run: npm run lint
             - name: Structure and review helper tests
-              run: node --test ../scripts/*.test.mjs
+              run: node --test ../../scripts/*.test.mjs
             - run: npm test
             - run: npm run build
     backend:
@@ -89,14 +89,14 @@ jobs:
         runs-on: ubuntu-latest
         defaults:
             run:
-                working-directory: miniprogram
+                working-directory: frontend/miniprogram
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-node@v4
               with:
                   node-version: "22"
                   cache: npm
-                  cache-dependency-path: miniprogram/package-lock.json
+                  cache-dependency-path: frontend/miniprogram/package-lock.json
             - run: npm ci
             - run: npm run typecheck
             - run: npm run lint

@@ -5,8 +5,8 @@
 ## 安装
 
 ```sh
-npm --prefix admin-web ci
-npm --prefix miniprogram ci
+npm --prefix frontend/admin ci
+npm --prefix frontend/miniprogram ci
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements-dev.txt
 ```
@@ -16,9 +16,9 @@ python3 -m venv .venv
 ```sh
 # 检查；需要应用统一格式时追加 --write。
 node scripts/check-format.mjs
-npm --prefix admin-web run lint
+npm --prefix frontend/admin run lint
 node --test scripts/check-structure.test.mjs
-admin-web/node_modules/.bin/oxlint --config .oxlintrc.json --deny-warnings miniprogram scripts
+frontend/admin/node_modules/.bin/oxlint --config .oxlintrc.json --deny-warnings frontend/miniprogram scripts
 .venv/bin/ruff check scripts deploy
 .venv/bin/ruff format --check scripts deploy
 sh -n scripts/infra-tunnel.sh
@@ -35,10 +35,10 @@ check-structure 检查前端文件命名、服务依赖方向、HTTP 归属、�
 ## 测试与构建
 
 ```sh
-npm --prefix miniprogram run typecheck
-npm --prefix miniprogram run lint
-npm --prefix admin-web test
-npm --prefix admin-web run build
+npm --prefix frontend/miniprogram run typecheck
+npm --prefix frontend/miniprogram run lint
+npm --prefix frontend/admin test
+npm --prefix frontend/admin run build
 ./backend/mvnw -f backend/pom.xml -B clean verify
 ```
 

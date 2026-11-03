@@ -21,7 +21,7 @@ Redis 7.4拉取因Docker Hub连接超时未成功，部署使用服务器已有`
 - 服务器`.secrets/`目录0700；密码文件只经Docker文件挂载使用；不打印凭据。
 - `../init-env.py release`只生成缺失凭据，不会重置已有密码；MySQL数据卷初始化后不能靠改密码文件完成轮换。
 - 服务器`client.env`及本地项目根`dev.env`为0600，包含实际项目连接和初始管理员信息，均由Git忽略。
-- 管理端`admin-web/.env.local`将代理指向本地8116，Git忽略。Vite支持`VITE_ADMIN_API_TARGET`。
+- 管理端`frontend/admin/.env.local`将代理指向本地8116，Git忽略。Vite支持`VITE_ADMIN_API_TARGET`。
 - `.env` 与 `dev.env` 都是私有环境文件并加入 Git 忽略；公开样例使用 `.env.example`。配置初始化不覆盖现有 dev.env 或私有凭据。
 
 ## 本地连接
@@ -36,7 +36,7 @@ Redis 7.4拉取因Docker Hub连接超时未成功，部署使用服务器已有`
 python3 scripts/with-env.py --env-file dev.env -- java -jar backend/starter/pretzel-admin-starter/target/pretzel-admin-starter-0.0.1-dev.jar
 
 # 管理端
-(cd admin-web && npm run dev)
+(cd frontend/admin && npm run dev)
 ```
 
 项目dev.env已选择后端端口8116；健康地址为`http://127.0.0.1:8116/pretzel-admin-api/actuator/health`。初始管理员用户名为`admin`，密码在私有dev.env的`PRETZEL_BOOTSTRAP_PASSWORD`，不要粘贴到工单、聊天或提交记录。bootstrap默认关闭；已初始化的账号不依赖持续开启开关。

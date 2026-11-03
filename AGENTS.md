@@ -5,7 +5,8 @@
 - 本项目处于初始化阶段，直接维护当前目标设计；修改原定义并删除废弃实现，不叠加历史兼容层、过渡开关或修补式迁移。此原则不授权清空已部署数据。
 - 初始化交付只维护最终环境状态，不累计中间迁移、替换与排错记录；文档和 PR 描述围绕最终配置与验证结果组织。
 - 保留用户已有改动。真实配置、令牌、密码与私有环境文件不得进入 Git 或工具输出。
-- Java 使用 21 与 Maven Wrapper；前端使用 Node 22、React、TypeScript、Ant Design 和 Pro Components；客户端为TypeScript 原生微信小程序。
+- Java 使用 21 与 Maven Wrapper；前端工程使用 Node 22，管理端采用 React、TypeScript、Ant Design 和 Pro Components，小程序采用 TypeScript 原生微信小程序。
+- 前端应用统一放在 frontend：管理端为 frontend/admin，小程序为 frontend/miniprogram，各自维护独立依赖、构建与测试配置。
 - 通用管理界面直接使用官方组件，业务组件承担明确业务职责。
 - 代码与配置统一使用 4 个空格缩进，禁止 Tab 缩进。通过 EditorConfig、Prettier、Spotless 与对应 lint 检查约束。
 - ArchUnit 验证 Java 层次、包归属与依赖；Checkstyle 验证 Java 静态规范；Oxlint 与结构检查验证前端和脚本边界，Ruff 检查 Python 工具。规则变化同步门禁与必要测试。
@@ -24,7 +25,7 @@
 - **运行完整性**：事务、并发、幂等、重试、排序、状态流转、初始化、授权、敏感信息、可观测性与恢复。
 - **验证**：关键行为和失败路径的测试及静态门禁。检查通过是证据，不是行为正确的证明。
 
-先识别受影响模块与契约，再沿真实依赖追踪 backend、admin-web、miniprogram、deploy 和工具，不凭关键词扩张范围。使用与风险匹配的最小验证；共享契约、基础设施或跨模块变化再扩大验证。
+先识别受影响模块与契约，再沿真实依赖追踪 backend、frontend/admin、frontend/miniprogram、deploy 和工具，不凭关键词扩张范围。使用与风险匹配的最小验证；共享契约、基础设施或跨模块变化再扩大验证。
 
 正式 finding 必须由当前变更引入、暴露或实质加重，具有具体触发条件、可观察影响、变更位置与可执行修复方向。相同根因合并，纯风格偏好、无后果的改进和未经证明的推测不算缺陷。
 

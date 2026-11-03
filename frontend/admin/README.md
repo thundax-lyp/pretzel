@@ -27,4 +27,4 @@ Pro Components 固定为 `3.1.15-9`，该版本声明兼容 Ant Design 6；当�
 
 生产源码放在 src/，测试独立放在 test/，并保持对应的目录结构，例如 src/auth/token-storage.ts 对应 test/auth/token-storage.test.ts。组件测试使用 .test.tsx，普通逻辑测试使用 .test.ts；共享初始化位于 test/setup.ts。测试通过 @/ 引用源码，生产源码不得依赖测试。tsconfig.app.json 与 tsconfig.test.json 分别检查生产代码和测试，npm run build 同时执行两者的类型检查。
 
-api 只处理传输，auth 保存底层认证与令牌、权限，session 编排当前用户和登录后会话，页面 service 与业务域就近放置。源码使用 kebab-case，4 个空格缩进。npm run lint 执行 Oxlint 与项目结构检查；检查文档树、Java 包路径及前端服务依赖。跨工程格式检查使用 node scripts/check-format.mjs，从任意目录执行均可。
+api 只处理传输，auth 保存底层认证与令牌、权限，session 编排当前用户和登录后会话，页面 service 与业务域就近放置。源码使用 kebab-case，4 个空格缩进。npm run lint 执行 Oxlint 与项目结构检查；检查文档树、Java 包路径及前端服务依赖。跨工程格式检查从仓库根目录执行 node scripts/check-format.mjs。
