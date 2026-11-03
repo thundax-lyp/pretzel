@@ -1,5 +1,5 @@
 {
-    "$schema": "./admin-web/node_modules/oxlint/configuration_schema.json",
+    "$schema": "./frontend/admin/node_modules/oxlint/configuration_schema.json",
     "env": {
         "node": true
     },
@@ -9,7 +9,7 @@
     },
     "overrides": [
         {
-            "files": ["miniprogram/**/*.ts"],
+            "files": ["frontend/miniprogram/**/*.ts"],
             "globals": {
                 "App": "readonly",
                 "Page": "readonly",

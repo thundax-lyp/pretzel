@@ -1,0 +1,275 @@
+{
+    "schemaVersion": 1,
+    "source": {
+        "designAtlas": "docs/30-designs/assets/level-pack-v1/animal-atlas.png",
+        "sha256": "73cbfa32c0b180bf2dbce62d0226b5b890520efc70643a08219b133ec673839c",
+        "method": "native-resolution cell export; PNG decode compared pixel-by-pixel with source canvas"
+    },
+    "status": "design-candidate; fantasy eye counts require art review",
+    "characters": [
+        {
+            "id": "A01",
+            "name": "泡泡鱼",
+            "src": "/assets/cards/characters/a01-bubble-fish.png",
+            "width": 256,
+            "height": 256,
+            "format": "png",
+            "hasTransparency": false,
+            "bytes": 104105,
+            "sha256": "d28db0d003cdaa9c1e4a1cc87fa23ec7500375bd7e899971a08099bed57bd89a"
+        },
+        {
+            "id": "A02",
+            "name": "跳跳鸟",
+            "src": "/assets/cards/characters/a02-hopping-bird.png",
+            "width": 256,
+            "height": 256,
+            "format": "png",
+            "hasTransparency": false,
+            "bytes": 106958,
+            "sha256": "c2177df2df9497e06b305ebd28b674df2eef60cabe0d3b3c54a4418d8ba4a626"
+        },
+        {
+            "id": "A03",
+            "name": "小黄鸡",
+            "src": "/assets/cards/characters/a03-yellow-chick.png",
+            "width": 256,
+            "height": 256,
+            "format": "png",
+            "hasTransparency": false,
+            "bytes": 100243,
+            "sha256": "97ce1d288c1fad77bd0b23529431d5d9c42cc985c4cc69d21e7a667c28da0aba"
+        },
+        {
+            "id": "A04",
+            "name": "三脚鸭",
+            "src": "/assets/cards/characters/a04-three-legged-duck.png",
+            "width": 256,
+            "height": 256,
+            "format": "png",
+            "hasTransparency": false,
+            "bytes": 97983,
+            "sha256": "4a4221ffa76025fcacc3afd3989f014303bb57e05da5fc2c8beb8ca930fdb92d"
+        },
+        {
+            "id": "A05",
+            "name": "短腿兔",
+            "src": "/assets/cards/characters/a05-short-legged-rabbit.png",
+            "width": 256,
+            "height": 256,
+            "format": "png",
+            "hasTransparency": false,
+            "bytes": 101010,
+            "sha256": "3baa80b9997aba0af40cf04e66a6b9b47bc822d9de75bfbacdd396019a98f8c0"
+        },
+        {
+            "id": "A06",
+            "name": "五脚蛙",
+            "src": "/assets/cards/characters/a06-five-legged-frog.png",
+            "width": 256,
+            "height": 256,
+            "format": "png",
+            "hasTransparency": false,
+            "bytes": 104408,
+            "sha256": "5e94cedc101606c2e0253bea3777732e01b5dbbf93ad0223c1da498029cf7eac"
+        },
+        {
+            "id": "A07",
+            "name": "小甲虫",
+            "src": "/assets/cards/characters/a07-beetle.png",
+            "width": 256,
+            "height": 256,
+            "format": "png",
+            "hasTransparency": false,
+            "bytes": 118136,
+            "sha256": "d0fde61a7de91adf8c956ff0897caa81b2d30d805f561fb50fd8c6d5fdfd126e"
+        },
+        {
+            "id": "A08",
+            "name": "横横蟹",
+            "src": "/assets/cards/characters/a08-crab.png",
+            "width": 256,
+            "height": 256,
+            "format": "png",
+            "hasTransparency": false,
+            "bytes": 110216,
+            "sha256": "32403fadb770a1bca975950a5eccbefea4c5b551213a6fef8f785a79b9327265"
+        },
+        {
+            "id": "A09",
+            "name": "独眼蛇",
+            "src": "/assets/cards/characters/a09-one-eyed-snake.png",
+            "width": 256,
+            "height": 256,
+            "format": "png",
+            "hasTransparency": false,
+            "bytes": 109705,
+            "sha256": "a3f2fd483371331482e9842c641bc6e9d1aa8daaa16dca9c31d7ee9d1ce6a821"
+        },
+        {
+            "id": "A10",
+            "name": "独眼鸡",
+            "src": "/assets/cards/characters/a10-one-eyed-chick.png",
+            "width": 256,
+            "height": 256,
+            "format": "png",
+            "hasTransparency": false,
+            "bytes": 104407,
+            "sha256": "91854e5944f7f01b1980ee94ebbfd3f4e34a952a074bba33bb2f3288ff745073"
+        },
+        {
+            "id": "A11",
+            "name": "独眼猪",
+            "src": "/assets/cards/characters/a11-one-eyed-pig.png",
+            "width": 256,
+            "height": 256,
+            "format": "png",
+            "hasTransparency": false,
+            "bytes": 105230,
+            "sha256": "d6a531f418f66f1e05b9a6f58184e31d0a24c59d968ca180919a06116cd0449a"
+        },
+        {
+            "id": "A12",
+            "name": "独眼虫",
+            "src": "/assets/cards/characters/a12-one-eyed-caterpillar.png",
+            "width": 256,
+            "height": 256,
+            "format": "png",
+            "hasTransparency": false,
+            "bytes": 105227,
+            "sha256": "5c602e54692a6a8566668f4d4dc7f52806e43012eabb40470da8c85e6f7c9c3c"
+        },
+        {
+            "id": "A13",
+            "name": "三眼跳跳",
+            "src": "/assets/cards/characters/a13-three-eyed-hopper.png",
+            "width": 256,
+            "height": 256,
+            "format": "png",
+            "hasTransparency": false,
+            "bytes": 111919,
+            "sha256": "e48ed71d4d7362ec5ec7dcb9ed4f3ebcedb29e11d96a87c7f8913a3527d0229f"
+        },
+        {
+            "id": "A14",
+            "name": "三眼企鹅",
+            "src": "/assets/cards/characters/a14-three-eyed-penguin.png",
+            "width": 256,
+            "height": 256,
+            "format": "png",
+            "hasTransparency": false,
+            "bytes": 112127,
+            "sha256": "6a62eeb0c83cbf823a29bc1b53edd7ca7d99b817a364ab46feb3d0307e84750f"
+        },
+        {
+            "id": "A15",
+            "name": "三眼猫",
+            "src": "/assets/cards/characters/a15-three-eyed-cat.png",
+            "width": 256,
+            "height": 256,
+            "format": "png",
+            "hasTransparency": false,
+            "bytes": 118780,
+            "sha256": "79f85586b6f0923f07afdd0b2cd843916c0f8b68402f68d44df4175c42248769"
+        },
+        {
+            "id": "A16",
+            "name": "三眼蚂蚁",
+            "src": "/assets/cards/characters/a16-three-eyed-ant.png",
+            "width": 256,
+            "height": 256,
+            "format": "png",
+            "hasTransparency": false,
+            "bytes": 114189,
+            "sha256": "a8faa99b9441c91827051eba9d89e6af5753e8588058292d9dee2eecf19cdba6"
+        },
+        {
+            "id": "A17",
+            "name": "四眼鱼",
+            "src": "/assets/cards/characters/a17-four-eyed-fish.png",
+            "width": 256,
+            "height": 256,
+            "format": "png",
+            "hasTransparency": false,
+            "bytes": 108938,
+            "sha256": "721dc1855f90437d9619194ed4d236f24f3bc8e0b22c79c5a74f4e980dad86aa"
+        },
+        {
+            "id": "A18",
+            "name": "四眼鸭",
+            "src": "/assets/cards/characters/a18-four-eyed-duck.png",
+            "width": 256,
+            "height": 256,
+            "format": "png",
+            "hasTransparency": false,
+            "bytes": 107254,
+            "sha256": "02e90a6ef31a46a73ac93f53b77c9bc789f723a6dd162672bce3ad14ee77dd4a"
+        },
+        {
+            "id": "A19",
+            "name": "四眼狗",
+            "src": "/assets/cards/characters/a19-four-eyed-dog.png",
+            "width": 256,
+            "height": 256,
+            "format": "png",
+            "hasTransparency": false,
+            "bytes": 117970,
+            "sha256": "3cc3cfd1370549a562739d8c25595021c8052a1542b89fe3b699e166ce336f7d"
+        },
+        {
+            "id": "A20",
+            "name": "四眼蛛",
+            "src": "/assets/cards/characters/a20-four-eyed-spider.png",
+            "width": 256,
+            "height": 256,
+            "format": "png",
+            "hasTransparency": false,
+            "bytes": 111147,
+            "sha256": "7f1301866aab3450fa2af174e3bda80f24d7884a9ea735f7587c8981eb4286ed"
+        },
+        {
+            "id": "A21",
+            "name": "五眼鸟",
+            "src": "/assets/cards/characters/a21-five-eyed-bird.png",
+            "width": 256,
+            "height": 256,
+            "format": "png",
+            "hasTransparency": false,
+            "bytes": 115753,
+            "sha256": "414973268aa727bbd873d27dc1a445e4ab1814b019af33408b09a62ab291b977"
+        },
+        {
+            "id": "A22",
+            "name": "五眼兽",
+            "src": "/assets/cards/characters/a22-five-eyed-fluffy-beast.png",
+            "width": 256,
+            "height": 256,
+            "format": "png",
+            "hasTransparency": false,
+            "bytes": 119080,
+            "sha256": "92d13d98b6820807809afaf5386795c4fc5fbe068f04c994ec0224bfe853e9d0"
+        },
+        {
+            "id": "A23",
+            "name": "六眼牛",
+            "src": "/assets/cards/characters/a23-six-eyed-cow.png",
+            "width": 256,
+            "height": 256,
+            "format": "png",
+            "hasTransparency": false,
+            "bytes": 115455,
+            "sha256": "888a4cd5b50c161786a49ffac322b43387e64c42040600b2c1fc1905df4aba98"
+        },
+        {
+            "id": "A24",
+            "name": "六眼虫",
+            "src": "/assets/cards/characters/a24-six-eyed-bug.png",
+            "width": 256,
+            "height": 256,
+            "format": "png",
+            "hasTransparency": false,
+            "bytes": 118013,
+            "sha256": "f3a79bf19040cf5a07fdfcedd8f835a1e48be16822f45dc46a94affba76dbc9c"
+        }
+    ]
+}

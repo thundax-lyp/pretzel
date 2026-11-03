@@ -2,7 +2,7 @@
 
 ## Scope
 
-本文档定义 admin-web 的分层、权限与交互规范。通用界面采用 Pro Components 与 Ant Design。
+本文档定义 frontend/admin 的分层、权限与交互规范。通用界面采用 Pro Components 与 Ant Design。
 
 ## Components
 

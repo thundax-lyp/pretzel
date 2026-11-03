@@ -1,0 +1,92 @@
+{
+    "stagesReplayed": 160,
+    "cardPicks": 4400,
+    "perPickClickableSetChecks": 4400,
+    "readability": [
+        {
+            "layers": 4,
+            "width": 320,
+            "minReadableFontPx": 9.16420134730064,
+            "boardFits": true,
+            "documentOverflow": false
+        },
+        {
+            "layers": 4,
+            "width": 375,
+            "minReadableFontPx": 10.8443044424057,
+            "boardFits": true,
+            "documentOverflow": false
+        },
+        {
+            "layers": 4,
+            "width": 390,
+            "minReadableFontPx": 10.997041474741238,
+            "boardFits": true,
+            "documentOverflow": false
+        },
+        {
+            "layers": 6,
+            "width": 320,
+            "minReadableFontPx": 12.25254013200976,
+            "boardFits": true,
+            "documentOverflow": false
+        },
+        {
+            "layers": 6,
+            "width": 375,
+            "minReadableFontPx": 14.49883850745435,
+            "boardFits": true,
+            "documentOverflow": false
+        },
+        {
+            "layers": 6,
+            "width": 390,
+            "minReadableFontPx": 14.703047968531555,
+            "boardFits": true,
+            "documentOverflow": false
+        },
+        {
+            "layers": 7,
+            "width": 320,
+            "minReadableFontPx": 12.25254013200976,
+            "boardFits": true,
+            "documentOverflow": false
+        },
+        {
+            "layers": 7,
+            "width": 375,
+            "minReadableFontPx": 14.49883850745435,
+            "boardFits": true,
+            "documentOverflow": false
+        },
+        {
+            "layers": 7,
+            "width": 390,
+            "minReadableFontPx": 14.703047968531555,
+            "boardFits": true,
+            "documentOverflow": false
+        },
+        {
+            "layers": 8,
+            "width": 320,
+            "minReadableFontPx": 11.23502814872867,
+            "boardFits": true,
+            "documentOverflow": false
+        },
+        {
+            "layers": 8,
+            "width": 375,
+            "minReadableFontPx": 13.294782714447761,
+            "boardFits": true,
+            "documentOverflow": false
+        },
+        {
+            "layers": 8,
+            "width": 390,
+            "minReadableFontPx": 13.482033604362844,
+            "boardFits": true,
+            "documentOverflow": false
+        }
+    ],
+    "errors": []
+}

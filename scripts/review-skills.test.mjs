@@ -62,16 +62,28 @@ test("review snapshots classify deleted backend modules and literal rename paths
     const repo = repository(t);
     repo.write("backend/biz/game/pretzel-game-domain/pom.xml", "<project/>\n");
     repo.write(
-        "admin-web/src/old 文件.ts",
+        "frontend/admin/src/old 文件.ts",
         "export const name = 'original';\n",
     );
     repo.commit();
     repo.git("branch", "-f", "main", "HEAD");
     fs.rmSync(path.join(repo.directory, "backend"), { recursive: true });
-    repo.git("mv", "admin-web/src/old 文件.ts", "admin-web/src/new 文件.ts");
+    repo.git(
+        "mv",
+        "frontend/admin/src/old 文件.ts",
+        "frontend/admin/src/new 文件.ts",
+    );
+    repo.write("frontend/miniprogram/app.ts", "export {};\n");
     repo.commit();
     const state = JSON.parse(repo.run("snapshot").stdout);
-    assert.equal(state.changed_file_count, 2);
+    assert.equal(state.changed_file_count, 3);
+    assert(
+        state.changed_files.some(
+            (file) =>
+                file.module === "miniprogram" &&
+                file.path === "frontend/miniprogram/app.ts",
+        ),
+    );
     assert(
         state.changed_files.some(
             (file) =>
@@ -82,8 +94,9 @@ test("review snapshots classify deleted backend modules and literal rename paths
     const renamed = state.changed_files.find(
         (file) => file.status === "renamed",
     );
-    assert.equal(renamed.old_path, "admin-web/src/old 文件.ts");
-    assert.equal(renamed.path, "admin-web/src/new 文件.ts");
+    assert.equal(renamed.old_path, "frontend/admin/src/old 文件.ts");
+    assert.equal(renamed.path, "frontend/admin/src/new 文件.ts");
+    assert.equal(renamed.module, "admin");
     const patch = repo.run("diff", "--module", "admin");
     assert.equal(patch.status, 0, patch.stderr);
     assert.match(patch.stdout, /rename from/);

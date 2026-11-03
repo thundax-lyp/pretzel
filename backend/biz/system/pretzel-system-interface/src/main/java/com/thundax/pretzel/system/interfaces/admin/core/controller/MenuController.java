@@ -274,7 +274,7 @@ public class MenuController {
             throw AdminResponseExceptions.objectNotFound();
         }
 
-        if (toBean.equals(fromBean)
+        if (java.util.Objects.equals(toBean.getId(), fromBean.getId())
                 || menuService.existsChildRelation(MenuInterfaceAssembler.toChildRelationQuery(toBean, fromBean))) {
             throw AdminResponseExceptions.moveTreeNode();
         }

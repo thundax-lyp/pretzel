@@ -240,7 +240,7 @@ public class DepartmentController {
             throw AdminResponseExceptions.objectNotFound();
         }
 
-        if (toBean.equals(fromBean)
+        if (java.util.Objects.equals(toBean.getId(), fromBean.getId())
                 || departmentService.existsChildRelation(
                         DepartmentInterfaceAssembler.toChildRelationQuery(toBean, fromBean))) {
             throw AdminResponseExceptions.moveTreeNode();

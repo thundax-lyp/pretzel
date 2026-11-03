@@ -31,8 +31,12 @@ function moduleFor(file) {
         [".agents", ".github", ".githooks", ".vscode"].includes(p[0])
     )
         return "repo-governance";
-    if (["docs", "deploy", "miniprogram"].includes(p[0])) return p[0];
-    if (p[0] === "admin-web") return "admin";
+    if (["docs", "deploy"].includes(p[0])) return p[0];
+    if (p[0] === "frontend") {
+        if (p[1] === "admin") return "admin";
+        if (p[1] === "miniprogram") return "miniprogram";
+        return "repo-governance";
+    }
     if (p[0] === "scripts") return "tooling";
     if (p[0] === "backend") {
         if (p[1] === "biz" && p[3]?.startsWith("pretzel-"))

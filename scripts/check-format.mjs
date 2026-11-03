@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const require = createRequire(path.join(root, "admin-web/package.json"));
+const require = createRequire(path.join(root, "frontend/admin/package.json"));
 const prettier = require("prettier");
 const ignored = new Set([
     ".git",

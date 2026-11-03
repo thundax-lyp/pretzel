@@ -631,12 +631,17 @@ public class UserController {
     }
 
     private void validateEditableUser(User currentUser, User targetUser) {
-        if (currentUser != null && currentUser.isSuper()) {
+        if (currentUser == null
+                || targetUser == null
+                || currentUser.getId() == null
+                || targetUser.getId() == null
+                || Objects.equals(currentUser.getId(), targetUser.getId())) {
+            throw AdminResponseExceptions.permissionDenied();
+        }
+        if (currentUser.isSuper()) {
             return;
         }
-        if (currentUser == null
-                || currentUser.getRank() == null
-                || targetUser == null
+        if (currentUser.getRank() == null
                 || targetUser.getRank() == null
                 || targetUser.getRank().value() >= currentUser.getRank().value()) {
             throw AdminResponseExceptions.permissionDenied();

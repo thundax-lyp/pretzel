@@ -95,7 +95,13 @@ public class AdminSessionTokenApplicationServiceImpl implements AdminSessionToke
             CreateAdminAccessTokenCommand command,
             com.thundax.pretzel.system.domain.auth.model.valueobject.PrincipalAuthSessionId existingSessionId) {
         UserId userId = command == null ? null : command.userId();
-        userRepository.getByIdForUpdate(userId);
+        if (userId == null) {
+            throw invalidToken();
+        }
+        User currentUser = userRepository.getByIdForUpdate(userId);
+        if (currentUser == null || !currentUser.isEnable()) {
+            throw invalidToken();
+        }
         String loginName = command == null ? null : command.loginName();
         if (StringUtils.isNotBlank(loginName)) {
             deleteAccessTokensByUserId(new DeleteAdminAccessTokenCommand(null, userId, null, null));

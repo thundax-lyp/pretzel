@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>腿了个腿 · 20 套立体结构关卡设计</title>
+        <link rel="stylesheet" href="style.css" />
+    </head>
+    <body>
+        <header class="intro">
+            <span class="eyebrow">PRETZEL / LEVEL STRUCTURES / V1</span>
+            <h1>把麻将牌，搭成小小世界。</h1>
+            <p>20 套立体卡通结构 · 固定 6×8 网格 · 每套两关</p>
+            <div class="disclaimer">
+                结构设计稿：可点击体验与重放参考解。第二关的真人难度、广告需求与
+                4—6 分钟时长尚未标定。
+            </div>
+        </header>
+        <div id="height-picker" aria-label="比较实际层数">
+            <span>结构对照</span><a href="?layers=4">原四层</a
+            ><a href="?layers=6">六层候选</a><a href="?layers=7">七层对照</a
+            ><a href="?layers=8">八层对照</a>
+        </div>
+        <nav id="picker" aria-label="选择关卡套装"></nav>
+        <main>
+            <section id="selection" class="selection"></section>
+            <section id="screens" class="screens"></section>
+            <section class="notes">
+                <h2>牌本身构成结构</h2>
+                <p>
+                    塔楼、龟壳、屋顶都由同一种扁平厚牌堆出高度，而非背景图，也不是只把平面轮廓换成动物。顶面、侧面与覆盖判定使用同一投影。
+                </p>
+                <p>
+                    第一关：7 张同属性牌，3
+                    题，任意合法取牌顺序均可通过。第二关：48 张牌、12
+                    题、多种属性、最多 6 层；允许选错组合后无法继续。
+                </p>
+                <p>
+                    本设计页未接入道具、分享、广告或结算服务。牌面采用原创生成的
+                    3D 卡通素材；最终出图前仍需逐个校对幻想动物的眼睛数量。
+                </p>
+            </section>
+        </main>
+        <script src="levels.js"></script>
+        <script src="height-study/variants.js"></script>
+        <script src="gallery.js"></script>
+    </body>
+</html>

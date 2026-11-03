@@ -81,6 +81,53 @@ class AdminAuthIntegrationTest {
     PlatformTransactionManager transactionManager;
 
     @Autowired
+    com.thundax.pretzel.system.application.core.service.UserManagementApplicationService userManagement;
+
+    @Test
+    void deletingUserReleasesIdentityAndRevokesItsLogin() {
+        seed(3005L, "integration-recreated", "NORMAL");
+        JsonNode original = login("integration-recreated");
+        assertEquals(
+                1,
+                userManagement.remove(new com.thundax.pretzel.system.application.core.command.RemoveUserCommand(
+                        com.thundax.pretzel.system.domain.core.codec.UserIdCodec.toDomain(3005L))));
+        assertEquals(
+                0,
+                jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM system_auth_principal_identity WHERE principal_type='USER' AND principal_id=3005",
+                        Integer.class));
+        assertEquals(
+                0,
+                jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM system_auth_principal_credential WHERE principal_type='USER' AND principal_id=3005",
+                        Integer.class));
+        assertEquals(
+                "COMMON-00002",
+                post(
+                                "/sys/current-user/permission/list",
+                                Map.of(),
+                                original.path("token").asText())
+                        .getBody()
+                        .path("code")
+                        .asText());
+        assertEquals(
+                "AUTH-00006",
+                post(
+                                "/auth/session/token/refresh",
+                                Map.of(
+                                        "clientId",
+                                        "admin-api",
+                                        "refreshToken",
+                                        original.path("refreshToken").asText()),
+                                null)
+                        .getBody()
+                        .path("code")
+                        .asText());
+        seed(3006L, "integration-recreated", "NORMAL");
+        assertFalse(login("integration-recreated").path("token").asText().isBlank());
+    }
+
+    @Autowired
     com.thundax.pretzel.system.application.auth.config.AuthProperties authProperties;
 
     @Autowired

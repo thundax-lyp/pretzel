@@ -61,6 +61,11 @@ public class PrincipalCredentialRepositoryImpl implements PrincipalCredentialRep
     }
 
     @Override
+    public int deleteByPrincipalKey(PrincipalKey principalKey) {
+        return mapper.delete(principalKeyWrapper(principalKey));
+    }
+
+    @Override
     public PrincipalCredentialId insert(PrincipalCredential principalCredential) {
         PrincipalCredentialDO dataObject = PrincipalCredentialPersistenceAssembler.toObject(principalCredential);
         mapper.insert(dataObject);

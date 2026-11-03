@@ -17,6 +17,8 @@ public interface PrincipalIdentityRepository {
 
     List<PrincipalIdentity> listByPrincipalKeyAndStatus(PrincipalKey principalKey, PrincipalIdentityStatus status);
 
+    int deleteByPrincipalKey(PrincipalKey principalKey);
+
     PrincipalIdentityId insert(PrincipalIdentity principalIdentity);
 
     int update(PrincipalIdentity principalIdentity);

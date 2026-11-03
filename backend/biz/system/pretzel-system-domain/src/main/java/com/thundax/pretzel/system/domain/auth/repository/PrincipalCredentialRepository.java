@@ -18,6 +18,8 @@ public interface PrincipalCredentialRepository {
 
     List<PrincipalCredential> listByPrincipalKeyAndStatus(PrincipalKey principalKey, PrincipalCredentialStatus status);
 
+    int deleteByPrincipalKey(PrincipalKey principalKey);
+
     PrincipalCredentialId insert(PrincipalCredential principalCredential);
 
     int update(PrincipalCredential principalCredential);

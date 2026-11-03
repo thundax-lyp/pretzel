@@ -127,6 +127,9 @@ public class MenuRepositoryImpl implements MenuRepository {
 
     @Override
     public void moveTreeNode(MenuId fromId, MenuId toId, TreeNodeMoveType moveType) {
+        if (Objects.equals(fromId, toId)) {
+            throw new com.thundax.pretzel.common.core.exception.BizException("不能移动到自身");
+        }
         Long fromIdValue = MenuIdCodec.toValue(fromId);
         Long toIdValue = MenuIdCodec.toValue(toId);
         MenuDO fromNode = getTreeNode(fromIdValue);
