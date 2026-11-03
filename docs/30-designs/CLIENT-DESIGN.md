@@ -2,7 +2,7 @@
 
 ## 微信小程序
 
-保留 pages/start、pages/home、pages/game 三个页面，入口文件为 index.ts、index.tson、index.wxml，按需增加 index.wxss。小程序路由、构建和平台配置使用工具约定文件名。
+保留 pages/start、pages/home、pages/game 三个页面，入口文件为 index.ts、index.json、index.wxml，按需增加 index.wxss。小程序路由、构建和平台配置使用工具约定文件名。
 
 游戏页分离状态、操作与动画：覆盖关系决定可点击性；卡槽和暂存区保存牌实例；动画不直接发放奖励或确认服务端结算。多行可滚动暂存区保留点击放回能力。
 

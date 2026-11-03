@@ -30,7 +30,7 @@
 
 ## 小程序、部署与文档
 
-小程序页面使用 pages/<page>/index.ts、index.tson、index.wxml 和按需 index.wxss。全局入口使用 app.ts、app.json、app.wxss。
+小程序页面使用 pages/<page>/index.ts、index.json、index.wxml 和按需 index.wxss。全局入口使用 app.ts、app.json、app.wxss。
 
 部署使用 deploy/smoke 与 deploy/release，各环境保留 compose.yaml 和 .env.example；真实文件 .env、dev.env、.secrets 与 .environment 全部忽略。脚本使用小写 kebab-case 及对应语言扩展名。
 
