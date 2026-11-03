@@ -19,6 +19,26 @@ import com.thundax.pretzel.system.infra.core.persistence.mapper.MenuRoleMapper;
 import org.junit.jupiter.api.Test;
 
 class TreeDeletionTest {
+
+    @Test
+    void movingMenuOrDepartmentToItselfMustNotTouchTree() {
+        MenuMapper menus = mock(MenuMapper.class);
+        DepartmentMapper departments = mock(DepartmentMapper.class);
+        var departmentCache = mock(DepartmentCacheSupport.class);
+        var menuRepository = new MenuRepositoryImpl(menus, mock(MenuRoleMapper.class));
+        var departmentRepository = new DepartmentRepositoryImpl(departments, departmentCache);
+        for (var type : com.thundax.pretzel.common.core.tree.TreeNodeMoveType.values()) {
+            assertThrows(
+                    BizException.class,
+                    () -> menuRepository.moveTreeNode(MenuIdCodec.toDomain(1L), MenuIdCodec.toDomain(1L), type));
+            assertThrows(
+                    BizException.class,
+                    () -> departmentRepository.moveTreeNode(
+                            DepartmentIdCodec.toDomain(1L), DepartmentIdCodec.toDomain(1L), type));
+        }
+        verifyNoInteractions(menus, departments, departmentCache);
+    }
+
     @Test
     void cannotDeleteMenuWithChildren() {
         MenuMapper mapper = mock(MenuMapper.class);

@@ -134,6 +134,9 @@ public class DepartmentRepositoryImpl implements DepartmentRepository {
 
     @Override
     public void moveTreeNode(DepartmentId fromId, DepartmentId toId, TreeNodeMoveType moveType) {
+        if (Objects.equals(fromId, toId)) {
+            throw new com.thundax.pretzel.common.core.exception.BizException("不能移动到自身");
+        }
         Long fromIdValue = DepartmentIdCodec.toValue(fromId);
         Long toIdValue = DepartmentIdCodec.toValue(toId);
         DepartmentDO fromNode = getTreeNode(fromIdValue);
