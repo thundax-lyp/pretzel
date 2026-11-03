@@ -176,7 +176,7 @@ class CurrentUserProfileApplicationServiceImplTest {
     }
 
     @Test
-    void listAccessibleMenusShouldBatchLoadMenusForNormalUser() {
+    void visibleMenusShouldKeepAuthorizedChildWithoutItsUngrantableParent() {
         UserManagementApplicationService userService = mock(UserManagementApplicationService.class);
         RoleManagementApplicationService roleService = mock(RoleManagementApplicationService.class);
         MenuManagementApplicationService menuService = mock(MenuManagementApplicationService.class);
@@ -188,6 +188,7 @@ class CurrentUserProfileApplicationServiceImplTest {
         role.setStatus(RoleStatus.ENABLED);
         when(roleService.get(role.getId())).thenReturn(role);
         Menu grantedMenu = menu(10L, 3);
+        grantedMenu.setParentId(MenuIdCodec.toDomain(1L));
         Menu deniedMenu = menu(11L, 8);
         when(userService.listUserRoles(any(UserQuery.class))).thenReturn(List.of(role));
         when(roleService.listRoleMenus(any(RoleQuery.class))).thenReturn(List.of(grantedMenu, deniedMenu));
@@ -196,7 +197,7 @@ class CurrentUserProfileApplicationServiceImplTest {
         CurrentUserQuery query =
                 new CurrentUserQuery(UserIdCodec.toDomain(100L), UserPrivilege.NORMAL, null, AccessRank.of(5));
 
-        List<Menu> menus = service.listAccessibleMenus(query);
+        List<Menu> menus = service.listVisibleMenus(query);
 
         assertEquals(List.of(grantedMenu), menus);
         verify(menuService).list(any(MenuQuery.class));

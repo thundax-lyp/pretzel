@@ -273,10 +273,13 @@ public class CurrentUserProfileApplicationServiceImpl implements CurrentUserProf
 
     @Override
     public List<Menu> listVisibleMenus(CurrentUserQuery query) {
+        List<Menu> accessibleMenus = listAccessibleMenus(query);
+        var accessibleIds = accessibleMenus.stream().map(Menu::getId).collect(Collectors.toSet());
         List<Menu> visibleMenus =
-                listAccessibleMenus(query).stream().filter(Menu::isDisplay).collect(Collectors.toList());
-        List<Menu> menuList =
-                visibleMenus.stream().filter(menu -> menu.getParentId() == null).collect(Collectors.toList());
+                accessibleMenus.stream().filter(Menu::isDisplay).collect(Collectors.toList());
+        List<Menu> menuList = visibleMenus.stream()
+                .filter(menu -> menu.getParentId() == null || !accessibleIds.contains(menu.getParentId()))
+                .collect(Collectors.toList());
 
         for (int idx = 0; idx < menuList.size(); idx++) {
             Menu parent = menuList.get(idx);
