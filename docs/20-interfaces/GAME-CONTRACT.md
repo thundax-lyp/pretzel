@@ -88,7 +88,7 @@
 ```mermaid
 sequenceDiagram
     actor P as 玩家
-    participant C as 小程序
+    participant C as 小游戏客户端
     participant W as 微信平台
     participant S as 服务端
     participant D as 对局状态
@@ -135,7 +135,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     actor P as 玩家
-    participant C as 小程序
+    participant C as 小游戏客户端
     participant S as 服务端
     participant D as 对局状态与操作结果
     P->>C: 取牌、放回暂存牌或使用道具
@@ -185,7 +185,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant C as 小程序
+    participant C as 小游戏客户端
     participant S as 服务端
     participant D as 对局与道具状态
     C->>S: 提交用道具操作及预期版本
@@ -219,7 +219,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     actor P as 玩家
-    participant C as 小程序
+    participant C as 小游戏客户端
     participant W as 平台能力
     participant S as 服务端
     participant D as 奖励记录与库存
@@ -268,7 +268,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant C as 小程序
+    participant C as 小游戏客户端
     participant S as 服务端
     participant D as 对局、结算与收集记录
     C->>S: 以局标识申请结算或查询结算结果

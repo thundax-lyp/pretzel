@@ -1,8 +1,12 @@
 # 客户端与管理端组织设计
 
-## 微信小程序
+## 微信小游戏
 
-小程序源码位于 frontend/miniprogram，保留 pages/start、pages/home、pages/game 三个页面，入口文件为 index.ts、index.json、index.wxml，按需增加 index.wxss。小程序路由、构建和平台配置使用工具约定文件名。
+客户端采用 Cocos Creator 3.8.8（3.8 LTS）、TypeScript 和 2D UI，项目路径沿用 frontend/miniprogram。创建工程时将 package.json 的 creator.version 固定为 3.8.8，编辑器和构建环境使用同一版本。启动、首页、游戏对应独立场景，弹层使用 Prefab。棋盘触摸命中与覆盖规则分离，Tween 和音频组件负责表现，业务状态不依赖场景节点。
+
+登录、HTTP、广告、分享、生命周期与本地存储经微信小游戏平台适配层接入。游戏规则与接口 DTO 保持纯 TypeScript。Cocos 编辑器构建微信小游戏目标后，将构建输出导入微信开发者工具，验证真机登录、网络、广告、输入和安全区。编辑器维护资源 .meta 与 UUID。
+
+当前目录仍是原生小程序骨架，Cocos 工程初始化和切换构建门禁随客户端实现完成。
 
 游戏页分离状态、操作与动画：覆盖关系决定可点击性；卡槽和暂存区保存牌实例；动画不直接发放奖励或确认服务端结算。多行可滚动暂存区保留点击放回能力。
 
