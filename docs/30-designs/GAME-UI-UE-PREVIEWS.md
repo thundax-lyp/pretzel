@@ -4,33 +4,33 @@
 
 ## 主页面
 
-- [启动加载](assets/ui-ue/screens/start-loading.png)
-- [首页动物园](assets/ui-ue/screens/home-ready.png)
-- [第一关开场](assets/ui-ue/screens/level1-intro.png)
-- [第一关游戏](assets/ui-ue/screens/level1-play.png)
-- [第二关游戏](assets/ui-ue/screens/level2-play.png)
-- [第二关题目区参考](assets/ui-ue/screens/level2-question-study.png)
+- 启动加载 `assets/ui-ue/screens/start-loading.png`
+- 首页动物园 `assets/ui-ue/screens/home-ready.png`
+- 第一关开场 `assets/ui-ue/screens/level1-intro.png`
+- 第一关游戏 `assets/ui-ue/screens/level1-play.png`
+- 第二关游戏 `assets/ui-ue/screens/level2-play.png`
+- 第二关题目区参考 `assets/ui-ue/screens/level2-question-study.png`
 
 ## 首页与通用弹层
 
-- [永久图鉴](assets/ui-ue/screens/collection.png)
-- [本周与历史榜单](assets/ui-ue/screens/leaderboard.png)
-- [设置](assets/ui-ue/screens/settings.png)
-- [儿童隐私保护](assets/ui-ue/screens/child-privacy.png)
+- 永久图鉴 `assets/ui-ue/screens/collection.png`
+- 本周与历史榜单 `assets/ui-ue/screens/leaderboard.png`
+- 设置 `assets/ui-ue/screens/settings.png`
+- 儿童隐私保护 `assets/ui-ue/screens/child-privacy.png`
 
 ## 对局与奖励弹层
 
-- [放弃挑战确认](assets/ui-ue/screens/abandon-confirm.png)
-- [恢复挑战](assets/ui-ue/screens/resume-challenge.png)
-- [首页动物奖励](assets/ui-ue/screens/animal-reward.png)
-- [道具获取](assets/ui-ue/screens/prop-acquisition.png)
+- 放弃挑战确认 `assets/ui-ue/screens/abandon-confirm.png`
+- 恢复挑战 `assets/ui-ue/screens/resume-challenge.png`
+- 首页动物奖励 `assets/ui-ue/screens/animal-reward.png`
+- 道具获取 `assets/ui-ue/screens/prop-acquisition.png`
 
 ## 结算与异常
 
-- [挑战成功](assets/ui-ue/screens/result-win.png)
-- [挑战失败](assets/ui-ue/screens/result-loss.png)
-- [结算确认中](assets/ui-ue/screens/result-pending.png)
-- [第二关加载失败](assets/ui-ue/screens/level2-load-error.png)
+- 挑战成功 `assets/ui-ue/screens/result-win.png`
+- 挑战失败 `assets/ui-ue/screens/result-loss.png`
+- 结算确认中 `assets/ui-ue/screens/result-pending.png`
+- 第二关加载失败 `assets/ui-ue/screens/level2-load-error.png`
 
 ## 实现校对
 
