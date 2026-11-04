@@ -12,6 +12,7 @@
     <name>pretzel-starter</name>
     <modules>
         <module>pretzel-admin-starter</module>
+        <module>pretzel-game-starter</module>
     </modules>
     <dependencies>
         <dependency>

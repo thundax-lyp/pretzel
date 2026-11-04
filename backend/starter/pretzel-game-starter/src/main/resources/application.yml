@@ -1,0 +1,12 @@
+spring:
+    application:
+        name: pretzel-game-api
+server:
+    port: ${PRETZEL_GAME_PORT:8117}
+    servlet:
+        context-path: /pretzel-game-api
+management:
+    endpoints:
+        web:
+            exposure:
+                include: health

@@ -24,8 +24,8 @@ public final class RepositoryArchitectureRuleSupport {
     private static final Set<String> SERVER_GROUPS = new HashSet<String>(Arrays.asList("common", "biz", "starter"));
     private static final Set<String> DOMAIN_LAYERS =
             new HashSet<String>(Arrays.asList("interface", "application", "domain", "infra", "facade"));
-    private static final Set<String> STARTER_MODULES =
-            new HashSet<String>(Arrays.asList("pretzel-admin-starter", "pretzel-portal-starter"));
+    private static final Set<String> STARTER_MODULES = new HashSet<String>(
+            Arrays.asList("pretzel-admin-starter", "pretzel-game-starter", "pretzel-portal-starter"));
     private static final Pattern PACKAGE_PATTERN = Pattern.compile("(?m)^\\s*package\\s+([A-Za-z0-9_.]+)\\s*;");
     private static final Set<String> COMMON_ONLY_LAYERS = new HashSet<String>(Arrays.asList("domain", "facade"));
 
@@ -182,6 +182,9 @@ public final class RepositoryArchitectureRuleSupport {
         if ("starter".equals(segments[1]) && segments[2].startsWith("pretzel-")) {
             if ("pretzel-admin-starter".equals(segments[2])) {
                 return "com.thundax.pretzel.starter.admin";
+            }
+            if ("pretzel-game-starter".equals(segments[2])) {
+                return "com.thundax.pretzel.starter.game";
             }
             if ("pretzel-portal-starter".equals(segments[2])) {
                 return "com.thundax.pretzel.starter.portal";

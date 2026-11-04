@@ -22,7 +22,7 @@
 | miniprogram | 锁文件安装、严格类型检查、Oxlint、格式                               |
 | tooling     | Ruff 静态检查与格式、Python 关卡设计规则测试、Shell 语法             |
 
-CI 支持 PR、push 和手动运行，并发分组按 workflow、事件类型及 PR 编号或 Git ref 隔离；同组过期运行自动取消，push 与 PR 运行互不取消。GitHub Actions 使用只读仓库内容权限。
+CI 仅由面向 main 的 PR 触发，按 workflow 和 PR 编号隔离并发运行。同一 PR 的新运行会自动取消过期运行。GitHub Actions 使用只读仓库内容权限。
 
 ## 验证结果
 

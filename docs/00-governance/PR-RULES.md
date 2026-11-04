@@ -14,7 +14,7 @@
 
 ## Verification
 
-统一 CI 入口为 .github/workflows/ci.yml，必须显式列出检查，不通过单个脚本隐藏必过项。当前 workflow 对 push 和 PR 均运行管理端、小程序、后端与工具验证。
+统一 CI 入口为 .github/workflows/ci.yml，必须显式列出检查，不通过单个脚本隐藏必过项。当前 workflow 仅对面向 main 的 PR 运行管理端、小程序、后端与工具验证。
 
 - frontend/admin 使用 Node 22 和 npm 锁文件；显式执行 npm ci、npm run format:check、npm run lint、npm test、npm run build。
 - frontend/miniprogram 使用 Node 22、独立 npm 锁文件与微信 API 类型，执行 npm ci、npm run typecheck、npm run lint、npm run format:check；实际预览和发布由微信开发者工具完成。

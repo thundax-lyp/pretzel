@@ -15,6 +15,27 @@ Redis 7.4拉取因Docker Hub连接超时未成功，部署使用服务器已有`
 
 两者使用独立网络`pretzel-infra`、命名数据卷和`unless-stopped`重启策略；不绑定外网地址。Redis启用密码和AOF。项目MySQL账号只授权`pretzel`库；root凭据仅保留在服务器私有目录。
 
+## 同域名 API 路由
+
+两个 Spring Boot 应用通过各自的 context path 区分，Nginx 保留前缀转发。以下是同机部署示例，管理端使用部署端口 8116，游戏端使用默认端口 8117。将 location 放入同一个 HTTPS server 块，并按实际部署地址调整上游。
+
+| 服务     | Context path         | API 路径                                                     |
+| -------- | -------------------- | ------------------------------------------------------------ |
+| 小游戏   | `/pretzel-game-api`  | `/pretzel-game-api/api/v1/`                                  |
+| 管理后台 | `/pretzel-admin-api` | `/pretzel-admin-api/api/`，游戏运营接口位于其下的 `game/v1/` |
+
+```nginx
+location ^~ /pretzel-game-api/ {
+    proxy_pass http://127.0.0.1:8117;
+}
+
+location ^~ /pretzel-admin-api/ {
+    proxy_pass http://127.0.0.1:8116;
+}
+```
+
+`proxy_pass` 只写上游地址，末尾不加斜杠，避免替换 context path。上线前运行 `nginx -t`，分别请求两个前缀下的已实现接口，确认请求进入正确的服务。小游戏端使用该 HTTPS 域名作为请求域名。
+
 ## 配置与凭据
 
 - `compose.yaml`和`../init-env.py`不含真实凭据，可维护在版本库。

@@ -5,13 +5,14 @@
 - 本项目处于初始化阶段，直接维护当前目标设计；修改原定义并删除废弃实现，不叠加历史兼容层、过渡开关或修补式迁移。此原则不授权清空已部署数据。
 - 初始化交付只维护最终环境状态，不累计中间迁移、替换与排错记录；文档和 PR 描述围绕最终配置与验证结果组织。
 - 保留用户已有改动。真实配置、令牌、密码与私有环境文件不得进入 Git 或工具输出。
-- Java 使用 21 与 Maven Wrapper；前端工程使用 Node 22，管理端采用 React、TypeScript、Ant Design 和 Pro Components，小程序采用 TypeScript 原生微信小程序。
-- 前端应用统一放在 frontend：管理端为 frontend/admin，小程序为 frontend/miniprogram，各自维护独立依赖、构建与测试配置。
+- Java 使用 21 与 Maven Wrapper；前端工程使用 Node 22，管理端采用 React、TypeScript、Ant Design 和 Pro Components，游戏客户端采用 Cocos Creator 3.8.8（3.8 LTS） 与 TypeScript，发布到微信小游戏。
+- 前端应用统一放在 frontend：管理端为 frontend/admin，游戏客户端目录为 frontend/miniprogram，各自维护独立依赖、构建与测试配置。
 - 通用管理界面直接使用官方组件，业务组件承担明确业务职责。
 - 代码与配置统一使用 4 个空格缩进，禁止 Tab 缩进。通过 EditorConfig、Prettier、Spotless 与对应 lint 检查约束。
 - ArchUnit 验证 Java 层次、包归属与依赖；Checkstyle 验证 Java 静态规范；Oxlint 与结构检查验证前端和脚本边界，Ruff 检查 Python 工具。规则变化同步门禁与必要测试。
 - `.env`、`dev.env` 和私有凭据目录全部忽略；公开配置样例使用 `.env.example`。Compose 统一放在 deploy。
 - 未经授权不提交、推送、合并或部署。规则文档本身不构成操作授权。
+- 只有用户明确授权创建分支时，才可创建本地或远端 Git 分支。提交、推送或创建 PR 的授权不包含创建分支。禁止创建 Git worktree。
 
 ## Code Review Rules
 

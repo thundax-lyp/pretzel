@@ -1,0 +1,284 @@
+{
+    "schemaVersion": 1,
+    "sources": [
+        "../10-requirements/GAME-REQUIREMENTS.md",
+        "CLIENT-DESIGN.md",
+        "GAME-DESIGN.md",
+        "DATA-DESIGN.md"
+    ],
+    "target": {
+        "orientation": "portrait",
+        "layoutUnit": "safe-area-relative",
+        "visual": {
+            "theme": "cartoon_animal_meadow",
+            "board": "layered_cards",
+            "contrast": "readable_on_busy_background",
+            "statusEncoding": ["icon", "label", "visual_state"]
+        }
+    },
+    "initial": "start.loading",
+    "screens": {
+        "start": {
+            "regions": [
+                "brand",
+                "animal_scene",
+                "turtle_progress",
+                "release_information",
+                "age_badge"
+            ],
+            "states": {
+                "loading": {
+                    "INIT_OK": "home.ready",
+                    "INIT_FAILED": "start.error"
+                },
+                "error": {
+                    "RETRY": "start.loading"
+                }
+            }
+        },
+        "home": {
+            "regions": [
+                "settings",
+                "weekly_zoo",
+                "start_challenge",
+                "collection",
+                "leaderboard",
+                "share",
+                "reserve_inventory",
+                "resume_prompt"
+            ],
+            "states": {
+                "ready": {
+                    "START": "game.level1",
+                    "RESUME_FOUND": "home.resume"
+                },
+                "resume": {
+                    "CONTINUE": "game.restore",
+                    "ABANDON_CONFIRMED": "home.ready"
+                }
+            },
+            "empty": {
+                "weekly_zoo": "本周还没有动物，开始挑战吧"
+            }
+        },
+        "game": {
+            "regions": [
+                "settings",
+                "current_question",
+                "next_question",
+                "board",
+                "temporary_storage",
+                "slot",
+                "props"
+            ],
+            "layout": {
+                "next_question": {
+                    "visibleWhen": "level == 2",
+                    "emphasis": "secondary"
+                },
+                "board": {
+                    "zOrder": "layer",
+                    "hitTest": "uncovered_card_only",
+                    "scalePreservesCoverage": true
+                },
+                "temporary_storage": {
+                    "overflow": "scroll",
+                    "boundedViewport": true,
+                    "preserveBoardAndSlotAccess": true
+                },
+                "slot": {
+                    "capacity": 7,
+                    "ordering": "insertion_order"
+                }
+            },
+            "states": {
+                "level1": {
+                    "LEVEL_PASSED": "game.level2_loading",
+                    "RUN_FAILED": "game.result_pending"
+                },
+                "level2_loading": {
+                    "CONFIG_OK": "game.level2",
+                    "CONFIG_FAILED": "game.level2_error"
+                },
+                "level2_error": {
+                    "RETRY": "game.level2_loading",
+                    "ABANDON_CONFIRMED": "home.ready"
+                },
+                "level2": {
+                    "RUN_PASSED": "game.result_pending",
+                    "RUN_FAILED": "game.result_pending"
+                },
+                "restore": {
+                    "SNAPSHOT_OK": "snapshot.confirmedState",
+                    "SNAPSHOT_FAILED": "game.restore_error"
+                },
+                "restore_error": {
+                    "RETRY": "game.restore",
+                    "ABANDON_CONFIRMED": "home.ready"
+                },
+                "result_pending": {
+                    "WIN_CONFIRMED": "game.win",
+                    "LOSS_CONFIRMED": "game.loss",
+                    "RETRY": "game.result_pending"
+                },
+                "win": {
+                    "HOME": "home.ready",
+                    "REPLAY": "game.level1"
+                },
+                "loss": {
+                    "HOME": "home.ready",
+                    "REPLAY": "game.level1"
+                }
+            }
+        }
+    },
+    "overlays": {
+        "policy": {
+            "maxActive": 1,
+            "dismissOnBackdrop": false,
+            "blocksBoardInput": true,
+            "pausesEffectiveTimer": true
+        },
+        "settings": {
+            "from": ["home", "game"],
+            "controls": [
+                "music_volume",
+                "sfx_volume",
+                "feedback",
+                "customer_service",
+                "child_privacy"
+            ],
+            "gameOnly": ["abandon_challenge"],
+            "persist": ["music_volume", "sfx_volume"]
+        },
+        "child_privacy": {
+            "scroll": true,
+            "closeTo": "origin_screen"
+        },
+        "abandon_challenge": {
+            "confirm": "end_run_then_home",
+            "cancel": "resume_same_run"
+        },
+        "collection": {
+            "items": "permanently_unlocked_animals",
+            "fields": ["icon", "name", "description", "is_new_this_week"],
+            "sort": "catalog_id",
+            "states": ["loading", "empty", "ready", "error"]
+        },
+        "leaderboard": {
+            "tabs": ["current_week", "history"],
+            "rowFields": [
+                "rank",
+                "player_display",
+                "animals_received",
+                "is_self"
+            ],
+            "highlightTop": 3,
+            "limit": 100,
+            "showSelfOutsideLimit": true,
+            "states": ["loading", "empty", "ready", "error"]
+        },
+        "prop_acquisition": {
+            "guard": "level == 2 && run_active && inventory == 0",
+            "controls": ["prop_description", "watch_rewarded_video", "cancel"],
+            "states": [
+                "ready",
+                "loading",
+                "playing",
+                "pending",
+                "granted",
+                "cancelled",
+                "failed",
+                "limit_reached"
+            ]
+        },
+        "animal_reward": {
+            "guard": "unclaimed_win_reward",
+            "revealCount": 1,
+            "effect": "refresh_weekly_zoo_after_confirmed_claim"
+        },
+        "result": {
+            "variants": {
+                "pending": ["status", "retry"],
+                "win": [
+                    "panda_celebration",
+                    "collection_changes",
+                    "reserve_reward_selection",
+                    "home",
+                    "replay",
+                    "share_win"
+                ],
+                "loss": [
+                    "panda_failure",
+                    "failure_reason",
+                    "home",
+                    "replay",
+                    "share_loss"
+                ]
+            }
+        }
+    },
+    "rules": {
+        "level1": {
+            "cards": 12,
+            "questions": 3,
+            "propsEnabled": false
+        },
+        "level2": {
+            "cards": 48,
+            "questions": 12,
+            "propsEnabled": true
+        },
+        "pickOrder": [
+            "validate_active_run_and_card_origin",
+            "move_same_instance_to_slot",
+            "evaluate_whole_slot_eye_and_leg_sums",
+            "if_match_clear_and_advance",
+            "else_if_full_fail"
+        ],
+        "finalQuestion": "win_only_if_board_slot_and_temporary_storage_empty",
+        "inputLock": ["animation", "pending_operation", "modal"],
+        "discardLockedClicks": true,
+        "props": {
+            "remove": "move_up_to_3_oldest_slot_cards_to_temporary_storage",
+            "undo": "return_latest_board_pick_still_in_slot",
+            "shuffle": "permute_remaining_board_attributes_keep_geometry_require_complete_solution",
+            "invalidConsumes": false,
+            "consumeOrder": ["run_inventory", "reserve"],
+            "reservePerType": 1,
+            "videoClaimsPerRun": 10
+        },
+        "shares": {
+            "home": "zoo_snapshot",
+            "win": "achievement",
+            "loss": "help_request",
+            "inRunReward": false,
+            "homeRewardGate": "verified_share_success",
+            "homeDailyClaimLimit": 3
+        },
+        "week": {
+            "timezone": "Asia/Shanghai",
+            "start": "Monday 00:00",
+            "zoo": "actual_claims_in_week",
+            "collection": "permanent"
+        },
+        "audio": {
+            "events": ["ready_go", "match_pop", "win", "loss"],
+            "pauseOnBackground": true,
+            "replayPastEventsOnRestore": false
+        }
+    },
+    "unresolved": [
+        "leaderboard_population",
+        "history_presentation",
+        "level1_offline_and_templates",
+        "first_time_tutorial",
+        "remaining_leg_counter",
+        "result_leaderboard_summary",
+        "ad_after_leaderboard",
+        "scheduled_difficulty",
+        "rare_animal_effects",
+        "release_information_exact_content",
+        "platform_feedback_customer_service_and_ad_verification"
+    ]
+}

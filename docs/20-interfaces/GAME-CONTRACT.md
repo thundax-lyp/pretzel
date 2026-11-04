@@ -1,10 +1,65 @@
 # 游戏交互契约设计
 
-本文描述待实现接口的职责和数据语义，不声称已经发布对应 HTTP 路由。最终路由与字段类型在实现前固定，并以契约测试验证。
+本文描述待实现接口的职责和数据语义，不声称已经发布对应 HTTP 路由。下列路由与字段为实现基线，以契约测试验证。
+
+## HTTP 与数据类型
+
+玩家接口基址为 `/pretzel-game-api/api/v1`，管理游戏业务接口基址为 `/pretzel-admin-api/api/game/v1`。玩家请求使用 `Authorization: Bearer <playerToken>`，登录除外。管理接口沿用管理认证、响应信封和权限契约。所有写操作由服务端依据会话确定操作者。
+
+两个基址可共用一个 HTTPS 域名。`/pretzel-game-api` 和 `/pretzel-admin-api` 分别由游戏与管理 starter 的 Spring Boot `server.servlet.context-path` 提供。Nginx 按该前缀分流并保留完整请求路径。接口表中的相对路径拼接对应基址即可，例如玩家登录为 `POST /pretzel-game-api/api/v1/sessions`。
+
+玩家接口使用 JSON。成功返回 `{"data": ...}`，失败返回 `{"error":{"code":"VERSION_CONFLICT","message":"对局已更新","requestId":"...","details":{}}}`。ID 为不透明字符串，时间为 RFC 3339 UTC 字符串，版本、计数和坐标为整数。缺省可选字段省略。HTTP 400 表示格式错误，401 表示会话无效，404 表示资源不存在或不归该玩家，409 表示版本或幂等键冲突，422 表示当前状态不允许操作，429 表示限流，503 表示可重试的服务或平台故障。版本冲突附最新版本，客户端可重新读取快照。
+
+### 玩家 API
+
+| 方法与路径                                      | 输入                                      | 返回与约束                                                                                                                                                               |
+| ----------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| POST `/sessions`                                | `{code}`                                  | `{playerId, accessToken, expiresAt}`。服务端用可信 AppID 配置向微信校验临时凭据。以 AppID 与 OpenID 绑定玩家。平台密钥与会话密钥不下发。令牌过期时重新取得临时凭据登录。 |
+| POST `/runs`                                    | `{requestId}`                             | `RunSnapshot`。同一玩家、同一请求标识复用原局。                                                                                                                          |
+| GET `/runs/active`                              | 无                                        | `{run: RunSnapshot 或 null}`。返回可恢复对局。                                                                                                                           |
+| GET `/runs/{runId}`                             | 无                                        | `RunSnapshot`。用于同步和恢复结算。                                                                                                                                      |
+| POST `/runs/{runId}/operations`                 | `OperationRequest`                        | `{operationId, snapshot}`。同一请求返回原结果。同键异内容返回 409。                                                                                                      |
+| PUT `/runs/{runId}/settlement`                  | 无                                        | `{status, outcome?, failureReason?, unlockedAnimalIds?, animalClaimAvailable?, reserveChoices?}`。结果尚未确认时返回 `PENDING`，确认后返回 `CONFIRMED`。                 |
+| POST `/reward-attempts`                         | `{requestId, source, propType, runId?}`   | `{attemptId, status}`。来源为 `VIDEO` 或 `HOME_SHARE`。视频必须关联第二关对局。分享入口依赖可验证成功证据。                                                              |
+| PUT `/reward-attempts/{attemptId}/confirmation` | `{evidence}`                              | `{status, propType?, inventory?, remainingClaims?}`。证据格式由微信适配方案固定。                                                                                        |
+| GET `/reward-attempts/{attemptId}`              | 无                                        | 返回最近已确认的奖励状态，可在超时后查询。                                                                                                                               |
+| PUT `/runs/{runId}/reserve-reward`              | `{propType}`                              | `{propType, inventory}`。通关后可选一次，已满的类型不可选。                                                                                                              |
+| PUT `/runs/{runId}/animal-reward`               | 无                                        | `{animal, receivedCount, weekId}`。每局最多成功一次，重试返回同一结果。                                                                                                  |
+| GET `/collection`                               | 无                                        | `{items: [{animal, unlockedAt, receivedCount}]}`。解锁和累计获得分别表示。                                                                                               |
+| GET `/zoo/current`                              | 无                                        | `{weekId, items: [{animal, receivedCount}]}`。只含本周实际领取。                                                                                                         |
+| GET `/inventory`                                | 无                                        | `{reserve: [{propType, quantity}]}`。                                                                                                                                    |
+| GET `/leaderboards/weeks/{weekId}`              | `weekId` 为北京时间周一日期，或 `current` | `{weekId, entries: [RankEntry], self: RankEntry 或 null}`。前 100 名和本人排名。正式开放前确认好友或全服范围。                                                           |
+
+### 共享对象
+
+| 类型               | 字段                                                                                                                                                                                                                               |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Animal`           | `id, catalogNumber, name, description, artworkKey, eyes, legs`                                                                                                                                                                     |
+| `Question`         | `id, eyes, legs`。按题目数组顺序处理，界面用索引取得当前题和下一题。                                                                                                                                                               |
+| `Card`             | `id, animalId, eyes, legs, x, y, layer, coveredBy`。坐标使用半格定位，`coveredBy` 是覆盖该牌的卡牌 ID 列表。                                                                                                                       |
+| `RunSnapshot`      | `runId, version, level, status, configVersion, questionIndex, questions, cards, boardCardIds, slotCardIds, temporaryCardIds, effectiveDurationMs, inventory`。只返回当前关可公开数据，三个牌区以实例 ID 表示，卡槽按入槽顺序排列。 |
+| `OperationRequest` | `{operationId, expectedVersion, type, cardId?, propType?}`。类型为 `PICK_BOARD`、`PICK_TEMPORARY`、`USE_PROP`、`ENTER_LEVEL_2` 或 `ABANDON`。前两种须提供牌 ID，用道具须提供道具类型。                                             |
+| `Inventory`        | `{reserve, inRun, videoClaimsUsed}`。库存列表元素为 `{propType, quantity}`，道具类型为 `REMOVE`、`UNDO`、`SHUFFLE`。                                                                                                               |
+| `RankEntry`        | `{rank, displayName, avatarKey?, receivedCount, reachedAt, isSelf}`。不返回微信 OpenID。                                                                                                                                           |
+
+对局状态为 `ACTIVE`、`LEVEL_1_PASSED`、`WON`、`LOST` 或 `ABANDONED`。结算确认是独立状态。第一关 12 张、3 题，第二关 48 张、12 题。单次操作为首期同步基线，有序批量与教学关离线支持另行确定。奖励状态为 `PENDING`、`GRANTED` 或 `REJECTED`。取消、失败或证据不足时库存和成功次数保持原值。
+
+### 运营 API
+
+| 方法与路径                         | 业务                                                                                                                                                    |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET / POST `/animals`              | 分页查询或新建动物配置。                                                                                                                                |
+| PUT `/animals/{id}`                | 更新动物配置，提交 `expectedVersion` 与 `Animal` 中可编辑字段及 `enabled`。                                                                             |
+| GET / POST `/level-configs`        | 分页查询或新建关卡生成参数版本。配置含 `name, layoutPolicy, generatorParameters, enabled`。参数由生成器版本的校验规则定义，不能改变已确认的牌数和题量。 |
+| PUT `/level-configs/{id}`          | 提交 `expectedVersion` 更新配置或启停。新配置用于之后开局，已有对局复用固定版本。                                                                       |
+| GET `/players/{id}/collection`     | 只读查询玩家图鉴与获得记录。                                                                                                                            |
+| GET `/leaderboards/weeks/{weekId}` | 只读查询当周或历史周排名。                                                                                                                              |
+
+列表使用 `page`、`pageSize`，返回 `{items,total}`。修改需要对应资源写权限并留审计，查询需要对应读权限。游戏运行时的库存、结算与榜单写入不经运营 API。
 
 ## 开局
 
-客户端提交玩家身份与挑战请求标识；后台创建独立局标识，返回关卡状态与可公开配置。进入第二关时提供开局确定的题目顺序、卡牌实例、动物种类及属性、布局位置和覆盖关系。
+客户端携带已建立的玩家会话并提交挑战请求标识；后台创建独立局标识，返回关卡状态与可公开配置。进入第二关时提供开局确定的题目顺序、卡牌实例、动物种类及属性、布局位置和覆盖关系。
 
 参考完整解法仅供服务端生成与验证，不作为正常客户端响应字段。
 
@@ -14,11 +69,13 @@
 
 ## 奖励
 
+第二关仅通过激励视频获取局内道具，三种合计每局最多成功获取 10 次。首页分享奖励须有可验证的成功依据，每日最多成功领取 3 次。通关结算可选一次局外道具，已满的道具不可选，失败局无奖励。同种局外储备跨来源最多 1 次。普通分享与发奖接口分离。
+
 视频、分享、结算奖励记录奖励来源、玩家、局或周期、道具类型、幂等键与处理结果。获取上限与库存上限分开校验；同一成功回调重复到达只记一次。取消或失败不发奖。
 
 ## 结算与查询
 
-服务端确认对局状态和消除记录后执行结算，返回结果、收集变更与适用奖励。重复结算返回既有结果。收集查询返回动物种类及获得数量；榜单查询显式指定当前周或历史周，不混合两个存储口径。
+服务端确认对局状态和消除记录后执行结算，返回结果、收集变更与适用奖励。重复结算返回既有结果。收集查询返回动物种类及获得数量；榜单查询显式指定当前周或历史周，按周期查询，具体历史呈现形式待确认。
 
 上述防重、版本与服务端校验属于实现设计，具体操作上报粒度及离线支持尚需结合客户端交互确定。
 
@@ -31,7 +88,7 @@
 ```mermaid
 sequenceDiagram
     actor P as 玩家
-    participant C as 小程序
+    participant C as 小游戏客户端
     participant W as 微信平台
     participant S as 服务端
     participant D as 对局状态
@@ -78,11 +135,11 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     actor P as 玩家
-    participant C as 小程序
+    participant C as 小游戏客户端
     participant S as 服务端
     participant D as 对局状态与操作结果
     P->>C: 取牌、放回暂存牌或使用道具
-    C->>C: 排队或预演，保留待确认操作标识
+    C->>C: 锁定相关输入并保留待确认操作标识
     Note over C,S: 逐次上报还是有序批量上报待定；图中一次消息代表一个同步单元
     C->>S: 提交局标识、操作标识、预期版本及操作内容
     S->>S: 从玩家会话校验对局归属
@@ -122,13 +179,13 @@ sequenceDiagram
 
 幂等查重在通过身份与归属校验之后、对新操作做版本校验之前执行，避免“成功写入但响应丢失”的重试被误判为新的消耗。相同操作标识携带不同内容时拒绝，不把它当作合法重试。
 
-批量上报须保留操作顺序、各操作标识及起始版本。整批原子接受还是允许返回已接受前缀、连续输入和动画期间如何排队、是否支持离线积累操作，均待确定；当前不能据此宣称支持离线游戏。客户端是否预演不改变服务端权威结算与库存事实。
+批量上报须保留操作顺序、各操作标识及起始版本。整批原子接受还是允许返回已接受前缀、是否支持离线积累操作，均待确定；动画或待确认操作期间锁定相关输入，点击不排队。客户端是否预演不改变服务端权威结算与库存事实。
 
 ### 道具使用与暂存牌放回
 
 ```mermaid
 sequenceDiagram
-    participant C as 小程序
+    participant C as 小游戏客户端
     participant S as 服务端
     participant D as 对局与道具状态
     C->>S: 提交用道具操作及预期版本
@@ -141,7 +198,7 @@ sequenceDiagram
         alt 无资格或版本冲突
             S-->>C: 返回原因与可同步状态
         else 可以执行已定义的效果
-            Note over S,D: 移除规则、库存来源优先级及无效操作消耗规则待确定
+            Note over S,D: 按游戏需求执行道具效果，无效操作不扣库存
             S->>D: 一致保存道具消耗、牌移动、暂存区及新版本
             D-->>S: 返回操作结果
             S-->>C: 返回最新道具与牌状态
@@ -155,14 +212,14 @@ sequenceDiagram
     end
 ```
 
-本图复用操作同步的防重与版本规则，不新增逐次网络往返的产品要求。库存消耗与牌移动不能分别报告成功。局外储备的迁入时点未选定前，不把“进入第二关”直接解释为已经扣除或消耗储备。
+本图复用操作同步的防重与版本规则，不新增逐次网络往返的产品要求。库存消耗与牌移动不能分别报告成功。进入第二关后局外储备可用，同种先消耗局内库存。重进时恢复已确认的棋盘、题目、卡槽、暂存区、库存与状态版本。
 
 ### 分享与激励视频奖励确认
 
 ```mermaid
 sequenceDiagram
     actor P as 玩家
-    participant C as 小程序
+    participant C as 小游戏客户端
     participant W as 平台能力
     participant S as 服务端
     participant D as 奖励记录与库存
@@ -211,7 +268,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant C as 小程序
+    participant C as 小游戏客户端
     participant S as 服务端
     participant D as 对局、结算与收集记录
     C->>S: 以局标识申请结算或查询结算结果
@@ -226,7 +283,7 @@ sequenceDiagram
         else 达到已确定的结束条件
             S->>S: 根据权威状态判定成功或失败
             alt 确认通关
-                S->>D: 一致保存成功结果、解锁种类及实际获得记录
+                S->>D: 一致保存成功结果、永久解锁和两类奖励资格
             else 确认失败
                 S->>D: 保存失败结果，不套用通关解锁
             end
@@ -243,9 +300,9 @@ sequenceDiagram
         else 首次请求
             S->>S: 校验本次奖励资格与候选集合
             alt 不符合资格或候选为空
-                S->>S: 准备不可发放或待确定的提示结果
+                S->>S: 返回不可发放结果，空候选记录异常
             else 符合资格且候选非空
-                S->>S: 从关联对局消除过的动物种类中抽取一只
+                S->>S: 从关联对局消除过的不同种类中等概率抽取一只
                 S->>D: 一致保存抽取结果与实际获得数量
                 D-->>S: 返回这一只动物
             end
@@ -254,7 +311,7 @@ sequenceDiagram
     end
 ```
 
-结算以局标识保证同一局只结算一次，不能仅用每次新生成的请求标识防重。首页奖励是否可领取由最终确定的触发资格决定；同一请求的重试返回同一只动物，不重新抽取。候选集合为空时不执行随机抽取，具体提示与资格处理待定。通关解锁、实际获得数量、结算道具奖励与首页动物奖励分别保存语义，不把一次弹层展示当作全部获得记录。
+结算以局标识保证同一局只结算一次，不能仅用每次新生成的请求标识防重。每次通关产生一次首页动物奖励资格，按玩家及对局防重。重试返回同一只动物。实际领取时增加累计数量及当周计数。通关解锁、实际获得数量、结算道具奖励与首页动物奖励分别保存语义，不把一次弹层展示当作全部获得记录。
 
 ### 收集、当周与历史榜单查询
 
@@ -268,29 +325,24 @@ sequenceDiagram
     C->>S: 提交查询类型；榜单请求携带明确的周期选择
     S->>S: 确定查询范围与服务端周期标识
     alt 收集查询
-        S->>D: 读取动物种类及实际获得数量
+        S->>D: 读取永久图鉴、累计获得数量或本周广场领取记录
     else 当前周榜单
         S->>D: 按当前周标识查询当前业务表
     else 历史周榜单
-        S->>D: 按指定历史周标识查询归档表
+        S->>D: 按周标识查询归档或仍可见的待归档周数据
     end
     D-->>S: 返回查询结果
     S-->>C: 返回结果及适用周期标识
     C-->>P: 展示与所选范围一致的数据
 ```
 
-查询不触发新奖励，不把当前展示动物当作完整收集数据。日、周周期的时区与边界、榜单排序和同值规则、周切换期间的归档可见性仍待固定；周期切换不能把历史累计写回当周数量，也不能把未完成归档误报为空榜。查询失败应保留可重试状态，不使用空结果冒充成功。
+查询不触发新奖励，不把当前展示动物当作完整收集数据。日界为北京时间 00:00，周界为北京时间周一 00:00。榜单按实际获得数量降序、达到该数量的时间升序，返回前 100 名和玩家自身排名。好友或全服范围及历史呈现形式待确认。周期切换不能把历史累计写回当周数量，也不能把未完成归档误报为空榜。查询失败应保留可重试状态，不使用空结果冒充成功。
 
 ## 待固定的时序契约
 
-| 项目       | 需要明确的内容                                                           |
-| ---------- | ------------------------------------------------------------------------ |
-| 玩家认证   | 微信凭据校验、会话有效期、失效后的重新认证及待处理请求如何关联原玩家     |
-| 关卡准备   | 第一关完成条件、开局数据固定与重复请求复用、加载失败后的恢复             |
-| 操作同步   | 逐次或批量、批次接受语义、连续输入、预演与权威状态冲突时的处理、离线支持 |
-| 道具使用   | 完整效果、库存来源优先级、局外储备迁入时点、无效操作消耗和失败回滚       |
-| 奖励确认   | 平台可用能力、有效成功依据、无法确认时的处理、满库存选择及来源额度       |
-| 对局结算   | 完整结束条件、未同步操作的补齐、结算失败重试、解锁与实际获得的计数口径   |
-| 查询与归档 | 日周周期边界、历史周归档可见性、榜单排序及空结果和错误的区分             |
+- 玩家认证的微信凭据校验适配及会话有效期配置。
+- 有序批量同步、预演冲突处理以及教学关离线支持。
+- 广告与分享成功依据的获取与校验方式。
+- 榜单参与范围与历史呈现形式。
 
-实现前须将上述选择收敛为固定契约并增加相应验证。当前时序图中的待定分支不能当作已经确认的产品能力或已完成的服务端实现。
+已确认的产品规则以游戏需求为准。接口实现时验证上述路由、字段类型与错误语义。
