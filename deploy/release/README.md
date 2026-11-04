@@ -19,9 +19,9 @@ Redis 7.4拉取因Docker Hub连接超时未成功，部署使用服务器已有`
 
 两个 Spring Boot 应用通过各自的 context path 区分，Nginx 保留前缀转发。以下是同机部署示例，管理端使用部署端口 8116，游戏端使用默认端口 8117。将 location 放入同一个 HTTPS server 块，并按实际部署地址调整上游。
 
-| 服务 | Context path | API 路径 |
-| --- | --- | --- |
-| 小游戏 | `/pretzel-game-api` | `/pretzel-game-api/api/v1/` |
+| 服务     | Context path         | API 路径                                                     |
+| -------- | -------------------- | ------------------------------------------------------------ |
+| 小游戏   | `/pretzel-game-api`  | `/pretzel-game-api/api/v1/`                                  |
 | 管理后台 | `/pretzel-admin-api` | `/pretzel-admin-api/api/`，游戏运营接口位于其下的 `game/v1/` |
 
 ```nginx

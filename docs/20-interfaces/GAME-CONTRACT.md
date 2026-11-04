@@ -12,48 +12,48 @@
 
 ### 玩家 API
 
-| 方法与路径 | 输入 | 返回与约束 |
-| --- | --- | --- |
-| POST `/sessions` | `{code}` | `{playerId, accessToken, expiresAt}`。服务端用可信 AppID 配置向微信校验临时凭据。以 AppID 与 OpenID 绑定玩家。平台密钥与会话密钥不下发。令牌过期时重新取得临时凭据登录。 |
-| POST `/runs` | `{requestId}` | `RunSnapshot`。同一玩家、同一请求标识复用原局。 |
-| GET `/runs/active` | 无 | `{run: RunSnapshot 或 null}`。返回可恢复对局。 |
-| GET `/runs/{runId}` | 无 | `RunSnapshot`。用于同步和恢复结算。 |
-| POST `/runs/{runId}/operations` | `OperationRequest` | `{operationId, snapshot}`。同一请求返回原结果。同键异内容返回 409。 |
-| PUT `/runs/{runId}/settlement` | 无 | `{status, outcome?, failureReason?, unlockedAnimalIds?, animalClaimAvailable?, reserveChoices?}`。结果尚未确认时返回 `PENDING`，确认后返回 `CONFIRMED`。 |
-| POST `/reward-attempts` | `{requestId, source, propType, runId?}` | `{attemptId, status}`。来源为 `VIDEO` 或 `HOME_SHARE`。视频必须关联第二关对局。分享入口依赖可验证成功证据。 |
-| PUT `/reward-attempts/{attemptId}/confirmation` | `{evidence}` | `{status, propType?, inventory?, remainingClaims?}`。证据格式由微信适配方案固定。 |
-| GET `/reward-attempts/{attemptId}` | 无 | 返回最近已确认的奖励状态，可在超时后查询。 |
-| PUT `/runs/{runId}/reserve-reward` | `{propType}` | `{propType, inventory}`。通关后可选一次，已满的类型不可选。 |
-| PUT `/runs/{runId}/animal-reward` | 无 | `{animal, receivedCount, weekId}`。每局最多成功一次，重试返回同一结果。 |
-| GET `/collection` | 无 | `{items: [{animal, unlockedAt, receivedCount}]}`。解锁和累计获得分别表示。 |
-| GET `/zoo/current` | 无 | `{weekId, items: [{animal, receivedCount}]}`。只含本周实际领取。 |
-| GET `/inventory` | 无 | `{reserve: [{propType, quantity}]}`。 |
-| GET `/leaderboards/weeks/{weekId}` | `weekId` 为北京时间周一日期，或 `current` | `{weekId, entries: [RankEntry], self: RankEntry 或 null}`。前 100 名和本人排名。正式开放前确认好友或全服范围。 |
+| 方法与路径                                      | 输入                                      | 返回与约束                                                                                                                                                               |
+| ----------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| POST `/sessions`                                | `{code}`                                  | `{playerId, accessToken, expiresAt}`。服务端用可信 AppID 配置向微信校验临时凭据。以 AppID 与 OpenID 绑定玩家。平台密钥与会话密钥不下发。令牌过期时重新取得临时凭据登录。 |
+| POST `/runs`                                    | `{requestId}`                             | `RunSnapshot`。同一玩家、同一请求标识复用原局。                                                                                                                          |
+| GET `/runs/active`                              | 无                                        | `{run: RunSnapshot 或 null}`。返回可恢复对局。                                                                                                                           |
+| GET `/runs/{runId}`                             | 无                                        | `RunSnapshot`。用于同步和恢复结算。                                                                                                                                      |
+| POST `/runs/{runId}/operations`                 | `OperationRequest`                        | `{operationId, snapshot}`。同一请求返回原结果。同键异内容返回 409。                                                                                                      |
+| PUT `/runs/{runId}/settlement`                  | 无                                        | `{status, outcome?, failureReason?, unlockedAnimalIds?, animalClaimAvailable?, reserveChoices?}`。结果尚未确认时返回 `PENDING`，确认后返回 `CONFIRMED`。                 |
+| POST `/reward-attempts`                         | `{requestId, source, propType, runId?}`   | `{attemptId, status}`。来源为 `VIDEO` 或 `HOME_SHARE`。视频必须关联第二关对局。分享入口依赖可验证成功证据。                                                              |
+| PUT `/reward-attempts/{attemptId}/confirmation` | `{evidence}`                              | `{status, propType?, inventory?, remainingClaims?}`。证据格式由微信适配方案固定。                                                                                        |
+| GET `/reward-attempts/{attemptId}`              | 无                                        | 返回最近已确认的奖励状态，可在超时后查询。                                                                                                                               |
+| PUT `/runs/{runId}/reserve-reward`              | `{propType}`                              | `{propType, inventory}`。通关后可选一次，已满的类型不可选。                                                                                                              |
+| PUT `/runs/{runId}/animal-reward`               | 无                                        | `{animal, receivedCount, weekId}`。每局最多成功一次，重试返回同一结果。                                                                                                  |
+| GET `/collection`                               | 无                                        | `{items: [{animal, unlockedAt, receivedCount}]}`。解锁和累计获得分别表示。                                                                                               |
+| GET `/zoo/current`                              | 无                                        | `{weekId, items: [{animal, receivedCount}]}`。只含本周实际领取。                                                                                                         |
+| GET `/inventory`                                | 无                                        | `{reserve: [{propType, quantity}]}`。                                                                                                                                    |
+| GET `/leaderboards/weeks/{weekId}`              | `weekId` 为北京时间周一日期，或 `current` | `{weekId, entries: [RankEntry], self: RankEntry 或 null}`。前 100 名和本人排名。正式开放前确认好友或全服范围。                                                           |
 
 ### 共享对象
 
-| 类型 | 字段 |
-| --- | --- |
-| `Animal` | `id, catalogNumber, name, description, artworkKey, eyes, legs` |
-| `Question` | `id, eyes, legs`。按题目数组顺序处理，界面用索引取得当前题和下一题。 |
-| `Card` | `id, animalId, eyes, legs, x, y, layer, coveredBy`。坐标使用半格定位，`coveredBy` 是覆盖该牌的卡牌 ID 列表。 |
-| `RunSnapshot` | `runId, version, level, status, configVersion, questionIndex, questions, cards, boardCardIds, slotCardIds, temporaryCardIds, effectiveDurationMs, inventory`。只返回当前关可公开数据，三个牌区以实例 ID 表示，卡槽按入槽顺序排列。 |
-| `OperationRequest` | `{operationId, expectedVersion, type, cardId?, propType?}`。类型为 `PICK_BOARD`、`PICK_TEMPORARY`、`USE_PROP`、`ENTER_LEVEL_2` 或 `ABANDON`。前两种须提供牌 ID，用道具须提供道具类型。 |
-| `Inventory` | `{reserve, inRun, videoClaimsUsed}`。库存列表元素为 `{propType, quantity}`，道具类型为 `REMOVE`、`UNDO`、`SHUFFLE`。 |
-| `RankEntry` | `{rank, displayName, avatarKey?, receivedCount, reachedAt, isSelf}`。不返回微信 OpenID。 |
+| 类型               | 字段                                                                                                                                                                                                                               |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Animal`           | `id, catalogNumber, name, description, artworkKey, eyes, legs`                                                                                                                                                                     |
+| `Question`         | `id, eyes, legs`。按题目数组顺序处理，界面用索引取得当前题和下一题。                                                                                                                                                               |
+| `Card`             | `id, animalId, eyes, legs, x, y, layer, coveredBy`。坐标使用半格定位，`coveredBy` 是覆盖该牌的卡牌 ID 列表。                                                                                                                       |
+| `RunSnapshot`      | `runId, version, level, status, configVersion, questionIndex, questions, cards, boardCardIds, slotCardIds, temporaryCardIds, effectiveDurationMs, inventory`。只返回当前关可公开数据，三个牌区以实例 ID 表示，卡槽按入槽顺序排列。 |
+| `OperationRequest` | `{operationId, expectedVersion, type, cardId?, propType?}`。类型为 `PICK_BOARD`、`PICK_TEMPORARY`、`USE_PROP`、`ENTER_LEVEL_2` 或 `ABANDON`。前两种须提供牌 ID，用道具须提供道具类型。                                             |
+| `Inventory`        | `{reserve, inRun, videoClaimsUsed}`。库存列表元素为 `{propType, quantity}`，道具类型为 `REMOVE`、`UNDO`、`SHUFFLE`。                                                                                                               |
+| `RankEntry`        | `{rank, displayName, avatarKey?, receivedCount, reachedAt, isSelf}`。不返回微信 OpenID。                                                                                                                                           |
 
 对局状态为 `ACTIVE`、`LEVEL_1_PASSED`、`WON`、`LOST` 或 `ABANDONED`。结算确认是独立状态。第一关 12 张、3 题，第二关 48 张、12 题。单次操作为首期同步基线，有序批量与教学关离线支持另行确定。奖励状态为 `PENDING`、`GRANTED` 或 `REJECTED`。取消、失败或证据不足时库存和成功次数保持原值。
 
 ### 运营 API
 
-| 方法与路径 | 业务 |
-| --- | --- |
-| GET / POST `/animals` | 分页查询或新建动物配置。 |
-| PUT `/animals/{id}` | 更新动物配置，提交 `expectedVersion` 与 `Animal` 中可编辑字段及 `enabled`。 |
-| GET / POST `/level-configs` | 分页查询或新建关卡生成参数版本。配置含 `name, layoutPolicy, generatorParameters, enabled`。参数由生成器版本的校验规则定义，不能改变已确认的牌数和题量。 |
-| PUT `/level-configs/{id}` | 提交 `expectedVersion` 更新配置或启停。新配置用于之后开局，已有对局复用固定版本。 |
-| GET `/players/{id}/collection` | 只读查询玩家图鉴与获得记录。 |
-| GET `/leaderboards/weeks/{weekId}` | 只读查询当周或历史周排名。 |
+| 方法与路径                         | 业务                                                                                                                                                    |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET / POST `/animals`              | 分页查询或新建动物配置。                                                                                                                                |
+| PUT `/animals/{id}`                | 更新动物配置，提交 `expectedVersion` 与 `Animal` 中可编辑字段及 `enabled`。                                                                             |
+| GET / POST `/level-configs`        | 分页查询或新建关卡生成参数版本。配置含 `name, layoutPolicy, generatorParameters, enabled`。参数由生成器版本的校验规则定义，不能改变已确认的牌数和题量。 |
+| PUT `/level-configs/{id}`          | 提交 `expectedVersion` 更新配置或启停。新配置用于之后开局，已有对局复用固定版本。                                                                       |
+| GET `/players/{id}/collection`     | 只读查询玩家图鉴与获得记录。                                                                                                                            |
+| GET `/leaderboards/weeks/{weekId}` | 只读查询当周或历史周排名。                                                                                                                              |
 
 列表使用 `page`、`pageSize`，返回 `{items,total}`。修改需要对应资源写权限并留审计，查询需要对应读权限。游戏运行时的库存、结算与榜单写入不经运营 API。
 
