@@ -12,6 +12,7 @@
 - ArchUnit 验证 Java 层次、包归属与依赖；Checkstyle 验证 Java 静态规范；Oxlint 与结构检查验证前端和脚本边界，Ruff 检查 Python 工具。规则变化同步门禁与必要测试。
 - `.env`、`dev.env` 和私有凭据目录全部忽略；公开配置样例使用 `.env.example`。Compose 统一放在 deploy。
 - 未经授权不提交、推送、合并或部署。规则文档本身不构成操作授权。
+- 只有用户明确授权创建分支时，才可创建本地或远端 Git 分支。提交、推送或创建 PR 的授权不包含创建分支。禁止创建 Git worktree。
 
 ## Code Review Rules
 
