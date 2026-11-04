@@ -12,6 +12,17 @@ Java 21、Spring Boot 3.5.11、MySQL、Redis、MyBatis Plus、Flyway，Maven多�
 
 后端使用 Spring Boot 3.5.11。技术日志直接调用本地应用服务落库，不依赖RocketMQ；业务审计链保留。
 
+- starter/pretzel-game-starter：独立的游戏 API 启动模块，依赖游戏领域，当前提供健康检查。微信鉴权、对局与奖励接口按游戏契约后续接入。
+
+在 backend 目录构建并启动游戏 API：
+
+```sh
+./mvnw -pl starter/pretzel-game-starter -am package
+java -jar starter/pretzel-game-starter/target/pretzel-game-starter-0.0.1-dev.jar
+```
+
+默认健康地址为 `http://127.0.0.1:8117/pretzel-game-api/actuator/health`，可通过 PRETZEL_GAME_PORT 覆盖端口。
+
 ## 启动
 
 公开模板为根目录 .env.example；首次配置复制到 dev.env 并填写真实值。.env 与 dev.env 均由 Git 忽略，不输出或提交真实凭据。使用 scripts/with-env.py --env-file dev.env -- <命令> 加载环境。smoke、release 环境分别维护自己的私有配置与凭据。
