@@ -12,7 +12,7 @@ import {
     mean,
     quantile,
 } from "./catalog.mjs";
-import { geometry, coverMasks } from "./geometry.mjs";
+import { available, geometry, coverMasks } from "./geometry.mjs";
 import { Game } from "./game.mjs";
 const BITS = range(48).map((i) => 1n << BigInt(i));
 const mask = (values) => values.reduce((m, i) => m | BITS[i], 0n);
@@ -22,6 +22,10 @@ const vectors = (level, values) => {
     for (const i of values) result[level.cards[i]]++;
     return result;
 };
+function pick(game, id, automatic = false) {
+    if (game.temp.includes(id)) game.returnToBoard(id, automatic);
+    game.take(id, automatic);
+}
 export function questionPaths(game, rng, limit = 16, budget = 3000) {
     const covers = coverMasks(game.level, game.locations),
         target = game.level.targets[game.q],
@@ -46,7 +50,10 @@ export function questionPaths(game, rng, limit = 16, budget = 3000) {
         if (path.length + game.slot.length >= 7) return;
         const free = rng.shuffle(
             indices(board | temp).filter(
-                (i) => Boolean(temp & BITS[i]) || !(covers[i] & board),
+                (i) =>
+                    !(covers[i] & board) &&
+                    (!(temp & BITS[i]) ||
+                        game.canRestore(i, new Set(indices(board)))),
             ),
         );
         for (const i of free) {
@@ -233,11 +240,22 @@ export function repairLayout(game, route) {
     );
     const trial = new Game(game.level);
     trial.restore(game.snapshot());
+    if (!trial.preservesAnchors(positions)) return null;
     trial.locations = positions;
     trial.entry = trial.snapshot();
     for (const group of paths) {
         const before = trial.q;
-        for (const i of group) trial.take(i);
+        for (const i of group) {
+            if (trial.temp.includes(i) && !trial.canRestore(i)) return null;
+            if (
+                !trial.temp.includes(i) &&
+                !available(trial.level, trial.board, trial.locations).includes(
+                    i,
+                )
+            )
+                return null;
+            pick(trial, i);
+        }
         requireThat(trial.q === before + 1, "repair timing");
     }
     requireThat(trial.status === "won", "repair did not finish");
@@ -271,7 +289,12 @@ function removalPlan(game, route) {
     while (pending.size) {
         const free = [...pending]
             .sort((a, b) => a - b)
-            .filter((i) => temp.has(i) || !(covers[i] & left));
+            .filter(
+                (i) =>
+                    !(covers[i] & left) &&
+                    (!temp.has(i) ||
+                        game.canRestore(i, new Set(indices(left)))),
+            );
         if (!free.length) return null;
         const i = free[0];
         hint.push(i);
@@ -307,7 +330,13 @@ export function play(
             path = hint;
             hint = [];
         } else {
-            const found = questionPaths(game, rng);
+            let found = questionPaths(game, rng);
+            if (!found.paths.length && game.temp.length) {
+                caps += Number(found.truncated);
+                const count = game.temp.length;
+                game.restoreAvailable();
+                if (game.temp.length < count) found = questionPaths(game, rng);
+            }
             caps += Number(found.truncated);
             path = found.paths[0] ?? [];
             if (policy === "preview" && game.q < 11)
@@ -326,7 +355,7 @@ export function play(
                 }
         }
         if (path.length) {
-            for (const i of path) game.take(i);
+            for (const i of path) pick(game, i);
             continue;
         }
         if (mode === "none") {
@@ -348,12 +377,14 @@ export function play(
             if (removal) action = { tool: "remove", ...removal };
             else {
                 const repair = repairLayout(game, plan.route);
+                if (!repair) caps++;
                 if (
+                    repair &&
                     [...game.board].some(
                         (i) => repair.positions[i] !== game.locations[i],
                     )
                 )
-                    action = { tool: "shuffle", ...repair };
+                    action = { tool: "repack", ...repair };
             }
         }
         if (!action)
@@ -368,11 +399,12 @@ export function play(
                 const result = allocation(trial);
                 caps += Number(result.unknown);
                 if (result.route) {
-                    action = {
-                        tool: "rewind",
-                        distance,
-                        ...repairLayout(trial, result.route),
-                    };
+                    const repair = repairLayout(trial, result.route);
+                    if (!repair) {
+                        caps++;
+                        continue;
+                    }
+                    action = { tool: "correct", distance, ...repair };
                     break;
                 }
             }
@@ -388,22 +420,22 @@ export function play(
         firstHelp ??= game.q + 1;
         game.grant(action.tool, source);
         if (action.tool === "remove") {
-            for (const i of action.order) game.take(i);
+            for (const i of action.order) pick(game, i);
             game.remove(action.order);
             hint = action.hint;
-        } else if (action.tool === "shuffle") {
-            game.shuffle(action.positions, action.paths[0]);
+        } else if (action.tool === "repack") {
+            game.repack(action.positions, action.paths[0]);
             game.events.at(-1).certificate = action.paths;
             hint = action.paths[0];
         } else {
-            game.rewind(
+            game.correct(
                 action.distance,
                 action.positions,
                 action.paths[action.distance],
             );
             game.events.at(-1).certificate = action.paths;
             for (const group of action.paths.slice(0, action.distance))
-                for (const i of group) game.take(i, true);
+                for (const i of group) pick(game, i, true);
             hint = action.paths[action.distance];
         }
     }
@@ -415,8 +447,11 @@ export function play(
         takes = game.events.filter(
             (e) => e.type === "take" && !e.automatic,
         ).length,
+        restores = game.events.filter(
+            (e) => e.type === "restore" && !e.automatic,
+        ).length,
         automatic = game.events
-            .filter((e) => e.type === "rewind")
+            .filter((e) => e.type === "correct")
             .reduce((s, e) => s + e.distance, 0);
     return {
         seed: level.seed,
@@ -433,11 +468,12 @@ export function play(
         first_help_question: firstHelp,
         search_limits: caps,
         card_clicks: takes,
+        restore_clicks: restores,
         questions_completed: game.questionsCompleted,
         automatic_questions: automatic,
         estimated_play_seconds: Number(
             (
-                takes * timing[0] +
+                (takes + restores) * timing[0] +
                 (game.questionsCompleted - automatic) * timing[1] +
                 Object.values(uses).reduce((a, b) => a + b, 0) * timing[2] +
                 automatic * timing[3]

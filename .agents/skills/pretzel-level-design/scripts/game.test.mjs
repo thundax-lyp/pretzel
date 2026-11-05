@@ -77,7 +77,7 @@ test("seventh unmatched card fails and cannot use or grant tools", () => {
     const before = clone(g);
     assert.equal(g.status, "failed");
     assert.throws(() => g.remove(g.slot.slice(0, 3)));
-    assert.throws(() => g.grant("rewind"));
+    assert.throws(() => g.grant("correct"));
     assert.deepEqual(clone(g), before);
 });
 test("matching subset cannot clear the whole slot", () => {
@@ -119,10 +119,12 @@ test("temporary area exceeds twelve and returns the same instance", () => {
         g.remove(ids);
     }
     assert.equal(g.temp.length, 15);
-    const i = g.temp[0];
-    g.take(i);
+    const i = g.temp.find((id) => g.canRestore(id));
+    assert.notEqual(i, undefined);
+    g.returnToBoard(i);
     assert.equal(g.temp.includes(i), false);
-    assert.deepEqual(g.slot, [i]);
+    assert.deepEqual(g.slot, []);
+    assert.ok(g.board.has(i));
 });
 test("video allowance is shared across tool types", () => {
     const g = new Game(native);
@@ -132,36 +134,36 @@ test("video allowance is shared across tool types", () => {
 });
 test("reserve is one per type and costs no video", () => {
     const g = new Game(native, 1);
-    g.grant("shuffle", "reserve");
+    g.grant("repack", "reserve");
     assert.equal(g.ads, 0);
-    assert.throws(() => g.grant("shuffle", "reserve"));
+    assert.throws(() => g.grant("repack", "reserve"));
 });
-test("rewind restores cards without restoring reserve or video counts", () => {
+test("correction restores cards without restoring reserve or video counts", () => {
     const g = new Game(native, 1),
         before = g.snapshot();
     for (const i of native.reference[0]) g.take(i);
-    g.grant("rewind", "reserve");
-    g.rewind(1);
+    g.grant("correct", "reserve");
+    g.correct(1);
     assert.deepEqual(g.snapshot(), before);
-    assert.equal(g.reserves.rewind, 0);
+    assert.equal(g.reserves.correct, 0);
     for (const i of native.reference[0]) g.take(i);
-    g.grant("rewind");
-    g.rewind(1);
+    g.grant("correct");
+    g.correct(1);
     assert.equal(g.ads, 1);
-    assert.equal(g.inventory.rewind, 0);
+    assert.equal(g.inventory.correct, 0);
 });
-test("no history means invalid rewind", () => {
+test("no history means invalid correction", () => {
     const g = new Game(native);
-    g.grant("rewind");
-    assert.throws(() => g.rewind(1));
-    assert.equal(g.inventory.rewind, 1);
+    g.grant("correct");
+    assert.throws(() => g.correct(1));
+    assert.equal(g.inventory.correct, 1);
 });
 test("invalid or unchanged shuffle does not consume inventory", () => {
     const g = new Game(native);
-    g.grant("shuffle");
-    assert.throws(() => g.shuffle(Array(48).fill(0)));
-    assert.throws(() => g.shuffle(g.locations));
-    assert.equal(g.inventory.shuffle, 1);
+    g.grant("repack");
+    assert.throws(() => g.repack(Array(48).fill(0)));
+    assert.throws(() => g.repack(g.locations));
+    assert.equal(g.inventory.repack, 1);
 });
 test("certified complete repack conserves cards and wins", () => {
     const g = new Game(native),
@@ -211,7 +213,7 @@ test("real-layout recovery automatically replays only completed progress and val
     for (const l of imported.slice(0, 4)) {
         for (let n = 0; n < 4; n++) {
             const r = play(l, n);
-            if (r.tools.rewind) {
+            if (r.tools.correct) {
                 found = [l, r];
                 break;
             }
@@ -223,7 +225,7 @@ test("real-layout recovery automatically replays only completed progress and val
     assert.ok(r.automatic_questions > 0);
     replay(level, r);
     const bad = clone(r);
-    bad.events.find((e) => e.type === "rewind").certificate[0] = [999];
+    bad.events.find((e) => e.type === "correct").certificate[0] = [999];
     assert.throws(() => replay(level, bad));
 });
 test("all 80 existing layouts preserve exact positions, animals, questions and references", () => {
@@ -360,4 +362,81 @@ test("challenge calibration records independent repeats and stops within candida
     assert.equal(result.selection.candidates.at(-1).wins, 0);
     assert.ok(result.selection.candidates.length <= 60);
     checkLevel(result.level);
+});
+
+test("free restoration waits for one-over-four supports and reestablishes coverage", () => {
+    const level = clone(native);
+    level.positions = range(48).map((i) => [100 + i * 2, 0, 0]);
+    level.positions.splice(
+        0,
+        5,
+        [0, 0, 0],
+        [1, 0, 0],
+        [0, 1, 0],
+        [1, 1, 0],
+        [0.5, 0.5, 1],
+    );
+    level.visibility = "logical-xy";
+    level.targets[0] = [1000, 1000];
+    const g = new Game(level);
+    g.take(4);
+    g.grant("remove");
+    g.remove([4]);
+    assert.equal(g.canRestore(4), true);
+    g.take(0);
+    const before = g.snapshot();
+    assert.throws(() => g.returnToBoard(4), /restore blocked/);
+    assert.deepEqual(g.snapshot(), before);
+    g.grant("remove");
+    g.remove([0]);
+    g.returnToBoard(0);
+    const ads = g.ads;
+    g.returnToBoard(4);
+    assert.equal(g.ads, ads);
+    assert.equal(g.q, 0);
+    assert.deepEqual(g.slot, []);
+    assert.equal(top(g).includes(0), false);
+    const result = {
+        reserve: 0,
+        ad_limit: 10,
+        events: clone(g.events),
+        won: false,
+        cleared: 0,
+        ads: 2,
+        card_clicks: 2,
+        restore_clicks: 2,
+        questions_completed: 0,
+        automatic_questions: 0,
+        tools: { remove: 2 },
+    };
+    assert.equal(replay(level, result), true);
+    const forged = clone(result);
+    const restored = forged.events.pop();
+    forged.events.splice(
+        forged.events.findIndex(
+            (event) => event.type === "take" && event.id === 0,
+        ) + 1,
+        0,
+        restored,
+    );
+    assert.throws(() => replay(level, forged), /restoration blocked/);
+});
+
+test("repack rejects moving a support required by a pending restoration before consuming inventory", () => {
+    const level = clone(native);
+    level.positions = range(48).map((i) => [100 + i * 2, 0, 0]);
+    level.positions[0] = [0, 0, 0];
+    level.positions[1] = [0, 0, 1];
+    level.visibility = "logical-xy";
+    level.targets[0] = [1000, 1000];
+    const g = new Game(level);
+    g.take(1);
+    g.grant("remove");
+    g.remove([1]);
+    g.grant("repack");
+    const positions = [...g.locations];
+    [positions[0], positions[2]] = [positions[2], positions[0]];
+    const before = clone(g);
+    assert.throws(() => g.repack(positions), /restoration anchors/);
+    assert.deepEqual(clone(g), before);
 });

@@ -32,7 +32,7 @@ export const CURVES = {
     steep: [3, 3, 3, 3, 3, 3, 4, 4, 5, 5, 6, 6],
     "late-six": [3, 3, 3, 3, 3, 3, 3, 3, 6, 6, 6, 6],
 };
-export const TOOLS = ["remove", "rewind", "shuffle"];
+export const TOOLS = ["remove", "correct", "repack"];
 export const PROFILES = {
     "four-peaks": [4, 3, 3, 2],
     "three-peaks": [5, 5, 4, 2],
