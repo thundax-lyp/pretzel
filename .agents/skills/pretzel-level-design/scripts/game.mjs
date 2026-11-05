@@ -21,6 +21,7 @@ export class Game {
         this.temp = [];
         this.slot = [];
         this.locations = range(48);
+        this.anchors = {};
         this.q = 0;
         this.status = "playing";
         this.questionsCompleted = 0;
@@ -38,6 +39,7 @@ export class Game {
             temp: this.temp,
             slot: this.slot,
             locations: this.locations,
+            anchors: this.anchors,
             q: this.q,
         });
     }
@@ -47,6 +49,7 @@ export class Game {
         this.temp = s.temp;
         this.slot = s.slot;
         this.locations = s.locations;
+        this.anchors = s.anchors;
         this.q = s.q;
     }
     active() {
@@ -75,20 +78,75 @@ export class Game {
         this.active();
         requireThat(Number.isInteger(i) && i >= 0 && i < 48, "unknown card");
         requireThat(this.slot.length < 7, "full slot");
-        if (this.temp.includes(i)) this.temp.splice(this.temp.indexOf(i), 1);
-        else {
-            requireThat(
-                this.board.has(i) &&
-                    available(this.level, this.board, this.locations).includes(
-                        i,
-                    ),
-                "covered or absent card",
-            );
-            this.board.delete(i);
-        }
+        requireThat(
+            this.board.has(i) &&
+                available(this.level, this.board, this.locations).includes(i),
+            "covered or absent card",
+        );
+        const position = this.locations[i];
+        const [x, y, z] = this.level.positions[position];
+        this.anchors[i] = {
+            position,
+            supports: range(48)
+                .filter((j) => {
+                    const [bx, by, bz] =
+                        this.level.positions[this.locations[j]];
+                    return (
+                        bz < z &&
+                        Math.abs(bx - x) < 1 - 1e-8 &&
+                        Math.abs(by - y) < 1 - 1e-8
+                    );
+                })
+                .map((j) => [j, this.locations[j]]),
+        };
+        this.board.delete(i);
         this.slot.push(i);
         this.events.push({ type: "take", id: i, automatic });
         this.settle();
+    }
+    canRestore(i, board = this.board, locations = this.locations) {
+        const anchor = this.anchors[i];
+        return (
+            this.temp.includes(i) &&
+            Boolean(anchor) &&
+            ![...board].some((j) => locations[j] === anchor.position) &&
+            anchor.supports.every(
+                ([j, position]) => board.has(j) && locations[j] === position,
+            )
+        );
+    }
+    returnToBoard(i, automatic = false) {
+        this.active();
+        requireThat(
+            this.canRestore(i),
+            "restore blocked by supports or occupied position",
+        );
+        this.locations[i] = this.anchors[i].position;
+        this.temp.splice(this.temp.indexOf(i), 1);
+        this.board.add(i);
+        delete this.anchors[i];
+        this.events.push({ type: "restore", id: i, automatic });
+    }
+    restoreAvailable() {
+        let id;
+        while ((id = this.temp.find((i) => this.canRestore(i))) !== undefined)
+            this.returnToBoard(id);
+    }
+    preservesAnchors(
+        positions,
+        anchors = this.anchors,
+        held = this.temp.concat(this.slot),
+    ) {
+        return held.every((i) => {
+            const anchor = anchors[i];
+            return (
+                Boolean(anchor) &&
+                positions[i] === anchor.position &&
+                anchor.supports.every(
+                    ([j, position]) => positions[j] === position,
+                )
+            );
+        });
     }
     grant(tool, source = "video") {
         this.active();
@@ -127,7 +185,13 @@ export class Game {
         this.events.push({ type: "remove", ids: chosen });
         this.settle();
     }
-    validatePositions(positions, board = this.board, old = this.locations) {
+    validatePositions(
+        positions,
+        board = this.board,
+        old = this.locations,
+        anchors = this.anchors,
+        held = this.temp.concat(this.slot),
+    ) {
         requireThat(
             Array.isArray(positions) &&
                 same(
@@ -140,8 +204,12 @@ export class Game {
             range(48).every((i) => board.has(i) || positions[i] === old[i]),
             "moved non-board card",
         );
+        requireThat(
+            this.preservesAnchors(positions, anchors, held),
+            "repack changes restoration anchors",
+        );
     }
-    shuffle(positions, hint = []) {
+    repack(positions, hint = []) {
         this.active();
         this.validatePositions(positions);
         requireThat(
@@ -149,15 +217,15 @@ export class Game {
                 [...this.board].some((i) => positions[i] !== this.locations[i]),
             "no-op shuffle",
         );
-        this.consume("shuffle");
+        this.consume("repack");
         this.locations = [...positions];
         this.events.push({
-            type: "shuffle",
+            type: "repack",
             positions: [...positions],
             hint: [...hint],
         });
     }
-    rewind(distance, positions = null, hint = []) {
+    correct(distance, positions = null, hint = []) {
         this.active();
         requireThat(
             Number.isInteger(distance) &&
@@ -171,14 +239,16 @@ export class Game {
                 positions,
                 new Set(snapshot.board),
                 snapshot.locations,
+                snapshot.anchors,
+                snapshot.temp.concat(snapshot.slot),
             );
-        this.consume("rewind");
+        this.consume("correct");
         this.restore(snapshot);
         this.history = this.history.slice(0, -distance);
         if (positions) this.locations = [...positions];
         this.entry = this.snapshot();
         this.events.push({
-            type: "rewind",
+            type: "correct",
             distance,
             positions,
             hint: [...hint],

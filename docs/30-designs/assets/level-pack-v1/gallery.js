@@ -203,7 +203,7 @@
                 <div class="questions">${question(s.level.targets[s.q], false)}${question(s.level.targets[s.q + 1], true)}</div>
                 <div class="board">${board(s)}</div><div class="board-note">${s.message || (easy ? "点任意亮牌，眼睛和腿都刚好就消除" : "先观察结构，再安排取牌顺序")}</div>
                 <div class="slot-label"><strong>卡槽</strong><span>${s.slot.length}/7</span></div><div class="slot">${cells}</div>
-                <div class="storage">暂存区</div><div class="tools"><span class="tool">↥ 移出</span><span class="tool">↶ 回退</span><span class="tool">⇄ 重排</span></div><div class="footer">${easy ? "第一关不使用道具" : "关卡结构设计预览"}</div>${result}
+                <div class="storage">暂存区</div><div class="tools"><span class="tool">↥ 移出</span><span class="tool">↶ 纠错</span><span class="tool">⇄ 重排</span></div><div class="footer">${easy ? "第一关不使用道具" : "关卡结构设计预览"}</div>${result}
             </div><div class="controls"><button data-action="reset" data-kind="${kind}">重置</button><button data-action="hint" data-kind="${kind}">参考下一张</button><button data-action="replay" data-kind="${kind}">重放完整参考解</button></div>`;
     }
     function take(kind, id) {

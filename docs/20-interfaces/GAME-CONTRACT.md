@@ -8,7 +8,7 @@
 
 两个基址可共用一个 HTTPS 域名。`/pretzel-game-api` 和 `/pretzel-admin-api` 分别由游戏与管理 starter 的 Spring Boot `server.servlet.context-path` 提供。Nginx 按该前缀分流并保留完整请求路径。接口表中的相对路径拼接对应基址即可，例如玩家登录为 `POST /pretzel-game-api/api/v1/sessions`。
 
-玩家接口使用 JSON。成功返回 `{"data": ...}`，失败返回 `{"error":{"code":"VERSION_CONFLICT","message":"对局已更新","requestId":"...","details":{}}}`。ID 为不透明字符串，时间为 RFC 3339 UTC 字符串，版本、计数和坐标为整数。缺省可选字段省略。HTTP 400 表示格式错误，401 表示会话无效，404 表示资源不存在或不归该玩家，409 表示版本或幂等键冲突，422 表示当前状态不允许操作，429 表示限流，503 表示可重试的服务或平台故障。版本冲突附最新版本，客户端可重新读取快照。
+玩家接口使用 JSON。成功返回 `{"data": ...}`，失败返回 `{"error":{"code":"VERSION_CONFLICT","message":"对局已更新","requestId":"...","details":{}}}`。ID 为不透明字符串，时间为 RFC 3339 UTC 字符串，版本、计数与 layer 为整数。x、y 使用整牌为 1 的坐标，支持 0.5 的步长。缺省可选字段省略。HTTP 400 表示格式错误，401 表示会话无效，404 表示资源不存在或不归该玩家，409 表示版本或幂等键冲突，422 表示当前状态不允许操作，429 表示限流，503 表示可重试的服务或平台故障。版本冲突附最新版本，客户端可重新读取快照。
 
 ### 玩家 API
 
@@ -32,15 +32,15 @@
 
 ### 共享对象
 
-| 类型               | 字段                                                                                                                                                                                                                               |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Animal`           | `id, catalogNumber, name, description, artworkKey, eyes, legs`                                                                                                                                                                     |
-| `Question`         | `id, eyes, legs`。按题目数组顺序处理，界面用索引取得当前题和下一题。                                                                                                                                                               |
-| `Card`             | `id, animalId, eyes, legs, x, y, layer, coveredBy`。坐标使用半格定位，`coveredBy` 是覆盖该牌的卡牌 ID 列表。                                                                                                                       |
-| `RunSnapshot`      | `runId, version, level, status, configVersion, questionIndex, questions, cards, boardCardIds, slotCardIds, temporaryCardIds, effectiveDurationMs, inventory`。只返回当前关可公开数据，三个牌区以实例 ID 表示，卡槽按入槽顺序排列。 |
-| `OperationRequest` | `{operationId, expectedVersion, type, cardId?, propType?}`。类型为 `PICK_BOARD`、`PICK_TEMPORARY`、`USE_PROP`、`ENTER_LEVEL_2` 或 `ABANDON`。前两种须提供牌 ID，用道具须提供道具类型。                                             |
-| `Inventory`        | `{reserve, inRun, videoClaimsUsed}`。库存列表元素为 `{propType, quantity}`，道具类型为 `REMOVE`、`UNDO`、`SHUFFLE`。                                                                                                               |
-| `RankEntry`        | `{rank, displayName, avatarKey?, receivedCount, reachedAt, isSelf}`。不返回微信 OpenID。                                                                                                                                           |
+| 类型               | 字段                                                                                                                                                                                                                                                                                                                 |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Animal`           | `id, catalogNumber, name, description, artworkKey, eyes, legs`                                                                                                                                                                                                                                                       |
+| `Question`         | `id, eyes, legs`。按题目数组顺序处理，界面用索引取得当前题和下一题。                                                                                                                                                                                                                                                 |
+| `Card`             | `id, animalId, eyes, legs, x, y, layer, coveredBy, restoreAnchor?`。坐标使用半格定位，`coveredBy` 是覆盖该牌的卡牌 ID 列表。                                                                                                                                                                                         |
+| `RunSnapshot`      | `runId, version, level, status, configVersion, animals, questionIndex, questions, cards, boardCardIds, slotCardIds, temporaryCardIds, effectiveDurationMs, inventory`。animals 返回当前关使用的 Animal 定义，客户端用 animalId 关联 artworkKey。只返回当前关可公开数据，三个牌区以实例 ID 表示，卡槽按入槽顺序排列。 |
+| `OperationRequest` | `{operationId, expectedVersion, type, cardId?, propType?, selectedCardIds?}`。类型为 `PICK_BOARD`、`RESTORE_BOARD`、`USE_PROP`、`ENTER_LEVEL_2` 或 `ABANDON`。前两种须提供牌 ID，用道具须提供道具类型。REMOVE 还须提供 1—3 个互异槽内牌 ID，其他道具省略 selectedCardIds。                                           |
+| `Inventory`        | `{reserve, inRun, videoClaimsUsed}`。库存列表元素为 `{propType, quantity}`，道具类型为 `REMOVE`、`CORRECT`、`REPACK`。                                                                                                                                                                                               |
+| `RankEntry`        | `{rank, displayName, avatarKey?, receivedCount, reachedAt, isSelf}`。不返回微信 OpenID。                                                                                                                                                                                                                             |
 
 对局状态为 `ACTIVE`、`LEVEL_1_PASSED`、`WON`、`LOST` 或 `ABANDONED`。结算确认是独立状态。第一关 12 张、3 题，第二关 48 张、12 题。单次操作为首期同步基线，有序批量与教学关离线支持另行确定。奖励状态为 `PENDING`、`GRANTED` 或 `REJECTED`。取消、失败或证据不足时库存和成功次数保持原值。
 
@@ -65,7 +65,17 @@
 
 ## 游戏操作
 
-取牌、放回暂存牌和道具操作以局标识、操作标识和状态版本定位。服务端拒绝跨玩家、过期版本、重复消耗与已结束对局操作；客户端按返回的最新版本更新界面，不能凭动画完成认定结算成功。
+牌属性必须与关联 Animal 定义一致，当前眼睛范围为 1—6，腿数集合为 0、1、2、3、4、5、6、8。
+
+`restoreAnchor` 为 `{x,y,layer,supports:[{cardId,x,y,layer}]}`。棋盘取牌时记录原位置及原来下方的牌，进入卡槽后保留；移出到暂存区时继续使用同一份信息。所有暂存牌必须具有完整复位信息。复位成功后清除本次信息，再次取牌时按当时棋盘重新记录。
+
+`RESTORE_BOARD` 只允许活跃对局中属于当前玩家的暂存牌执行。服务端按实例 ID、原坐标与层级验证所有底牌都在棋盘上，并检查同层原位置没有被占用。底牌在卡槽、暂存区、已消除或位置发生变化时均拒绝。复位与新版本原子保存，不执行整槽判定、不扣道具，幂等与未知响应重试沿用通用操作协议。
+
+重排方案必须保留待复位牌的锚点、底牌实例及原坐标，并预留复位位置。无法保护锚点或没有完整剩余解的方案不生效、不扣库存。纠错重新生成一致的当前快照与复位信息，并保持题目进度和已消费额度。
+
+取牌、暂存牌原位复位和道具操作以局标识、操作标识和状态版本定位。服务端拒绝跨玩家、过期版本、重复消耗与已结束对局操作；客户端按返回的最新版本更新界面，不能凭动画完成认定结算成功。
+
+移出按原入槽顺序追加暂存并重判剩余槽。纠错纠正历史组合后重放至原题进度，重排仅变更剩余棋盘布局。纠错和重排须先验证完整剩余解。没有可验证方案、搜索触界、取消选牌或终态请求均不扣库存。提交有效操作后以服务端快照更新题目、牌区及库存，未知结果按同一操作 ID 查询或重试。
 
 ## 奖励
 
@@ -206,8 +216,14 @@ sequenceDiagram
         end
     end
     opt 玩家点击一张暂存牌
-        C->>S: 按操作同步策略提交单张放回
-        S->>D: 校验牌仍在暂存区并执行整槽判定
+        C->>S: 提交 RESTORE_BOARD、cardId 与预期版本
+        S->>D: 校验暂存归属、全部底牌身份与原坐标、原位占用
+        alt 复位条件满足
+            S->>D: 将同一牌实例放回原位，重建遮挡并递增版本
+            Note over S,D: 不改变卡槽、题目进度或库存
+        else 复位条件不满足
+            S-->>C: 返回等待底牌或原位被占用的原因
+        end
         S-->>C: 返回该牌的新位置与对局状态
     end
 ```

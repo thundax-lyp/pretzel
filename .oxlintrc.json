@@ -11,8 +11,6 @@
         {
             "files": ["frontend/miniprogram/**/*.ts"],
             "globals": {
-                "App": "readonly",
-                "Page": "readonly",
                 "wx": "readonly"
             }
         }

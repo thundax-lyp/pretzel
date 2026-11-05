@@ -45,19 +45,25 @@ node .agents/skills/pretzel-level-design/scripts/level-design.mjs verify --outpu
 
 ## 执行模块
 
-| 文件             | 职责                                     |
-| ---------------- | ---------------------------------------- |
-| level-design.mjs | 单一 CLI 入口                            |
-| catalog.mjs      | 固定动物、曲线、种子算法与数值工具       |
-| geometry.mjs     | 两种遮挡模型，分离轴测试与独立裁剪算法   |
-| game.mjs         | 卡槽、道具、储备、回溯状态与事件         |
-| levels.mjs       | 生成、统一导入、参考解和结构指标         |
-| simulation.mjs   | 有限搜索、候选分配、修复布局、策略与统计 |
-| replay.mjs       | 用独立集合/坐标判定重放动作与修复证书    |
-| experiment.mjs   | 计算子进程、硬预算、证据聚合和核验       |
-| report.mjs       | 自动可读报告                             |
-| io.mjs           | 参数、快照、指纹与逐行记录               |
+| 文件             | 职责                                       |
+| ---------------- | ------------------------------------------ |
+| level-design.mjs | 单一 CLI 入口                              |
+| catalog.mjs      | 固定动物、曲线、种子算法与数值工具         |
+| geometry.mjs     | 两种遮挡模型，分离轴测试与独立裁剪算法     |
+| game.mjs         | 卡槽、道具、储备、免费复位、纠错状态与事件 |
+| levels.mjs       | 生成、统一导入、参考解和结构指标           |
+| simulation.mjs   | 有限搜索、候选分配、修复布局、策略与统计   |
+| replay.mjs       | 用独立集合/坐标判定重放动作与修复证书      |
+| experiment.mjs   | 计算子进程、硬预算、证据聚合和核验         |
+| report.mjs       | 自动可读报告                               |
+| io.mjs           | 参数、快照、指纹与逐行记录                 |
 
 测试放在 scripts 下的 `.test.mjs`，使用 `node --test`。Skill 运行无第三方依赖，不调用 Python，也不依赖侧对话私有适配器。
 
 混合堆叠的 stack-layouts.mjs 定义半格形状、单支撑合法性、真实关系与占地；preview.mjs 只输出结构 HTML/SVG 预览，不承担点击判定。
+
+## 当前动作规则
+
+暂存牌点击使用免费 restore 动作，先校验取牌时记录的原位、底牌身份与坐标，复位后重新形成覆盖。取入卡槽只接受棋盘中的无遮挡牌。策略先按已有可行路线取牌，缺少路线时尝试自下而上复位，避免立即撤销移出效果。
+
+实验道具键为 remove、correct、repack，正式客户端枚举为 REMOVE、CORRECT、REPACK。重排和纠错的修复证书包含完整剩余解，所有待复位位置与底牌实例约束在方案验证时保留。候选布局被复位约束拒绝时记录搜索边界，不当成数学无解。

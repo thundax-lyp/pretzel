@@ -11,7 +11,7 @@
         "layoutUnit": "safe-area-relative",
         "visual": {
             "theme": "cartoon_animal_meadow",
-            "board": "layered_cards",
+            "board": "ivory_mahjong_faces_green_base_depth_shadow",
             "contrast": "readable_on_busy_background",
             "statusEncoding": ["icon", "label", "visual_state"]
         }
@@ -59,7 +59,14 @@
             },
             "empty": {
                 "weekly_zoo": "本周还没有动物，开始挑战吧"
-            }
+            },
+            "dataStates": [
+                "loading",
+                "empty_zoo",
+                "ready",
+                "error",
+                "week_changed"
+            ]
         },
         "game": {
             "regions": [
@@ -73,7 +80,7 @@
             ],
             "layout": {
                 "next_question": {
-                    "visibleWhen": "level == 2",
+                    "visibleWhen": "next_question_exists",
                     "emphasis": "secondary"
                 },
                 "board": {
@@ -84,7 +91,14 @@
                 "temporary_storage": {
                     "overflow": "scroll",
                     "boundedViewport": true,
-                    "preserveBoardAndSlotAccess": true
+                    "preserveBoardAndSlotAccess": true,
+                    "tapAction": "RESTORE_BOARD",
+                    "eligibility": "all_original_support_instances_at_original_coordinates_and_original_position_unoccupied",
+                    "states": [
+                        "free_restore",
+                        "waiting_supports",
+                        "position_occupied"
+                    ]
                 },
                 "slot": {
                     "capacity": 7,
@@ -129,7 +143,16 @@
                     "HOME": "home.ready",
                     "REPLAY": "game.level1"
                 }
-            }
+            },
+            "operationStates": [
+                "ready",
+                "submitting",
+                "animating",
+                "offline",
+                "syncing_original_operation",
+                "version_conflict",
+                "terminal"
+            ]
         }
     },
     "overlays": {
@@ -189,13 +212,23 @@
                 "granted",
                 "cancelled",
                 "failed",
-                "limit_reached"
+                "limit_reached",
+                "unavailable",
+                "inventory_full",
+                "incomplete_video"
             ]
         },
         "animal_reward": {
             "guard": "unclaimed_win_reward",
             "revealCount": 1,
-            "effect": "refresh_weekly_zoo_after_confirmed_claim"
+            "effect": "refresh_weekly_zoo_after_confirmed_claim",
+            "states": [
+                "eligible",
+                "pending",
+                "revealed",
+                "already_claimed",
+                "error"
+            ]
         },
         "result": {
             "variants": {
@@ -216,6 +249,18 @@
                     "share_loss"
                 ]
             }
+        },
+        "remove_selection": {
+            "guard": "level == 2 && run_active && usable_remove && slot_nonempty",
+            "controls": ["select_1_to_3_slot_cards", "confirm", "cancel"],
+            "states": [
+                "selecting",
+                "submitting",
+                "pending_sync",
+                "applied",
+                "rejected"
+            ],
+            "cancelConsumes": false
         }
     },
     "rules": {
@@ -240,13 +285,13 @@
         "inputLock": ["animation", "pending_operation", "modal"],
         "discardLockedClicks": true,
         "props": {
-            "remove": "move_up_to_3_oldest_slot_cards_to_temporary_storage",
-            "undo": "return_latest_board_pick_still_in_slot",
-            "shuffle": "permute_remaining_board_attributes_keep_geometry_require_complete_solution",
+            "remove": "select_1_to_3_slot_cards_then_append_in_slot_order_and_evaluate_slot",
             "invalidConsumes": false,
             "consumeOrder": ["run_inventory", "reserve"],
             "reservePerType": 1,
-            "videoClaimsPerRun": 10
+            "videoClaimsPerRun": 10,
+            "correct": "repair_from_proven_history_and_replay_to_current_question_without_refunding_inventory",
+            "repack": "rearrange_remaining_board_cards_with_complete_solution_and_protected_restore_anchors"
         },
         "shares": {
             "home": "zoo_snapshot",
@@ -280,5 +325,113 @@
         "rare_animal_effects",
         "release_information_exact_content",
         "platform_feedback_customer_service_and_ad_verification"
-    ]
+    ],
+    "coverage": {
+        "firstLaunch": [
+            "loading",
+            "initialization_error",
+            "retry",
+            "home_ready",
+            "first_level_guidance",
+            "level_one_passed",
+            "level_two_loading",
+            "level_two_error",
+            "level_two_ready"
+        ],
+        "board": [
+            "covered_pick_feedback",
+            "slot_totals",
+            "seventh_card_match",
+            "seventh_card_fail",
+            "last_question",
+            "temporary_storage_overflow"
+        ],
+        "propFeedback": [
+            "remove_selection",
+            "correct_preview_and_result",
+            "repack_preview_and_result",
+            "no_proven_solution",
+            "search_inconclusive",
+            "no_consumption_on_rejection"
+        ],
+        "recovery": [
+            "background_pause",
+            "session_expired",
+            "same_operation_retry",
+            "restore_error",
+            "abandon_confirm"
+        ],
+        "rewards": [
+            "eligibility",
+            "video_incomplete",
+            "share_unverified",
+            "pending",
+            "inventory_full",
+            "limit_reached",
+            "duplicate_confirmation",
+            "single_animal_reveal"
+        ],
+        "collectionAndRank": [
+            "empty_zoo",
+            "empty_collection",
+            "first_unlock",
+            "repeat_acquisition",
+            "week_rollover",
+            "current_rank",
+            "history_rank",
+            "request_error"
+        ],
+        "release": [
+            "audio_resume",
+            "feedback_availability",
+            "customer_service_availability",
+            "privacy_and_release_content",
+            "safe_area",
+            "48_card_touch_and_scroll"
+        ]
+    },
+    "motion": {
+        "deal": {
+            "staggerMs": 12,
+            "moveMs": 360,
+            "inputLockMs": 1000,
+            "trigger": "first_render_of_run_level_or_confirmed_repack"
+        },
+        "pick": {
+            "flyMs": 280,
+            "arrivalPopMs": 220,
+            "trigger": "confirmed_snapshot"
+        },
+        "match": {
+            "clearMs": 330,
+            "particlesMs": 800,
+            "trigger": "confirmed_question_advance"
+        },
+        "result": {
+            "panelPopMs": 220,
+            "success": "happy_panda_confetti",
+            "failure": "sad_panda_panel_shake",
+            "trigger": "confirmed_settlement"
+        },
+        "props": {
+            "REMOVE": "gold_selection_checkmark_then_fly_to_temporary",
+            "CORRECT": "confirmed_corrected_board_tilt_and_return",
+            "REPACK": "confirmed_new_board_deal"
+        },
+        "coveredCard": {
+            "shakeMs": 220,
+            "blockingModal": false
+        },
+        "button": {
+            "pressedScale": 0.96,
+            "pressMs": 70,
+            "releaseMs": 100
+        },
+        "restore": {
+            "flyMs": 300,
+            "destination": "original_board_position",
+            "trigger": "confirmed_RESTORE_BOARD",
+            "preserveZOrder": true
+        }
+    }
 }

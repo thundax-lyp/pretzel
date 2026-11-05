@@ -4,7 +4,7 @@
 
 pretzel 是《腿了个腿》微信动物卡牌求和消除项目。架构规则不替代已确认产品需求，不将尚未实现的游戏能力描述为已交付。
 
-- frontend/：前端应用集合；admin 为 React、TypeScript、Ant Design 与 Pro Components 管理端，miniprogram 为 TypeScript 原生微信小程序，包含启动页、首页、游戏页。
+- frontend/：前端应用集合；admin 为 React、TypeScript、Ant Design 与 Pro Components 管理端，miniprogram 为 Cocos Creator 3.8.8 与 TypeScript 微信小游戏，包含启动页、首页、游戏页。
 - backend/：Java 21、Spring Boot、Maven 多模块和 DDD 模块化单体。
 - deploy/：冒烟与正式环境配置，目前只接入 MySQL 8.4 和 Redis。
 - scripts/：环境加载和开发辅助工具。
