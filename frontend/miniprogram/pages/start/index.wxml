@@ -1,5 +1,0 @@
-<view class="page">
-    <view>腿了个腿</view>
-    <view>数眼睛，凑腿数。</view>
-    <button bindtap="enter">进入首页</button>
-</view>

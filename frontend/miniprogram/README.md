@@ -1,32 +1,31 @@
-# 微信小程序客户端
+# 腿了个腿 · 微信小游戏客户端
 
-使用 TypeScript 开发，保留启动页、首页、游戏页三个页面。入口文件为 app.ts 与 pages/<page>/index.ts，微信配置和视图仍使用 JSON、WXML、WXSS。
+使用 Cocos Creator 3.8.8 与 TypeScript。打开本目录，进入 assets/scenes/start.scene。GameClient 在 Canvas 中呈现启动、动物园、游戏和弹层。动物 PNG 通过 Cocos resources 加载。
 
-## 安装与检查
-
-在本目录执行：
+## 检查
 
 ```sh
 npm ci
 npm run typecheck
+npm test
 npm run lint
 npm run format:check
 ```
 
-采用 miniprogram-api-typings 提供 wx、App、Page 的微信 API 类型；tsconfig.json 开启严格类型检查，不引入浏览器 DOM 或 Node 运行时类型。typescript、类型库和检查工具固定版本，独立维护 package-lock.json。
+类型检查使用 3.8.8 的引擎声明。Node 回归覆盖两关参考路径、遮挡、暂存、重复操作和 HTTP 契约。编辑器预览按钮由 Creator 的 PREVIEW 标志开放。微信 Debug 构建开放「本地试玩（调试）」。Web Debug 构建可显式附加 ?fixture=1 开放相同入口，正式构建保持关闭。预览使用独立内存数据。
 
-## 开发者工具
+## 接入微信小游戏
 
-导入仓库根目录。project.config.json 的 miniprogramRoot 指向本目录，setting.useCompilerPlugins 已启用 typescript，由微信开发者工具将 TS 编译为小程序运行所需 JS，不在源码旁生成或提交重复的 JS 文件。
+在 GameClient 的 apiOrigin 属性配置已加入微信请求域名白名单的 HTTPS 域名。客户端使用 `wx.login` 取得凭据，服务端以玩家会话认证 `/pretzel-game-api/api/v1`。启动时会读取当前可恢复对局、库存和本周动物园。
 
-命令行 tsc 仅做类型检查，不代表已生成可发布的微信包。预览、调试和发布仍使用微信开发者工具。npm 依赖目前全部为开发依赖，不需要构建运行时 npm 包；上传排除 node_modules 与工具配置。
+在 Creator 构建面板选择微信小游戏、竖屏与 Start 场景。使用已授权的 AppID，构建后用微信开发者工具打开生成的微信小游戏目录。AppID 和本机设置由实际环境配置。真实分享领奖和视频发奖需要平台证据适配，当前获取界面展示可用性和原因。
 
-touristappid 仅供工程占位，正式使用需配置自己的 AppID，个人配置不提交。
+构建及真机验收需验证资源导入、安全区、触摸、网络、会话、广告与分享。Node 测试仅覆盖纯客户端逻辑和传输契约。
 
-## 当前范围
+## 画面资源
 
-当前仅三个页面导航骨架，没有完整关卡、广告、分享领奖和榜单实现。平台能力按原生微信小程序验证，不直接假定小游戏专属 API 可用。尚未进行本次 TS 配置的开发者工具预览或真机验证。
+当前画面依据 UI/UE 效果稿校准。`assets/resources/ui` 保存草地背景、木质围栏、面板图集与透明动物图集。图集由 `ui-skin.ts` 在引擎内按网格切分，按钮和弹层按目标区域缩放，文字、数量与点击区域由运行时组件呈现。动物图集按 A01—A24 排列，共六列四行。UI 图集为四列四行。
 
-## 卡牌形象资源
+效果稿中的画面风格用于视觉还原，题目、七格卡槽、道具状态和结算内容读取当前对局契约。棋盘根据安全区将分离牌堆横排或竖排，以扩大牌面。每堆内部保留相对坐标和遮挡关系，可点击性读取服务端对局事实。牌面采用象牙色正面、绿色底座和投影，棋盘、卡槽和暂存区保持统一。`ui-effects.ts` 实现码牌、入槽、消除、道具和胜负动效，操作反馈在快照确认后触发。
 
-资源规范、编号索引与原生 image 组件引用方式见 [卡牌资源说明](assets/cards/README.md)。
+暂存牌通过 `RESTORE_BOARD` 免费复位。`board-restoration.ts` 校验原底牌身份和坐标、原位置占用及对局状态，预览操作复用该规则。`restoreAnchor` 在棋盘取牌时记录，暂存区用亮牌和灰牌区分可复位与等待底牌；复位保持卡槽、题目和库存，并恢复遮挡。正式服务端须按相同契约独立校验。道具枚举为 `REMOVE`、`CORRECT`、`REPACK`。

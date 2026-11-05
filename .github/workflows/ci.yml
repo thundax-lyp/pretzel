@@ -85,7 +85,6 @@ jobs:
             - run: python -m pip install -r requirements-dev.txt
             - run: ruff check scripts deploy
             - run: ruff format --check scripts deploy
-            - run: python scripts/game-design-test.py
             - run: sh -n scripts/infra-tunnel.sh
     miniprogram:
         runs-on: ubuntu-latest
@@ -101,5 +100,6 @@ jobs:
                   cache-dependency-path: frontend/miniprogram/package-lock.json
             - run: npm ci
             - run: npm run typecheck
+            - run: npm test
             - run: npm run lint
             - run: npm run format:check

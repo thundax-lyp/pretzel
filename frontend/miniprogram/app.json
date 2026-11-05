@@ -1,8 +1,0 @@
-{
-    "pages": ["pages/start/index", "pages/home/index", "pages/game/index"],
-    "window": {
-        "navigationBarTitleText": "腿了个腿",
-        "navigationBarBackgroundColor": "#39845b",
-        "navigationBarTextStyle": "white"
-    }
-}
