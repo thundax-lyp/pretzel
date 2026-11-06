@@ -7,3 +7,4 @@
 - [休闲消除类游戏 UI 与 UE 设计原则](GAME-UI-UE-PRINCIPLES.md)
 - [游戏 UI/UE 机器可读规格](GAME-UI-UE.json)
 - [游戏 UI/UE 效果稿](GAME-UI-UE-PREVIEWS.md)
+- [游戏 UI 修改意见与文字资源方案](GAME-UI-REVISION.md)
