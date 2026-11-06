@@ -1,0 +1,6 @@
+interface:
+    display_name: "Review Game UI"
+    short_description: "主动指定文件名或路径，按检测点与方法审核游戏界面并汇总证据和修改意见"
+    default_prompt: "使用 $review-game-ui 审核 <文件名或路径>，先观察整体，再逐项检测并汇总证据与修改意见。"
+policy:
+    allow_implicit_invocation: false
