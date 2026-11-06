@@ -8,7 +8,9 @@ import {
 } from "./board-restoration";
 
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value));
-export function createPreviewApi(): GameApi {
+export function createPreviewApi(
+    options: { zooCount?: number; stress?: boolean } = {},
+): GameApi {
     let run: RunSnapshot | null = null;
     const unlocked = new Set(
         previewData.animals.slice(0, 3).map((animal) => animal.id),
@@ -194,8 +196,18 @@ export function createPreviewApi(): GameApi {
             return {
                 weekId,
                 items: previewData.animals
-                    .slice(0, 3)
-                    .map((animal) => ({ animal, receivedCount: 1 })),
+                    .slice(0, options.zooCount ?? 3)
+                    .map((animal, index) => ({
+                        animal:
+                            options.stress && index === 0
+                                ? {
+                                      ...animal,
+                                      name: "名字很长的泡泡鱼朋友需要完整查看",
+                                  }
+                                : animal,
+                        receivedCount:
+                            options.stress && index === 0 ? 123456789 : 1,
+                    })),
             };
         },
         async collection() {

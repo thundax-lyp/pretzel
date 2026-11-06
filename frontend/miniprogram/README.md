@@ -14,6 +14,12 @@ npm run format:check
 
 类型检查使用 3.8.8 的引擎声明。Node 回归覆盖两关参考路径、遮挡、暂存、重复操作和 HTTP 契约。编辑器预览按钮由 Creator 的 PREVIEW 标志开放。微信 Debug 构建开放「本地试玩（调试）」。Web Debug 构建可显式附加 ?fixture=1 开放相同入口，正式构建保持关闭。预览使用独立内存数据。
 
+## 首页视觉检查
+
+首页使用 `home-layout.ts` 计算逻辑视口、安全区和分页容量，`home-view.ts` 渲染动物场景与实色文字区。长屏一页最多六种，短屏最多三种；本周只数按接口数量求和，种数与领取次数分开。详情显示精确数量，首页摘要按实际字形宽度缩写。冷启动恢复未领取资格仍受当前接口范围限制。
+
+仅本地试玩入口读取 `sys.localStorage` 的 `preview-zoo-count`（0—24，默认3）和 `preview-zoo-stress`（字符串true）；它们只传给内存预览API，正式连接不读取。微信工具游戏上下文可用 `wx.setStorageSync("preview-zoo-count", "9")` 和 `wx.setStorageSync("preview-zoo-stress", "true")` 设置样本，重新编译后进入试玩。清除这两个键恢复默认。压力样本只替换预览名称与次数，不修改动物目录或真实库存。
+
 ## 接入微信小游戏
 
 在 GameClient 的 apiOrigin 属性配置已加入微信请求域名白名单的 HTTPS 域名。客户端使用 `wx.login` 取得凭据，服务端以玩家会话认证 `/pretzel-game-api/api/v1`。启动时会读取当前可恢复对局、库存和本周动物园。

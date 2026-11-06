@@ -26,11 +26,21 @@ import {
     Tween,
 } from "cc";
 import { PREVIEW, DEBUG } from "cc/env";
-import type { Action, Card, GameApi, Prop, RunSnapshot } from "./contract";
+import type {
+    Action,
+    Card,
+    GameApi,
+    Prop,
+    RunSnapshot,
+    AnimalCount,
+} from "./contract";
 import { createHttpGameApi, GameApiError } from "./http-game-api";
 import { createPreviewApi } from "./preview-api";
 import { canPick, RunState } from "./run-state";
 import { skin } from "./ui-skin";
+import { renderHome } from "./home-view";
+import { homeAnimalDetail } from "./home-animal-detail";
+import { weekDates } from "./home-layout";
 import { layoutBoard } from "./board-layout";
 import { restorationState } from "./board-restoration";
 import { celebrate, deal, fly, pop, shake } from "./ui-effects";
@@ -73,6 +83,7 @@ export class GameClient extends Component {
     private foreground = true;
     private audio?: AudioSource;
     private animalClaimRun?: string;
+    private homePage = 0;
     private playerId?: string;
     private serial = 0;
     private scene: "start" | "home" | "game" = "start";
@@ -639,7 +650,22 @@ export class GameClient extends Component {
                 90,
                 () =>
                     void this.work(async () => {
-                        this.api = createPreviewApi();
+                        const previewCount = Number(
+                            sys.localStorage.getItem("preview-zoo-count") ||
+                                "3",
+                        );
+                        this.api = createPreviewApi({
+                            zooCount:
+                                Number.isInteger(previewCount) &&
+                                previewCount >= 0 &&
+                                previewCount <= 24
+                                    ? previewCount
+                                    : 3,
+                            stress:
+                                sys.localStorage.getItem(
+                                    "preview-zoo-stress",
+                                ) === "true",
+                        });
                         await this.home();
                     }),
                 gold,
@@ -689,145 +715,158 @@ export class GameClient extends Component {
             api.active(),
             api.inventory(),
         ]);
-        const page = this.clear("home");
-        this.music();
-        if (this.animalClaimRun)
-            this.button(
+        const seen = new Set<string>();
+        for (const item of zoo.items) {
+            if (
+                seen.has(item.animal.id) ||
+                !Number.isSafeInteger(item.receivedCount) ||
+                item.receivedCount < 0
+            )
+                throw new Error("动物园数据暂时异常，请重试");
+            seen.add(item.animal.id);
+        }
+        const draw = () => {
+            const page = this.clear("home");
+            this.music();
+            const size = view.getVisibleSize();
+            const logicalWidth =
+                typeof wx !== "undefined"
+                    ? wx.getWindowInfo().windowWidth
+                    : view.getFrameSize().width;
+            const scale = size.width / logicalWidth;
+            const capsule =
+                typeof wx !== "undefined"
+                    ? wx.getMenuButtonBoundingClientRect().bottom
+                    : 44;
+            const detail = (item?: AnimalCount) => {
+                if (item) {
+                    this.closeModal();
+                    this.modal = homeAnimalDetail(
+                        page,
+                        item,
+                        {
+                            width: logicalWidth,
+                            height: size.height / scale,
+                            scale,
+                            top: Math.max(this.topInset / scale, capsule + 12),
+                            bottom: this.bottomInset / scale,
+                        },
+                        () => this.closeModal(),
+                    );
+                } else
+                    this.showNotice(
+                        "本周收集",
+                        weekDates(zoo.weekId, true) +
+                            "\n已领取 " +
+                            zoo.items.reduce(
+                                (sum, entry) => sum + entry.receivedCount,
+                                0,
+                            ) +
+                            " 只 · " +
+                            zoo.items.length +
+                            " 种动物",
+                    );
+            };
+            const rendered = renderHome(
                 page,
-                "领取一只动物",
-                0,
-                -164,
-                580,
-                65,
-                () =>
-                    void this.work(async () => {
-                        const reward = await api.claimAnimal(
-                            this.animalClaimRun!,
-                        );
-                        this.animalClaimRun = undefined;
-                        await this.home();
-                        this.showNotice(
-                            "带一位朋友回家",
-                            reward.animal.name +
-                                " · 已获得 " +
-                                reward.receivedCount +
-                                " 次",
-                        );
-                    }),
-                gold,
-            );
-        const reserveCount = inventory.reserve.reduce(
-            (sum, entry) => sum + entry.quantity,
-            0,
-        );
-        const bag = this.button(
-            page,
-            "背包 " + reserveCount,
-            -225,
-            560 - this.topInset,
-            240,
-            86,
-            () =>
-                this.showList(
-                    "道具背包",
-                    props.map(
-                        (prop) =>
-                            names[prop] +
-                            " · 储备 " +
-                            (inventory.reserve.find(
-                                (entry) => entry.propType === prop,
-                            )?.quantity ?? 0),
+                {
+                    width: logicalWidth,
+                    height: size.height / scale,
+                    scale,
+                    safeTop: this.topInset / scale,
+                    safeBottom: this.bottomInset / scale,
+                    capsuleBottom: capsule,
+                },
+                {
+                    ...zoo,
+                    run: active.run,
+                    reserve: inventory.reserve.reduce(
+                        (sum, entry) => sum + entry.quantity,
+                        0,
                     ),
-                    "暂无储备",
-                ),
-        );
-        const bagIcon = this.point(bag, "Bag icon", -80, 0, 76, 76);
-        skin(bagIcon, "ui-atlas", 12);
-        const sign = this.point(
-            page,
-            "Zoo sign",
-            0,
-            470 - this.topInset,
-            530,
-            190,
-        );
-        skin(sign, "ui-atlas", 6);
-        this.label(page, "本周动物园", 0, 450 - this.topInset, 460, 70, 44);
-        const settings = this.button(
-            page,
-            "",
-            292,
-            560 - this.topInset,
-            90,
-            90,
-            () => this.settings(),
-        );
-        skin(settings, "ui-atlas", 8);
-        this.label(page, zoo.weekId + " · 本周动物", 0, 392 - this.topInset);
-        if (!zoo.items.length) this.label(page, "通关带一位新朋友回家", 0, 120);
-        zoo.items.slice(0, 9).forEach(({ animal }, i) => {
-            const x = ((i % 3) - 1) * 190;
-            const y = 250 - Math.floor(i / 3) * 156;
-            this.picture(page, animal.artworkKey, x, y, 185);
-            this.label(page, animal.name, x, y - 105, 176, 35, 21);
-        });
-        const fence = this.point(page, "Zoo fence", 0, 175, 690, 415);
-        skin(fence, "zoo-fence");
-        this.label(
-            page,
-            props
-                .map(
-                    (p) =>
-                        names[p] +
-                        " " +
-                        (inventory.reserve.find((r) => r.propType === p)
-                            ?.quantity ?? 0),
-                )
-                .join("    "),
-            0,
-            -140,
-        );
-        this.button(
-            page,
-            active.run ? "继续挑战" : "开始挑战",
-            0,
-            -255,
-            604,
-            130,
-            () =>
-                void this.work(async () => {
-                    if (!active.run) this.openingId ??= this.id();
-                    const run =
-                        active.run ?? (await api.start(this.openingId!));
-                    this.openingId = undefined;
-                    this.state = new RunState(api, run, () => this.id());
-                    this.showGame();
-                }),
-            gold,
-        );
-        this.button(
-            page,
-            "动物图鉴",
-            -205,
-            -438,
-            188,
-            190,
-            () =>
-                void this.work(async () => {
-                    const data = await api.collection();
-                    this.showCollection(data.items);
-                }),
-        );
-        this.button(page, "排行榜", 0, -438, 188, 190, () => this.showRank());
-        this.button(
-            page,
-            "分享",
-            205,
-            -438,
-            188,
-            190,
-            this.share("来看看我的动物园"),
-        );
+                    claim: Boolean(this.animalClaimRun),
+                    page: this.homePage,
+                },
+                {
+                    blocked: () =>
+                        this.busy || Boolean(this.modal) || !this.foreground,
+                    bag: () =>
+                        this.showList(
+                            "道具背包",
+                            props.map(
+                                (prop) =>
+                                    names[prop] +
+                                    " · 储备 " +
+                                    (inventory.reserve.find(
+                                        (entry) => entry.propType === prop,
+                                    )?.quantity ?? 0),
+                            ),
+                            "暂无储备",
+                        ),
+                    settings: () => this.settings(),
+                    detail,
+                    start: async () =>
+                        this.work(async () => {
+                            if (!active.run) this.openingId ??= this.id();
+                            const run =
+                                active.run ??
+                                (await api.start(this.openingId!));
+                            this.openingId = undefined;
+                            this.state = new RunState(api, run, () =>
+                                this.id(),
+                            );
+                            this.showGame();
+                        }),
+                    claim: async () =>
+                        this.work(async () => {
+                            let reward: Awaited<
+                                ReturnType<GameApi["claimAnimal"]>
+                            >;
+                            try {
+                                reward = await api.claimAnimal(
+                                    this.animalClaimRun!,
+                                );
+                            } catch (error) {
+                                draw();
+                                throw error;
+                            }
+                            this.animalClaimRun = undefined;
+                            try {
+                                await this.home();
+                            } catch {
+                                draw();
+                                this.showNotice(
+                                    "已领取，动物园刷新失败",
+                                    "动物奖励已确认，请重试刷新",
+                                    () => void this.work(() => this.home()),
+                                    "刷新动物园",
+                                );
+                                return;
+                            }
+                            this.showNotice(
+                                "带一位朋友回家",
+                                reward.animal.name +
+                                    " · 已获得 " +
+                                    reward.receivedCount +
+                                    " 次",
+                            );
+                        }),
+                    collection: () =>
+                        void this.work(async () => {
+                            const data = await api.collection();
+                            this.showCollection(data.items);
+                        }),
+                    rank: () => this.showRank(),
+                    share: this.share("来看看我的动物园"),
+                    page: (next) => {
+                        this.homePage = next;
+                        draw();
+                    },
+                },
+            );
+            this.homePage = rendered.page;
+        };
+        draw();
     }
 
     private showGame() {
