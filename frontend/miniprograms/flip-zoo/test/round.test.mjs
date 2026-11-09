@@ -206,7 +206,7 @@ test("all nine settings reserve exactly three copies per key kind and the reques
     }
 });
 
-function takeWithFullInformation(round) {
+function takeWithFullInformation(round, preferTop = false) {
     const available = round.cards.filter(
         (card) =>
             round.isOnBoard(card) && round.isSelectable(round.exposure(card)),
@@ -225,6 +225,7 @@ function takeWithFullInformation(round) {
         if (held === 2) score = 100;
         else if (shown + held >= 3) score = 60 + held;
         else if (held === 1 || shown === 2) score = 30 + held;
+        if (preferTop) score = score * 3 + card.layer;
         if (score > bestScore) {
             best = card;
             bestScore = score;
@@ -261,6 +262,7 @@ test("filling the active capacity without a match loses immediately", () => {
         assert.equal(round.slots.length, capacity);
         assert.equal(round.take(round.cards.at(-1).id), null);
         assert.equal(round.unlockNextSlot(), false);
+        assert.equal(round.use("remove"), false);
         assert.equal(round.moves, capacity);
     }
 });
@@ -274,4 +276,179 @@ test("a matching fifth tile clears before checking for failure", () => {
     assert.equal(round.firstMatchAt, 5);
     assert.equal(round.status, "playing");
     assert.equal(round.slots.length, 2);
+});
+
+test("undo preserves tile count and can only be used once", () => {
+    const round = new Round(2, "A");
+    const card = round.cards[126];
+    assert.equal(round.use("undo"), false);
+    assert.equal(round.take(card.id), 0);
+    assert.equal(round.use("undo"), true);
+    assert.equal(round.remaining, 189);
+    assert.equal(round.isOnBoard(card), true);
+    assert.equal(round.isFaceUp(card), true);
+    assert.equal(round.use("undo"), false);
+});
+
+test("peek samples three dark cards from the top layer and permits immediate takes", () => {
+    const round = new Round(2, "C", undefined, () => 0);
+    const previouslyVisible = new Set(
+        round.cards.filter((card) => round.isFaceUp(card)),
+    );
+    assert.equal(round.use("peek"), true);
+    assert.equal(round.cards.filter((card) => round.isFaceUp(card)).length, 9);
+    assert.deepEqual(
+        round.cards
+            .filter(
+                (card) => round.isFaceUp(card) && !previouslyVisible.has(card),
+            )
+            .map((card) => card.id),
+        [126, 127, 128],
+    );
+    assert.equal(round.take(0), null);
+    assert.equal(round.take(126), 0);
+    assert.equal(round.isFaceUp(round.cards[128]), true);
+    assert.equal(round.use("peek"), false);
+});
+
+test("peek goes down a layer when all cards above it are gone", () => {
+    const round = new Round(2, "A", undefined, () => 0);
+    round.unlockNextSlot();
+    round.unlockNextSlot();
+    while (
+        round.cards.some((card) => card.layer === 2 && round.isOnBoard(card))
+    ) {
+        assert.equal(round.status, "playing");
+        takeWithFullInformation(round, true);
+    }
+    const dark = round.cards.filter(
+        (card) => round.isOnBoard(card) && !round.isFaceUp(card),
+    );
+    const expected = dark.filter((card) => card.layer === 1).slice(0, 3);
+    assert.ok(expected.length > 0);
+    assert.equal(round.use("peek"), true);
+    assert.deepEqual(
+        dark.filter((card) => round.isFaceUp(card)),
+        expected,
+    );
+});
+
+test("remove completes a slotted pair before an earlier singleton", () => {
+    const round = new Round(2, "A");
+    assert.equal(round.use("remove"), false);
+    assert.equal(round.take(126), 0);
+    assert.equal(round.take(128), 0);
+    assert.equal(round.take(131), 0);
+    assert.equal(round.use("remove"), true);
+    assert.deepEqual(
+        round.slots.map((card) => card.id),
+        [126],
+    );
+    assert.equal(round.isOnBoard(round.cards[132]), false);
+    assert.equal(round.remaining, 186);
+    assert.equal(round.moves, 3);
+    assert.equal(round.firstMatchAt, "prop");
+    assert.equal(round.use("remove"), false);
+});
+
+test("remove falls back to the first singleton with two matches in the top layer", () => {
+    const round = new Round(
+        2,
+        "A",
+        buildBoardKinds({ keyGroups: 3, overlapGroups: 1 }),
+    );
+    assert.equal(round.take(173), 0);
+    const blocked = [0, 110].map((id) => round.cards[id]);
+    assert.ok(
+        blocked.every((card) => !round.isSelectable(round.exposure(card))),
+    );
+    assert.equal(round.use("remove"), false);
+    assert.equal(round.take(128), 0);
+    assert.equal(round.use("remove"), true);
+    assert.ok(blocked.every((card) => round.isOnBoard(card)));
+    assert.equal(round.isOnBoard(round.cards[131]), false);
+    assert.equal(round.isOnBoard(round.cards[132]), false);
+    assert.deepEqual(
+        round.slots.map((card) => card.id),
+        [173],
+    );
+});
+
+test("shuffle brings a blocked match into play and clears without moving reserved tiles", () => {
+    let seed = 10;
+    const random = () => {
+        seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+        return seed / 2 ** 32;
+    };
+    const round = new Round(
+        2,
+        "C",
+        buildBoardKinds({ keyGroups: 3, overlapGroups: 1 }),
+        random,
+    );
+    const taken = [145, 154, 155, 184, 188, 127, 128];
+    assert.deepEqual(
+        taken.map((id) => round.take(id)),
+        [0, 0, 3, 0, 0, 0, 0],
+    );
+    const before = round.cards;
+    const slots = [...round.slots];
+    assert.equal(slots.length, 4);
+    assert.equal(slots[0].kind, slots[1].kind);
+    const hasPlayableMatch = () =>
+        round.cards.some(
+            (card) =>
+                card.kind === slots[0].kind &&
+                round.isOnBoard(card) &&
+                round.isSelectable(round.exposure(card)),
+        );
+    assert.equal(hasPlayableMatch(), false);
+    const topKinds = (cards) =>
+        cards
+            .filter((card) => card.layer === 2 && round.isOnBoard(card))
+            .map((card) => card.kind)
+            .sort();
+    const visibleKinds = () =>
+        round.cards
+            .filter((card) => round.isOnBoard(card) && round.isFaceUp(card))
+            .map((card) => card.kind)
+            .sort();
+    const shown = visibleKinds();
+    assert.equal(round.use("shuffle"), true);
+    assert.equal(round.moves, taken.length);
+    assert.deepEqual(round.slots, slots);
+    assert.equal(hasPlayableMatch(), true);
+    assert.deepEqual(visibleKinds(), shown);
+    assert.deepEqual(
+        round.cards.map((card) => card.kind).sort(),
+        before.map((card) => card.kind).sort(),
+    );
+    assert.notDeepEqual(topKinds(round.cards), topKinds(before));
+    for (const card of round.cards) {
+        const previous = before[card.id];
+        assert.deepEqual(
+            [card.layer, card.left, card.top],
+            [previous.layer, previous.left, previous.top],
+        );
+        const wasTaken = taken.includes(card.id);
+        assert.equal(round.isOnBoard(card), !wasTaken);
+        if ([2, 13, 15].includes(previous.kind) || wasTaken) {
+            assert.equal(card.kind, previous.kind);
+        }
+    }
+    assert.equal(round.use("shuffle"), false);
+    while (round.status === "playing") takeWithFullInformation(round);
+    assert.equal(round.status, "won");
+});
+
+test("a shuffle with no legal continuation preserves the board and the use", () => {
+    const round = new Round(2, "A", undefined, () => 0);
+    for (const id of [126, 127, 128, 130]) assert.equal(round.take(id), 0);
+    const before = round.cards;
+    assert.equal(round.use("shuffle"), false);
+    assert.equal(round.cards, before);
+    assert.equal(round.status, "playing");
+    assert.equal(round.moves, 4);
+    assert.equal(round.slots.length, 4);
+    assert.equal(round.canUse("shuffle"), true);
 });
