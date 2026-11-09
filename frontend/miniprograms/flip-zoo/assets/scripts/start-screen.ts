@@ -12,6 +12,7 @@ import {
     type EventTouch,
     type SpriteFrame,
 } from "cc";
+import { WECHAT } from "cc/env";
 import { loadZooArtwork, type ZooArtwork } from "./artwork";
 import { CardView, color, label, picture, uiNode } from "./card-view";
 import { ClearCelebration } from "./clear-celebration";
@@ -83,10 +84,10 @@ export class FlipZooStartScreen extends Component {
     private requestVersion = 0;
     private loadingBoard = false;
     private progress!: Label;
-    private steps!: Label;
+    private steps?: Label;
     private slotStatus!: Label;
     private message!: Label;
-    private otherLevel!: Control;
+    private otherLevel?: Control;
     private tutorialRibbon!: Node;
 
     async start(): Promise<void> {
@@ -122,18 +123,20 @@ export class FlipZooStartScreen extends Component {
     private createGame(): void {
         this.panel(this.gameRoot, "Sign", 608, 520, 77, "#264F3C", "#E9C984");
         this.text("翻翻动物园", 608, 50, "#FFF0BD").isBold = true;
-        this.text("本地试玩 · 第二关对照", 553, 24, "#355A46");
-        GROUPS.forEach((group, index) => {
-            const button = this.button(
-                GROUP_LABELS[group],
-                (index - 1) * 221,
-                498,
-                208,
-                () => void this.startMainBoard(group),
-            );
-            this.groupButtons.set(group, button);
-        });
-        this.steps = this.text("", 400, 23, "#466855");
+        if (!WECHAT) {
+            this.text("本地试玩 · 第二关对照", 553, 24, "#355A46");
+            GROUPS.forEach((group, index) => {
+                const button = this.button(
+                    GROUP_LABELS[group],
+                    (index - 1) * 221,
+                    498,
+                    208,
+                    () => void this.startMainBoard(group),
+                );
+                this.groupButtons.set(group, button);
+            });
+            this.steps = this.text("", 400, 23, "#466855");
+        }
         this.progress = this.text("", 435, 30, "#264F3C");
         this.progress.isBold = true;
         this.message = this.text("", 369, 24, "#355A46");
@@ -163,26 +166,28 @@ export class FlipZooStartScreen extends Component {
         }
         this.button(
             "重开本关",
-            -169,
+            WECHAT ? 0 : -169,
             -521,
             296,
             () => this.restartRound(),
             this.gameRoot,
             60,
         );
-        this.otherLevel = this.button(
-            "",
-            169,
-            -521,
-            296,
-            () => {
-                if (this.round.level === 1)
-                    void this.startMainBoard(this.round.group);
-                else this.openRound(1, this.round.group);
-            },
-            this.gameRoot,
-            60,
-        );
+        if (!WECHAT) {
+            this.otherLevel = this.button(
+                "",
+                169,
+                -521,
+                296,
+                () => {
+                    if (this.round.level === 1)
+                        void this.startMainBoard(this.round.group);
+                    else this.openRound(1, this.round.group);
+                },
+                this.gameRoot,
+                60,
+            );
+        }
         this.tutorialRibbon = this.panel(
             this.gameRoot,
             "TutorialRibbon",
@@ -220,6 +225,7 @@ export class FlipZooStartScreen extends Component {
         const version = ++this.requestVersion;
         let boardKinds: readonly number[] | undefined;
         if (
+            !WECHAT &&
             typeof location !== "undefined" &&
             location.origin === "http://127.0.0.1:8874"
         ) {
@@ -284,7 +290,10 @@ export class FlipZooStartScreen extends Component {
         for (const [key, button] of this.groupButtons) {
             this.paintButton(button, level === 2 && group === key);
         }
-        this.otherLevel.caption.string = level === 1 ? "去第二关" : "回第一关";
+        if (!WECHAT && this.otherLevel) {
+            this.otherLevel.caption.string =
+                level === 1 ? "去第二关" : "回第一关";
+        }
         this.message.string =
             level === 1 ? "点一张牌入槽，翻开上下左右" : GROUP_HINTS[group];
         this.message.color = color("#355A46");
@@ -349,6 +358,10 @@ export class FlipZooStartScreen extends Component {
             this.loadingBoard
         )
             return;
+        if (WECHAT) {
+            this.message.string = "额外卡槽暂未开放";
+            return;
+        }
         if (index > this.round.slotCapacity) {
             this.message.string = `请先解锁第 ${this.round.slotCapacity + 1} 格`;
             return;
@@ -544,22 +557,24 @@ export class FlipZooStartScreen extends Component {
             const card = round.slots[index];
             if (card) slot.show(card.kind, FULL_EXPOSURE, true);
             else if (index < round.slotCapacity) slot.showEmpty();
-            else slot.showEmpty("广告");
+            else slot.showEmpty(WECHAT ? "未开放" : "广告");
         });
         for (const [prop, button] of this.propButtons) {
             button.graphic.node.active = round.level === 2;
             this.paintButton(button, false, round.canUse(prop));
         }
         this.tutorialRibbon.active = round.level === 1;
-        const stage = `第 ${round.level} 关${round.level === 2 ? ` · ${round.group} 组` : ""}`;
+        const stage = `第 ${round.level} 关${!WECHAT && round.level === 2 ? ` · ${round.group} 组` : ""}`;
         this.progress.string = `${stage}     剩余 ${round.remaining}/${round.cards.length}`;
-        const first =
-            typeof round.firstMatchAt === "number"
-                ? `第 ${round.firstMatchAt} 张`
-                : round.firstMatchAt === "prop"
-                  ? "道具"
-                  : "—";
-        this.steps.string = `已入槽 ${round.moves} 次     首消 ${first}`;
+        if (!WECHAT && this.steps) {
+            const first =
+                typeof round.firstMatchAt === "number"
+                    ? `第 ${round.firstMatchAt} 张`
+                    : round.firstMatchAt === "prop"
+                      ? "道具"
+                      : "—";
+            this.steps.string = `已入槽 ${round.moves} 次     首消 ${first}`;
+        }
         const danger =
             round.status === "playing" &&
             round.slots.length === round.slotCapacity - 1;
