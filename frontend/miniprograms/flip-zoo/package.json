@@ -8,7 +8,8 @@
         "test": "node --test test/*.test.mjs",
         "lint": "oxlint --config ../../../.oxlintrc.json --deny-warnings assets scripts test",
         "format:check": "prettier --check assets/scripts scripts test package.json tsconfig.json \"settings/**/*.json\"",
-        "build:web": "node scripts/build-web.mjs",
+        "build:web": "node scripts/build-cocos.mjs web-mobile",
+        "build:wechat": "node scripts/build-cocos.mjs wechatgame",
         "preview": "node scripts/preview-web.mjs",
         "compare:difficulty": "node scripts/compare-difficulty.mjs"
     },

@@ -1,0 +1,37 @@
+{
+    "ver": "1.0.27",
+    "importer": "image",
+    "imported": true,
+    "uuid": "b7161954-c05c-4f0f-847d-6739b8f6e500",
+    "files": [".json", ".png"],
+    "subMetas": {
+        "6c48a": {
+            "importer": "texture",
+            "uuid": "b7161954-c05c-4f0f-847d-6739b8f6e500@6c48a",
+            "displayName": "animal-portraits",
+            "id": "6c48a",
+            "name": "texture",
+            "userData": {
+                "wrapModeS": "repeat",
+                "wrapModeT": "repeat",
+                "minfilter": "linear",
+                "magfilter": "linear",
+                "mipfilter": "none",
+                "anisotropy": 0,
+                "isUuid": true,
+                "imageUuidOrDatabaseUri": "b7161954-c05c-4f0f-847d-6739b8f6e500",
+                "visible": false
+            },
+            "ver": "1.0.22",
+            "imported": true,
+            "files": [".json"],
+            "subMetas": {}
+        }
+    },
+    "userData": {
+        "type": "texture",
+        "fixAlphaTransparencyArtifacts": false,
+        "hasAlpha": true,
+        "redirect": "b7161954-c05c-4f0f-847d-6739b8f6e500@6c48a"
+    }
+}

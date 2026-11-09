@@ -1,6 +1,6 @@
 # 翻翻动物园
 
-`flip-zoo` 是独立的 Cocos Creator 3.8.8（3.8 LTS）和 TypeScript 工程。当前 `start` 场景是 750 × 1334 的竖屏本地玩法原型。
+`flip-zoo` 用一个 Cocos Creator 3.8.8（3.8 LTS）工程构建 Web Demo 和微信小游戏。两种构建共用 750 × 1334 的竖屏 `start` 场景、资源与 TypeScript 游戏规则。
 
 ## 本地试玩
 
@@ -17,6 +17,14 @@ npm run preview
 打开 [难度后台](http://127.0.0.1:8874/admin) 可调整第二关的命门组数和直接叠压组数。设置保存在本地预览目录 `local/difficulty.json`，重开第二关或切换 A/B/C 后生效。Creator 直接预览使用内置牌局。
 
 玩法、道具及难度设置范围见「设计方案」下的「《翻翻动物园》玩法与道具」。[工程文档导航](../../../docs/README.md)
+
+## 微信小游戏
+
+在本机私有环境提供《翻翻动物园》自己的 `FLIP_ZOO_WECHAT_GAME_APP_ID`，再执行 `npm run build:wechat`。将 `build/wechatgame` 导入微信开发者工具，使用小游戏项目类型进行预览和真机验证。
+
+本地模拟器调试可执行 `npm run build:wechat -- --test`。该命令用 Cocos 的公开测试 AppID 生成 `build/wechatgame-test`。在微信开发者工具选择「小游戏」→「导入」，指定这个目录，在 AppID 栏选择工具提供的「测试号」，选择「不使用云服务」后创建并编译。正式验收使用游戏自己的 AppID 构建。
+
+两个微信构建都使用默认牌局，玩家从教学关开始。A/B/C 对照、难度后台和模拟广告由 Web Demo 提供。
 
 ## 难度对照
 
@@ -35,5 +43,3 @@ npm test
 npm run lint
 npm run format:check
 ```
-
-在 Creator 构建微信小游戏时选择 `start` 为初始场景，填写该游戏自己的 AppID，选择竖屏，再将产物导入微信开发者工具。
