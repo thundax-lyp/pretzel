@@ -23,6 +23,7 @@ execFileSync(process.execPath, [
     "assets/scripts/preview-api.ts",
     "assets/scripts/http-game-api.ts",
     "assets/scripts/board-layout.ts",
+    "assets/scripts/home-layout.ts",
 ]);
 const require = createRequire(import.meta.url);
 const { createPreviewApi } = require(join(out, "preview-api.js"));
@@ -494,4 +495,54 @@ test("runtime animal attributes match the level catalog and reject inconsistent 
             /不一致/,
         );
     }
+});
+
+test("home layout preserves full animal rows at capacity boundaries and safe bottom", () => {
+    const { homeLayout, weekDates, quantityText } = require(
+        join(out, "home-layout.js"),
+    );
+    const long = homeLayout(390, 844, 47, 34, 76);
+    const short = homeLayout(375, 667, 0, 0, 44);
+    assert.equal(long.capacity, 6);
+    assert.equal(long.sceneHeight, 388);
+    assert.equal(short.capacity, 3);
+    assert.equal(short.sceneHeight, 224);
+    for (const layout of [long, short])
+        assert.ok(layout.navigation + 44 <= layout.contentHeight - 16);
+    for (const [available, capacity] of [
+        [223, 3],
+        [224, 3],
+        [387, 3],
+        [388, 6],
+    ]) {
+        const height = 188 + 180 + 16 + available;
+        const layout = homeLayout(375, height, 0, 0, 44);
+        assert.equal(layout.capacity, capacity);
+        if (available < 224) assert.ok(layout.contentHeight > height);
+    }
+    assert.equal(weekDates("2026-11-30"), "11月30日—12月6日");
+    assert.equal(weekDates("2026-12-28", true), "2026年12月28日—2027年1月3日");
+    assert.equal(
+        quantityText(12345, (text) => text.length <= 4),
+        "1.2万",
+    );
+    assert.equal(
+        quantityText(123456789, (text) => text.length <= 3),
+        "1亿",
+    );
+    assert.equal(
+        quantityText(1234567890000, (text) => text.length <= 3),
+        "≥1亿",
+    );
+});
+
+test("preview zoo fixtures cover empty, paged, and long-name large-count states without mutating catalog", async () => {
+    for (const zooCount of [0, 3, 9, 12]) {
+        const data = await createPreviewApi({ zooCount, stress: true }).zoo();
+        assert.equal(data.items.length, zooCount);
+        if (zooCount) assert.equal(data.items[0].receivedCount, 123456789);
+    }
+    const normal = await createPreviewApi().zoo();
+    assert.equal(normal.items[0].receivedCount, 1);
+    assert.ok(normal.items[0].animal.name.length < 10);
 });

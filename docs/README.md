@@ -7,7 +7,7 @@
 - [接口契约](20-interfaces/README.md)：认证协议和游戏交互契约。
 - [设计方案](30-designs/README.md)：领域、客户端、生成算法和数据设计。
 - [验收记录](40-readiness/README.md)：实现与验证证据。
-- [项目评审技能](../.agents/skills/README.md)：PR 评审与评论修复。
+- [项目技能](../.agents/skills/README.md)：PR 评审、评论修复、关卡设计与游戏界面审核。
 - [开发检查](../scripts/README.md)：格式化、lint 与验证命令。
 - [部署操作](../deploy/README.md)：smoke 与 release 基础环境配置。
 

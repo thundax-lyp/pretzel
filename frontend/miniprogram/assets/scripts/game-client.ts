@@ -18,16 +18,29 @@ import {
     game,
     Game,
     sys,
+    Texture2D,
+    Sprite,
+    SpriteFrame,
     Vec3,
     tween,
     Tween,
 } from "cc";
 import { PREVIEW, DEBUG } from "cc/env";
-import type { Action, Card, GameApi, Prop, RunSnapshot } from "./contract";
+import type {
+    Action,
+    Card,
+    GameApi,
+    Prop,
+    RunSnapshot,
+    AnimalCount,
+} from "./contract";
 import { createHttpGameApi, GameApiError } from "./http-game-api";
 import { createPreviewApi } from "./preview-api";
 import { canPick, RunState } from "./run-state";
 import { skin } from "./ui-skin";
+import { renderHome } from "./home-view";
+import { homeAnimalDetail } from "./home-animal-detail";
+import { weekDates } from "./home-layout";
 import { layoutBoard } from "./board-layout";
 import { restorationState } from "./board-restoration";
 import { celebrate, deal, fly, pop, shake } from "./ui-effects";
@@ -70,6 +83,7 @@ export class GameClient extends Component {
     private foreground = true;
     private audio?: AudioSource;
     private animalClaimRun?: string;
+    private homePage = 0;
     private playerId?: string;
     private serial = 0;
     private scene: "start" | "home" | "game" = "start";
@@ -87,6 +101,11 @@ export class GameClient extends Component {
     >();
     private dealtKey = "";
     private dealingUntil = 0;
+    private startupReady = false;
+    private startupProgress = 0;
+    private startupTrack?: Graphics;
+    private startupTurtle?: Node;
+    private startupCaption?: Label;
     private topInset = 0;
     private bottomInset = 0;
 
@@ -97,16 +116,18 @@ export class GameClient extends Component {
             height,
             ResolutionPolicy.FIXED_WIDTH,
         );
-        const safe = sys.getSafeAreaRect();
-        this.topInset = Math.max(0, height - safe.y - safe.height);
+        const safe = sys.getSafeAreaRect(false);
+        this.topInset = Math.max(
+            0,
+            view.getVisibleSize().height - safe.y - safe.height,
+        );
         this.bottomInset = Math.max(0, safe.y);
         game.on(Game.EVENT_SHOW, this.onShow, this);
         game.on(Game.EVENT_HIDE, this.onHide, this);
         this.audio = this.node.addComponent(AudioSource);
         this.audio.loop = true;
         this.showStart();
-        if (this.apiOrigin && typeof wx !== "undefined")
-            void this.work(() => this.connect());
+        void this.work(() => this.prepareStart());
     }
 
     onDestroy() {
@@ -370,7 +391,8 @@ export class GameClient extends Component {
                     }
                 }
                 this.showGame();
-            } else this.showNotice("暂时无法完成", this.message);
+            } else if (this.scene === "start") this.showStart();
+            else this.showNotice("暂时无法完成", this.message);
         } finally {
             this.busy = false;
         }
@@ -431,47 +453,258 @@ export class GameClient extends Component {
             : undefined;
     }
 
+    private updateStartup(progress: number, caption: string) {
+        this.startupProgress = progress;
+        if (this.scene !== "start") return;
+        const track = this.startupTrack;
+        if (track?.isValid) {
+            track.clear();
+            track.fillColor = new Color().fromHEX("#314b2755");
+            track.roundRect(-245, -7, 490, 14, 7);
+            track.fill();
+            if (progress > 0) {
+                track.fillColor = new Color().fromHEX("#83c747");
+                track.roundRect(-245, -7, Math.max(14, 490 * progress), 14, 7);
+                track.fill();
+            }
+        }
+        if (this.startupTurtle?.isValid)
+            this.startupTurtle.setPosition(-245 + 490 * progress, 18);
+        if (this.startupCaption?.isValid) this.startupCaption.string = caption;
+    }
+
+    private async prepareStart() {
+        this.startupReady = false;
+        this.startupProgress = 0;
+        this.showStart();
+        const sources = ["meadow", "animal-cutouts", "ui-atlas"];
+        let completed = 0;
+        const results = await Promise.allSettled(
+            sources.map(
+                (source) =>
+                    new Promise<void>((resolve, reject) => {
+                        resources.load(
+                            "ui/" + source + "/texture",
+                            Texture2D,
+                            (error) => {
+                                if (error) {
+                                    reject(
+                                        new Error("画面资源加载失败，请重试"),
+                                    );
+                                    return;
+                                }
+                                completed++;
+                                this.updateStartup(
+                                    (completed / sources.length) * 0.7,
+                                    "正在布置动物园…",
+                                );
+                                resolve();
+                            },
+                        );
+                    }),
+            ),
+        );
+        if (results.some((result) => result.status === "rejected"))
+            throw new Error("画面资源加载失败，请重试");
+        this.startupReady = true;
+        if (this.apiOrigin && typeof wx !== "undefined") {
+            this.updateStartup(0.8, "正在连接动物园…");
+            await this.connect();
+        } else {
+            this.updateStartup(1, "动物朋友准备好了");
+            this.showStart();
+        }
+    }
+
     private showStart() {
         const page = this.clear("start");
-        this.label(page, "腿了个腿", 0, 405 - this.topInset, 680, 120, 78);
-        this.label(page, "数眼睛，凑腿数", 0, 308 - this.topInset, 680, 70, 34);
-        for (const [i, key] of ["A05", "A03", "A08"].entries())
-            this.picture(page, key, (i - 1) * 200, 75, 165);
-        this.button(
-            page,
-            this.apiOrigin ? "连接并进入动物园" : "在线服务待配置",
-            0,
-            -240,
-            540,
-            85,
-            this.apiOrigin
-                ? () => void this.work(() => this.connect())
-                : undefined,
-            cream,
+        const startText = (
+            text: string,
+            y: number,
+            w: number,
+            h: number,
+            size: number,
+            color = "#204c43",
+            bold = false,
+        ) => {
+            const node = this.label(page, text, 0, y, w, h, size);
+            const label = node.getComponent(Label)!;
+            label.color = new Color().fromHEX(color);
+            label.isBold = bold;
+            label.enableOutline = true;
+            label.outlineColor = new Color().fromHEX("#fffbed");
+            label.outlineWidth = size >= 30 ? 1.5 : 0.7;
+            return label;
+        };
+        const visible = view.getVisibleSize().height;
+        const top = visible / 2 - this.topInset;
+        const bottom = -visible / 2 + this.bottomInset;
+        const center = (top + bottom) / 2;
+        const logo = this.point(page, "Game brand", 0, center + 350, 580, 154);
+        const fallback = this.label(logo, "腿了个腿", 0, 0, 580, 154, 78);
+        fallback.getComponent(Label)!.color = new Color().fromHEX("#20564a");
+        resources.load(
+            "ui/start-title/texture",
+            Texture2D,
+            (error, texture) => {
+                if (error || !logo.isValid) return;
+                const frame = new SpriteFrame();
+                frame.texture = texture;
+                const sprite = logo.addComponent(Sprite);
+                sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+                sprite.spriteFrame = frame;
+                fallback.active = false;
+            },
         );
-        if (this.previewEnabled)
+        startText("数眼睛，凑腿数", center + 240, 580, 55, 30, "#204c43", true);
+        for (const [i, key] of ["A05", "A03", "A08"].entries()) {
+            const x = (i - 1) * 190;
+            const shadow = this.point(
+                page,
+                "Animal shadow",
+                x,
+                center + 1,
+                150,
+                22,
+            );
+            const drawing = shadow.addComponent(Graphics);
+            drawing.fillColor = new Color().fromHEX("#3e70262c");
+            drawing.ellipse(0, 0, 63, 10);
+            drawing.fill();
+            this.picture(
+                page,
+                key,
+                x,
+                center + (i === 1 ? 68 : 45),
+                i === 1 ? 185 : 165,
+            );
+        }
+        const track = this.point(
+            page,
+            "Preparation progress",
+            0,
+            center - 130,
+            520,
+            70,
+        );
+        this.startupTrack = track.addComponent(Graphics);
+        const turtle = this.point(track, "Loading turtle", -245, 18, 64, 46);
+        this.startupTurtle = turtle;
+        const drawing = turtle.addComponent(Graphics);
+        drawing.fillColor = new Color().fromHEX("#436c31");
+        for (const [x, y] of [
+            [-15, -12],
+            [15, -12],
+            [-15, 10],
+            [15, 10],
+        ]) {
+            drawing.ellipse(x, y, 7, 6);
+        }
+        drawing.fill();
+        drawing.fillColor = new Color().fromHEX("#a3ce59");
+        drawing.ellipse(26, 2, 11, 10);
+        drawing.fill();
+        drawing.fillColor = new Color().fromHEX("#669d3d");
+        drawing.ellipse(0, 0, 25, 18);
+        drawing.fill();
+        drawing.strokeColor = new Color().fromHEX("#d8eaa0");
+        drawing.lineWidth = 2;
+        drawing.ellipse(0, 0, 16, 12);
+        drawing.stroke();
+        drawing.fillColor = new Color().fromHEX(ink);
+        drawing.circle(30, 5, 2);
+        drawing.fill();
+        this.panel(page, 0, center - 184, 540, 54, "#fffbedde", false);
+        this.startupCaption = startText(
+            "",
+            center - 184,
+            520,
+            48,
+            24,
+            this.message ? "#893e37" : "#204c43",
+            true,
+        );
+        this.updateStartup(
+            this.startupProgress,
+            this.message ||
+                (this.startupReady ? "动物朋友准备好了" : "正在布置动物园…"),
+        );
+        if (this.message) {
             this.button(
                 page,
-                "本地试玩（调试）",
+                "重新准备",
                 0,
-                -352,
-                450,
-                76,
+                center - 320,
+                430,
+                90,
+                () => void this.work(() => this.prepareStart()),
+                gold,
+            );
+        } else if (this.startupReady && this.previewEnabled) {
+            this.button(
+                page,
+                "开始试玩",
+                0,
+                center - 320,
+                430,
+                90,
                 () =>
                     void this.work(async () => {
-                        this.api = createPreviewApi();
+                        const previewCount = Number(
+                            sys.localStorage.getItem("preview-zoo-count") ||
+                                "3",
+                        );
+                        this.api = createPreviewApi({
+                            zooCount:
+                                Number.isInteger(previewCount) &&
+                                previewCount >= 0 &&
+                                previewCount <= 24
+                                    ? previewCount
+                                    : 3,
+                            stress:
+                                sys.localStorage.getItem(
+                                    "preview-zoo-stress",
+                                ) === "true",
+                        });
                         await this.home();
                     }),
                 gold,
             );
-        this.label(
-            page,
+            startText(
+                "本地调试 · 进度仅保存在本次试玩",
+                center - 392,
+                620,
+                40,
+                20,
+                "#304c47",
+            );
+        } else if (this.startupReady) {
+            startText(
+                "暂时无法连接动物园，请稍后重试",
+                center - 320,
+                620,
+                70,
+                24,
+                "#893e37",
+            );
+            this.button(
+                page,
+                "重试",
+                0,
+                center - 410,
+                360,
+                76,
+                () => void this.work(() => this.prepareStart()),
+            );
+        }
+        this.panel(page, 0, bottom + 90, 420, 45, "#fffbedde", false);
+        startText(
             "轻松动脑 · 合理安排时间",
-            0,
-            -565 + this.bottomInset,
-            650,
-            60,
-            22,
+            bottom + 90,
+            410,
+            44,
+            21,
+            "#304c47",
         );
     }
 
@@ -482,145 +715,158 @@ export class GameClient extends Component {
             api.active(),
             api.inventory(),
         ]);
-        const page = this.clear("home");
-        this.music();
-        if (this.animalClaimRun)
-            this.button(
+        const seen = new Set<string>();
+        for (const item of zoo.items) {
+            if (
+                seen.has(item.animal.id) ||
+                !Number.isSafeInteger(item.receivedCount) ||
+                item.receivedCount < 0
+            )
+                throw new Error("动物园数据暂时异常，请重试");
+            seen.add(item.animal.id);
+        }
+        const draw = () => {
+            const page = this.clear("home");
+            this.music();
+            const size = view.getVisibleSize();
+            const logicalWidth =
+                typeof wx !== "undefined"
+                    ? wx.getWindowInfo().windowWidth
+                    : view.getFrameSize().width;
+            const scale = size.width / logicalWidth;
+            const capsule =
+                typeof wx !== "undefined"
+                    ? wx.getMenuButtonBoundingClientRect().bottom
+                    : 44;
+            const detail = (item?: AnimalCount) => {
+                if (item) {
+                    this.closeModal();
+                    this.modal = homeAnimalDetail(
+                        page,
+                        item,
+                        {
+                            width: logicalWidth,
+                            height: size.height / scale,
+                            scale,
+                            top: Math.max(this.topInset / scale, capsule + 12),
+                            bottom: this.bottomInset / scale,
+                        },
+                        () => this.closeModal(),
+                    );
+                } else
+                    this.showNotice(
+                        "本周收集",
+                        weekDates(zoo.weekId, true) +
+                            "\n已领取 " +
+                            zoo.items.reduce(
+                                (sum, entry) => sum + entry.receivedCount,
+                                0,
+                            ) +
+                            " 只 · " +
+                            zoo.items.length +
+                            " 种动物",
+                    );
+            };
+            const rendered = renderHome(
                 page,
-                "领取一只动物",
-                0,
-                -164,
-                580,
-                65,
-                () =>
-                    void this.work(async () => {
-                        const reward = await api.claimAnimal(
-                            this.animalClaimRun!,
-                        );
-                        this.animalClaimRun = undefined;
-                        await this.home();
-                        this.showNotice(
-                            "带一位朋友回家",
-                            reward.animal.name +
-                                " · 已获得 " +
-                                reward.receivedCount +
-                                " 次",
-                        );
-                    }),
-                gold,
-            );
-        const reserveCount = inventory.reserve.reduce(
-            (sum, entry) => sum + entry.quantity,
-            0,
-        );
-        const bag = this.button(
-            page,
-            "背包 " + reserveCount,
-            -225,
-            560 - this.topInset,
-            240,
-            86,
-            () =>
-                this.showList(
-                    "道具背包",
-                    props.map(
-                        (prop) =>
-                            names[prop] +
-                            " · 储备 " +
-                            (inventory.reserve.find(
-                                (entry) => entry.propType === prop,
-                            )?.quantity ?? 0),
+                {
+                    width: logicalWidth,
+                    height: size.height / scale,
+                    scale,
+                    safeTop: this.topInset / scale,
+                    safeBottom: this.bottomInset / scale,
+                    capsuleBottom: capsule,
+                },
+                {
+                    ...zoo,
+                    run: active.run,
+                    reserve: inventory.reserve.reduce(
+                        (sum, entry) => sum + entry.quantity,
+                        0,
                     ),
-                    "暂无储备",
-                ),
-        );
-        const bagIcon = this.point(bag, "Bag icon", -80, 0, 76, 76);
-        skin(bagIcon, "ui-atlas", 12);
-        const sign = this.point(
-            page,
-            "Zoo sign",
-            0,
-            470 - this.topInset,
-            530,
-            190,
-        );
-        skin(sign, "ui-atlas", 6);
-        this.label(page, "本周动物园", 0, 450 - this.topInset, 460, 70, 44);
-        const settings = this.button(
-            page,
-            "",
-            292,
-            560 - this.topInset,
-            90,
-            90,
-            () => this.settings(),
-        );
-        skin(settings, "ui-atlas", 8);
-        this.label(page, zoo.weekId + " · 本周动物", 0, 392 - this.topInset);
-        if (!zoo.items.length) this.label(page, "通关带一位新朋友回家", 0, 120);
-        zoo.items.slice(0, 9).forEach(({ animal }, i) => {
-            const x = ((i % 3) - 1) * 190;
-            const y = 250 - Math.floor(i / 3) * 156;
-            this.picture(page, animal.artworkKey, x, y, 185);
-            this.label(page, animal.name, x, y - 105, 176, 35, 21);
-        });
-        const fence = this.point(page, "Zoo fence", 0, 175, 690, 415);
-        skin(fence, "zoo-fence");
-        this.label(
-            page,
-            props
-                .map(
-                    (p) =>
-                        names[p] +
-                        " " +
-                        (inventory.reserve.find((r) => r.propType === p)
-                            ?.quantity ?? 0),
-                )
-                .join("    "),
-            0,
-            -140,
-        );
-        this.button(
-            page,
-            active.run ? "继续挑战" : "开始挑战",
-            0,
-            -255,
-            604,
-            130,
-            () =>
-                void this.work(async () => {
-                    if (!active.run) this.openingId ??= this.id();
-                    const run =
-                        active.run ?? (await api.start(this.openingId!));
-                    this.openingId = undefined;
-                    this.state = new RunState(api, run, () => this.id());
-                    this.showGame();
-                }),
-            gold,
-        );
-        this.button(
-            page,
-            "动物图鉴",
-            -205,
-            -438,
-            188,
-            190,
-            () =>
-                void this.work(async () => {
-                    const data = await api.collection();
-                    this.showCollection(data.items);
-                }),
-        );
-        this.button(page, "排行榜", 0, -438, 188, 190, () => this.showRank());
-        this.button(
-            page,
-            "分享",
-            205,
-            -438,
-            188,
-            190,
-            this.share("来看看我的动物园"),
-        );
+                    claim: Boolean(this.animalClaimRun),
+                    page: this.homePage,
+                },
+                {
+                    blocked: () =>
+                        this.busy || Boolean(this.modal) || !this.foreground,
+                    bag: () =>
+                        this.showList(
+                            "道具背包",
+                            props.map(
+                                (prop) =>
+                                    names[prop] +
+                                    " · 储备 " +
+                                    (inventory.reserve.find(
+                                        (entry) => entry.propType === prop,
+                                    )?.quantity ?? 0),
+                            ),
+                            "暂无储备",
+                        ),
+                    settings: () => this.settings(),
+                    detail,
+                    start: async () =>
+                        this.work(async () => {
+                            if (!active.run) this.openingId ??= this.id();
+                            const run =
+                                active.run ??
+                                (await api.start(this.openingId!));
+                            this.openingId = undefined;
+                            this.state = new RunState(api, run, () =>
+                                this.id(),
+                            );
+                            this.showGame();
+                        }),
+                    claim: async () =>
+                        this.work(async () => {
+                            let reward: Awaited<
+                                ReturnType<GameApi["claimAnimal"]>
+                            >;
+                            try {
+                                reward = await api.claimAnimal(
+                                    this.animalClaimRun!,
+                                );
+                            } catch (error) {
+                                draw();
+                                throw error;
+                            }
+                            this.animalClaimRun = undefined;
+                            try {
+                                await this.home();
+                            } catch {
+                                draw();
+                                this.showNotice(
+                                    "已领取，动物园刷新失败",
+                                    "动物奖励已确认，请重试刷新",
+                                    () => void this.work(() => this.home()),
+                                    "刷新动物园",
+                                );
+                                return;
+                            }
+                            this.showNotice(
+                                "带一位朋友回家",
+                                reward.animal.name +
+                                    " · 已获得 " +
+                                    reward.receivedCount +
+                                    " 次",
+                            );
+                        }),
+                    collection: () =>
+                        void this.work(async () => {
+                            const data = await api.collection();
+                            this.showCollection(data.items);
+                        }),
+                    rank: () => this.showRank(),
+                    share: this.share("来看看我的动物园"),
+                    page: (next) => {
+                        this.homePage = next;
+                        draw();
+                    },
+                },
+            );
+            this.homePage = rendered.page;
+        };
+        draw();
     }
 
     private showGame() {
