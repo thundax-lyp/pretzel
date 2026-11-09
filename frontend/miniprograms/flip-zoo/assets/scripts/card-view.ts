@@ -101,13 +101,18 @@ export class CardView {
         );
     }
 
-    showEmpty(): void {
-        if (this.lastAppearance === "empty") return;
-        this.lastAppearance = "empty";
-        this.mark.string = "";
+    showEmpty(locked = false): void {
+        const appearance = locked ? "locked" : "empty";
+        if (this.lastAppearance === appearance) return;
+        this.lastAppearance = appearance;
+        this.mark.string = locked ? "广告" : "";
+        this.mark.fontSize = 21;
+        this.mark.lineHeight = 26;
+        this.mark.color = color("#F2D38F");
+        this.mark.node.setPosition(0, 0);
         this.body.clear();
-        this.body.fillColor = color("#183B30");
-        this.body.strokeColor = color("#57806E");
+        this.body.fillColor = color(locked ? "#3C4434" : "#183B30");
+        this.body.strokeColor = color(locked ? "#B28E5A" : "#57806E");
         this.body.lineWidth = 2;
         const half = this.size / 2;
         this.body.roundRect(-half, -half, this.size, this.size, 8);
