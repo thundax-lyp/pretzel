@@ -15,7 +15,7 @@
 - `docs`
 - `backend:<owning-module>` 或 `backend:build`
 - `admin`
-- `miniprogram`
+- `miniprogram:<工程名>`
 - `deploy`
 - `tooling`
 - `other`

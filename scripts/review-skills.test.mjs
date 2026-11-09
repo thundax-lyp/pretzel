@@ -73,15 +73,15 @@ test("review snapshots classify deleted backend modules and literal rename paths
         "frontend/admin/src/old 文件.ts",
         "frontend/admin/src/new 文件.ts",
     );
-    repo.write("frontend/miniprogram/app.ts", "export {};\n");
+    repo.write("frontend/miniprograms/eyes-and-legs/app.ts", "export {};\n");
     repo.commit();
     const state = JSON.parse(repo.run("snapshot").stdout);
     assert.equal(state.changed_file_count, 3);
     assert(
         state.changed_files.some(
             (file) =>
-                file.module === "miniprogram" &&
-                file.path === "frontend/miniprogram/app.ts",
+                file.module === "miniprogram:eyes-and-legs" &&
+                file.path === "frontend/miniprograms/eyes-and-legs/app.ts",
         ),
     );
     assert(

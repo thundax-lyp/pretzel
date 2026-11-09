@@ -5,8 +5,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ANIMALS } from "../../../.agents/skills/pretzel-level-design/scripts/catalog.mjs";
-import { generate } from "../../../.agents/skills/pretzel-level-design/scripts/levels.mjs";
+import { ANIMALS } from "../../../../.agents/skills/pretzel-level-design/scripts/catalog.mjs";
+import { generate } from "../../../../.agents/skills/pretzel-level-design/scripts/levels.mjs";
 
 const out = mkdtempSync(join(tmpdir(), "pretzel-cocos-client-"));
 after(() => rmSync(out, { recursive: true, force: true }));
