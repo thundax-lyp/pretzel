@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { GROUPS, Round } from "../assets/scripts/round.ts";
 
-test("the tutorial has 36 flat tiles, 12 per type, and clears", () => {
+test("the tutorial has 36 flat tiles, 18 per type, and clears with five slots", () => {
     const round = new Round(1, "A");
     assert.equal(round.remaining, 36);
     const counts = new Map();
@@ -12,7 +12,7 @@ test("the tutorial has 36 flat tiles, 12 per type, and clears", () => {
         counts.set(card.kind, (counts.get(card.kind) ?? 0) + 1);
         assert.notEqual(round.take(card.id), null);
     }
-    assert.deepEqual([...counts.values()], [12, 12, 12]);
+    assert.deepEqual([...counts.values()], [18, 18]);
     assert.equal(round.status, "won");
     assert.equal(round.remaining, 0);
 });
@@ -102,39 +102,83 @@ test("a tile cannot be taken until all overlapping upper tiles are removed", () 
     }
 });
 
-test("the reference route clears the second level in all groups and may match on tile seven", () => {
+test("the seventh tile can match when both slots have been unlocked", () => {
     for (const group of GROUPS) {
         const round = new Round(2, group);
-        for (const layer of [2, 1, 0]) {
-            for (const card of round.cards.filter(
-                (card) => card.layer === layer,
-            )) {
-                assert.notEqual(
-                    round.take(card.id),
-                    null,
-                    `blocked tile ${card.id}`,
-                );
-            }
-        }
+        assert.equal(round.unlockNextSlot(), true);
+        assert.equal(round.unlockNextSlot(), true);
+        assert.equal(round.unlockNextSlot(), false);
+        for (let id = 126; id < 133; id += 1)
+            assert.notEqual(round.take(id), null);
         assert.equal(round.firstMatchAt, 7);
-        assert.equal(round.status, "won");
-        assert.equal(round.remaining, 0);
+        assert.equal(round.status, "playing");
     }
 });
 
-test("an unmatched seventh tile loses immediately and freezes the round", () => {
-    const round = new Round(2, "A");
-    const chosenKinds = new Set();
-    for (const card of round.cards.filter((card) => card.layer === 2)) {
-        if (chosenKinds.has(card.kind)) continue;
-        assert.equal(round.take(card.id), 0);
-        chosenKinds.add(card.kind);
-        if (chosenKinds.size === 7) break;
-        assert.equal(round.status, "playing");
+test("filling the active capacity without a match loses immediately", () => {
+    for (const capacity of [5, 6, 7]) {
+        const round = new Round(2, "A");
+        assert.equal(round.slotCapacity, 5);
+        while (round.slotCapacity < capacity)
+            assert.equal(round.unlockNextSlot(), true);
+        const chosenKinds = new Set();
+        for (const card of round.cards.filter((card) => card.layer === 2)) {
+            if (chosenKinds.has(card.kind)) continue;
+            assert.equal(round.take(card.id), 0);
+            chosenKinds.add(card.kind);
+            if (chosenKinds.size === capacity) break;
+            assert.equal(round.status, "playing");
+        }
+        assert.equal(round.status, "lost");
+        assert.equal(round.firstMatchAt, null);
+        assert.equal(round.slots.length, capacity);
+        assert.equal(round.take(round.cards.at(-1).id), null);
+        assert.equal(round.unlockNextSlot(), false);
+        assert.equal(round.moves, capacity);
     }
-    assert.equal(round.status, "lost");
-    assert.equal(round.firstMatchAt, null);
-    assert.equal(round.slots.length, 7);
-    assert.equal(round.take(round.cards.at(-1).id), null);
-    assert.equal(round.moves, 7);
+});
+
+test("a matching fifth tile clears before checking for failure", () => {
+    const round = new Round(2, "A");
+    const top = round.cards.filter((card) => card.layer === 2);
+    for (const index of [0, 2, 5, 1])
+        assert.equal(round.take(top[index].id), 0);
+    assert.equal(round.take(top[6].id), 3);
+    assert.equal(round.firstMatchAt, 5);
+    assert.equal(round.status, "playing");
+    assert.equal(round.slots.length, 2);
+});
+
+function takeWithFullInformation(round) {
+    const available = round.cards.filter(
+        (card) =>
+            round.isOnBoard(card) && round.isSelectable(round.exposure(card)),
+    );
+    assert.ok(available.length > 0);
+    let best = available[0];
+    let bestScore = -1;
+    for (const card of available) {
+        const held = round.slots.filter(
+            (tile) => tile.kind === card.kind,
+        ).length;
+        const shown = available.filter(
+            (tile) => tile.kind === card.kind,
+        ).length;
+        let score = shown;
+        if (held === 2) score = 100;
+        else if (shown + held >= 3) score = 60 + held;
+        else if (held === 1 || shown === 2) score = 30 + held;
+        if (score > bestScore) {
+            best = card;
+            bestScore = score;
+        }
+    }
+    assert.notEqual(round.take(best.id), null);
+}
+
+test("the default board has a legal five-slot clear with full information", () => {
+    const round = new Round(2, "B");
+    while (round.status === "playing") takeWithFullInformation(round);
+    assert.equal(round.status, "won");
+    assert.equal(round.moves, 189);
 });

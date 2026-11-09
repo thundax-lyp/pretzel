@@ -1,5 +1,7 @@
 import {
     _decorator,
+    BlockInputEvents,
+    Color,
     Component,
     Graphics,
     Label,
@@ -46,6 +48,7 @@ export class FlipZooStartScreen extends Component {
     private cards: CardView[] = [];
     private readonly slots: CardView[] = [];
     private readonly groupButtons = new Map<Group, Control>();
+    private adDialog?: Node;
     private progress!: Label;
     private steps!: Label;
     private slotStatus!: Label;
@@ -61,37 +64,48 @@ export class FlipZooStartScreen extends Component {
                 (index - 1) * 221,
                 498,
                 208,
-                () => this.openRound(2, group),
+                () => this.startMainBoard(group),
             );
             this.groupButtons.set(group, button);
         });
         this.progress = this.text("", 435, 30);
         this.steps = this.text("", 400, 23, "#BDD5C7");
-        this.slotStatus = this.text("", -405, 26);
+        this.message = this.text("", 369, 24);
+        this.slotStatus = this.text("", -375, 24);
         for (let index = 0; index < SLOT_LIMIT; index += 1) {
-            const slot = new CardView(this.node, `Slot-${index + 1}`, 78);
-            slot.node.setPosition((index - 3) * 94, -464);
+            const slot = new CardView(this.node, `Slot-${index + 1}`, 70);
+            slot.node.setPosition((index - 3) * 94, -427);
+            slot.node.on(Node.EventType.TOUCH_END, () =>
+                this.onSlotTouch(index),
+            );
             this.slots.push(slot);
         }
-        this.message = this.text("", -540, 28);
-        this.button("重开本关", -169, -610, 296, () =>
-            this.openRound(this.round.level, this.round.group),
-        );
-        this.otherLevel = this.button("", 169, -610, 296, () =>
-            this.openRound(this.round.level === 1 ? 2 : 1, this.round.group),
-        );
-        this.openRound(1, "A");
+        this.button("重开本关", -169, -506, 296, () => {
+            if (this.round.level === 2) this.startMainBoard(this.round.group);
+            else this.openRound(1, this.round.group);
+        });
+        this.otherLevel = this.button("", 169, -506, 296, () => {
+            if (this.round.level === 1) this.startMainBoard(this.round.group);
+            else this.openRound(1, this.round.group);
+        });
+        this.openRound(1, "C");
+    }
+
+    private startMainBoard(group: Group): void {
+        if (this.adDialog) return;
+        this.openRound(2, group);
     }
 
     private openRound(level: Level, group: Group): void {
         this.unschedule(this.advanceToMainBoard);
+        this.closeAd();
         this.round = new Round(level, group);
         if (this.board) {
             this.board.removeFromParent();
             this.board.destroy();
         }
 
-        this.cardSize = level === 1 ? 94 : 76;
+        this.cardSize = level === 1 ? 94 : 70;
         const width = (level === 1 ? 6 : 8) * this.cardSize;
         const height = (level === 1 ? 6 : 10) * this.cardSize;
         const board = uiNode(this.node, "Board", width, height);
@@ -105,7 +119,6 @@ export class FlipZooStartScreen extends Component {
             );
             return view;
         });
-
         for (const [key, button] of this.groupButtons) {
             this.paintButton(button, level === 2 && group === key);
         }
@@ -117,11 +130,11 @@ export class FlipZooStartScreen extends Component {
     }
 
     private advanceToMainBoard(): void {
-        this.openRound(2, this.round.group);
+        this.startMainBoard(this.round.group);
     }
 
     private onBoardTouch(event: EventTouch): void {
-        if (!this.board) return;
+        if (!this.board || this.adDialog) return;
         const transform = this.board.getComponent(UITransform)!;
         const point = event.getUILocation();
         const local = transform.convertToNodeSpaceAR(
@@ -140,10 +153,14 @@ export class FlipZooStartScreen extends Component {
             return;
         }
 
-        this.message.color = color("#F4F7E9");
         this.message.string = matched ? "三张同款，已消除！" : "找三张同款";
+        this.finishAction();
+    }
+
+    private finishAction(): void {
+        this.message.color = color("#F4F7E9");
         if (this.round.status === "lost") {
-            this.message.string = "第 7 张未成组 · 本局结束";
+            this.message.string = `第 ${this.round.slotCapacity} 格已满 · 本局结束`;
             this.message.color = color("#FFB5A3");
         } else if (this.round.status === "won") {
             this.message.string =
@@ -156,6 +173,56 @@ export class FlipZooStartScreen extends Component {
             }
         }
         this.refresh();
+    }
+
+    private onSlotTouch(index: number): void {
+        if (
+            index < this.round.slotCapacity ||
+            this.round.status !== "playing" ||
+            this.adDialog
+        )
+            return;
+        if (index > this.round.slotCapacity) {
+            this.message.string = `请先解锁第 ${this.round.slotCapacity + 1} 格`;
+            return;
+        }
+        const dialog = uiNode(this.node, "MockAd", 750, 1334);
+        this.adDialog = dialog;
+        dialog.addComponent(BlockInputEvents);
+        const backdrop = dialog.addComponent(Graphics);
+        backdrop.fillColor = new Color(0, 0, 0, 170);
+        backdrop.rect(-375, -667, 750, 1334);
+        backdrop.fill();
+        backdrop.fillColor = color("#234438");
+        backdrop.roundRect(-303, -154, 606, 308, 20);
+        backdrop.fill();
+        label(dialog, "模拟激励广告", 40).node.setPosition(0, 79);
+        label(
+            dialog,
+            `看完解锁第 ${index + 1} 格，本局有效`,
+            27,
+        ).node.setPosition(0, 12);
+        this.button("取消", -134, -81, 232, () => this.closeAd(), dialog);
+        this.button(
+            "模拟看完",
+            134,
+            -81,
+            232,
+            () => {
+                this.closeAd();
+                if (!this.round.unlockNextSlot()) return;
+                this.message.string = `已解锁第 ${this.round.slotCapacity} 格`;
+                this.refresh();
+            },
+            dialog,
+        );
+    }
+
+    private closeAd(): void {
+        if (!this.adDialog) return;
+        this.adDialog.removeFromParent();
+        this.adDialog.destroy();
+        this.adDialog = undefined;
     }
 
     private refresh(): void {
@@ -172,18 +239,18 @@ export class FlipZooStartScreen extends Component {
         this.slots.forEach((slot, index) => {
             const card = round.slots[index];
             if (card) slot.show(card.kind, FULL_EXPOSURE, true);
-            else slot.showEmpty();
+            else slot.showEmpty(index >= round.slotCapacity);
         });
         const stage =
             round.level === 1 ? "第 1 关" : `第 2 关 · ${round.group} 组`;
         this.progress.string = `${stage}     剩余 ${round.remaining}/${round.cards.length}`;
         const first =
             round.firstMatchAt === null ? "—" : `第 ${round.firstMatchAt} 张`;
-        this.steps.string = `已取 ${round.moves} 张     首消 ${first}`;
-        const danger = round.slots.length === SLOT_LIMIT - 1;
-        this.slotStatus.string = danger
-            ? "卡槽 6/7 · 下一张必须三消"
-            : `卡槽 ${round.slots.length}/${SLOT_LIMIT}`;
+        this.steps.string = `已入槽 ${round.moves} 次     首消 ${first}`;
+        const danger =
+            round.status === "playing" &&
+            round.slots.length === round.slotCapacity - 1;
+        this.slotStatus.string = `卡槽 ${round.slots.length}/${round.slotCapacity}${danger ? " · 下一张必须三消" : ""}`;
         this.slotStatus.color = color(danger ? "#FFD297" : "#F4F7E9");
     }
 
@@ -199,8 +266,9 @@ export class FlipZooStartScreen extends Component {
         y: number,
         width: number,
         action: () => void,
+        parent = this.node,
     ): Control {
-        const node = uiNode(this.node, text || "Other-Level", width, 66);
+        const node = uiNode(parent, text || "Other-Level", width, 66);
         node.setPosition(x, y);
         node.on(Node.EventType.TOUCH_END, action);
         const button = {

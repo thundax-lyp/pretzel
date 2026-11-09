@@ -1,4 +1,5 @@
 export const GROUPS = ["A", "B", "C"] as const;
+export const INITIAL_SLOTS = 5;
 export const SLOT_LIMIT = 7;
 export const FULL_EXPOSURE = 0b1111;
 
@@ -15,10 +16,9 @@ export interface Card {
     readonly top: number;
 }
 
-const TUTORIAL = [["033880", "830803", "808033", "080833", "038083", "338008"]];
+const TUTORIAL = [["338838", "838338", "383883", "838833", "338388", "388833"]];
 
 // Each string is a row of card types. Layers are stored bottom to top.
-// Taking rows left to right from the top layer down is one verified clear.
 const MAIN_BOARD = [
     [
         "f199255",
@@ -37,10 +37,10 @@ const MAIN_BOARD = [
         "a3d1104",
         "c933d0d",
         "4c0c07e",
-        "77600f6",
-        "63ff833",
+        "7760096",
+        "6399833",
         "288544b",
-        "55fee5f",
+        "559ee5f",
     ],
     [
         "db3b233",
@@ -49,7 +49,7 @@ const MAIN_BOARD = [
         "8c881cc",
         "005beec",
         "cc8116b",
-        "bd55fff",
+        "bd559f9",
         "9d928d9",
         "99022c0",
     ],
@@ -87,6 +87,7 @@ export class Round {
     private readonly onBoard: Set<number>;
     private readonly revealed = new Set<number>();
     private slotted: Card[] = [];
+    private capacity = INITIAL_SLOTS;
 
     constructor(level: Level, group: Group) {
         this.level = level;
@@ -110,8 +111,20 @@ export class Round {
         return this.slotted;
     }
 
+    get slotCapacity(): number {
+        return this.capacity;
+    }
+
     get remaining(): number {
         return this.onBoard.size + this.slotted.length;
+    }
+
+    unlockNextSlot(): boolean {
+        if (this.status !== "playing" || this.capacity === SLOT_LIMIT) {
+            return false;
+        }
+        this.capacity += 1;
+        return true;
     }
 
     isOnBoard(card: Card): boolean {
@@ -161,7 +174,7 @@ export class Round {
         return undefined;
     }
 
-    take(id: number): number | null {
+    take(id: number): 0 | 3 | null {
         const card = this.cards[id];
         if (
             this.status !== "playing" ||
@@ -172,9 +185,9 @@ export class Round {
             return null;
         }
 
+        const matching =
+            1 + this.slotted.filter((tile) => tile.kind === card.kind).length;
         this.onBoard.delete(id);
-        this.moves += 1;
-        this.slotted.push(card);
         for (const neighbor of this.cards) {
             if (
                 this.isOnBoard(neighbor) &&
@@ -186,9 +199,9 @@ export class Round {
                 this.revealed.add(neighbor.id);
             }
         }
-
-        const matches = this.slotted.filter((tile) => tile.kind === card.kind);
-        if (matches.length === 3) {
+        this.moves += 1;
+        this.slotted.push(card);
+        if (matching === 3) {
             this.slotted = this.slotted.filter(
                 (tile) => tile.kind !== card.kind,
             );
@@ -196,9 +209,9 @@ export class Round {
         }
         if (this.remaining === 0) {
             this.status = "won";
-        } else if (this.slotted.length === SLOT_LIMIT) {
+        } else if (this.slotted.length === this.capacity) {
             this.status = "lost";
         }
-        return matches.length === 3 ? 3 : 0;
+        return matching === 3 ? 3 : 0;
     }
 }
