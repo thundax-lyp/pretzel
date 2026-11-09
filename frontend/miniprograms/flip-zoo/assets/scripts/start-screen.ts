@@ -16,6 +16,7 @@ import {
     GROUPS,
     Round,
     SLOT_LIMIT,
+    isBoardKinds,
     type Group,
     type Level,
 } from "./round";
@@ -49,6 +50,8 @@ export class FlipZooStartScreen extends Component {
     private readonly slots: CardView[] = [];
     private readonly groupButtons = new Map<Group, Control>();
     private adDialog?: Node;
+    private requestVersion = 0;
+    private loadingBoard = false;
     private progress!: Label;
     private steps!: Label;
     private slotStatus!: Label;
@@ -64,7 +67,7 @@ export class FlipZooStartScreen extends Component {
                 (index - 1) * 221,
                 498,
                 208,
-                () => this.startMainBoard(group),
+                () => void this.startMainBoard(group),
             );
             this.groupButtons.set(group, button);
         });
@@ -81,25 +84,61 @@ export class FlipZooStartScreen extends Component {
             this.slots.push(slot);
         }
         this.button("重开本关", -169, -506, 296, () => {
-            if (this.round.level === 2) this.startMainBoard(this.round.group);
+            if (this.round.level === 2)
+                void this.startMainBoard(this.round.group);
             else this.openRound(1, this.round.group);
         });
         this.otherLevel = this.button("", 169, -506, 296, () => {
-            if (this.round.level === 1) this.startMainBoard(this.round.group);
+            if (this.round.level === 1)
+                void this.startMainBoard(this.round.group);
             else this.openRound(1, this.round.group);
         });
         this.openRound(1, "C");
     }
 
-    private startMainBoard(group: Group): void {
+    private async startMainBoard(group: Group): Promise<void> {
         if (this.adDialog) return;
-        this.openRound(2, group);
+        this.unschedule(this.advanceToMainBoard);
+        const version = ++this.requestVersion;
+        let boardKinds: readonly number[] | undefined;
+        if (
+            typeof location !== "undefined" &&
+            location.origin === "http://127.0.0.1:8874"
+        ) {
+            this.loadingBoard = true;
+            this.message.string = "读取第二关牌局…";
+            try {
+                const response = await fetch("/api/board", {
+                    signal: AbortSignal.timeout(3000),
+                });
+                const data: unknown = response.ok
+                    ? await response.json()
+                    : null;
+                if (!isBoardKinds(data)) throw new Error("Invalid board");
+                boardKinds = data;
+            } catch {
+                if (this.isValid && version === this.requestVersion) {
+                    this.loadingBoard = false;
+                    this.message.string = "读取牌局失败，点击重开或组别重试";
+                }
+                return;
+            }
+        }
+        if (this.isValid && version === this.requestVersion) {
+            this.openRound(2, group, boardKinds);
+        }
     }
 
-    private openRound(level: Level, group: Group): void {
+    private openRound(
+        level: Level,
+        group: Group,
+        boardKinds?: readonly number[],
+    ): void {
+        this.requestVersion += 1;
+        this.loadingBoard = false;
         this.unschedule(this.advanceToMainBoard);
         this.closeAd();
-        this.round = new Round(level, group);
+        this.round = new Round(level, group, boardKinds);
         if (this.board) {
             this.board.removeFromParent();
             this.board.destroy();
@@ -130,11 +169,11 @@ export class FlipZooStartScreen extends Component {
     }
 
     private advanceToMainBoard(): void {
-        this.startMainBoard(this.round.group);
+        void this.startMainBoard(this.round.group);
     }
 
     private onBoardTouch(event: EventTouch): void {
-        if (!this.board || this.adDialog) return;
+        if (!this.board || this.adDialog || this.loadingBoard) return;
         const transform = this.board.getComponent(UITransform)!;
         const point = event.getUILocation();
         const local = transform.convertToNodeSpaceAR(
@@ -179,7 +218,8 @@ export class FlipZooStartScreen extends Component {
         if (
             index < this.round.slotCapacity ||
             this.round.status !== "playing" ||
-            this.adDialog
+            this.adDialog ||
+            this.loadingBoard
         )
             return;
         if (index > this.round.slotCapacity) {

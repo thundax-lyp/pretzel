@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>翻翻动物园 · 难度后台</title>
+        <style>
+            body {
+                margin: 0;
+                background: #eff4ed;
+                color: #20372d;
+                font:
+                    16px/1.55 system-ui,
+                    sans-serif;
+            }
+            main {
+                max-width: 480px;
+                margin: 32px auto;
+                padding: 24px;
+            }
+            form {
+                display: grid;
+                gap: 12px;
+                padding: 22px;
+                border: 1px solid #b4c8b8;
+                border-radius: 12px;
+                background: #fff;
+            }
+            label,
+            button {
+                font-weight: 600;
+            }
+            select,
+            button {
+                padding: 8px;
+                font: inherit;
+            }
+            a {
+                color: #226249;
+            }
+        </style>
+    </head>
+    <body>
+        <main>
+            <h1>第二关难度后台</h1>
+            <p>每组命门的图样全盘只出现三张，每层一张。</p>
+            <form>
+                <label for="key-groups">命门组数</label>
+                <select id="key-groups">
+                    <option value="1">1 组</option>
+                    <option value="2">2 组</option>
+                    <option value="3">3 组</option>
+                </select>
+                <label for="overlap-groups">其中直接叠压的组数</label>
+                <select id="overlap-groups"></select>
+                <button type="submit" disabled>保存设置</button>
+                <output role="status">读取设置中</output>
+            </form>
+            <p>保存后，重开第二关或切换 A/B/C 即可使用新配置。</p>
+            <a href="/">返回试玩</a>
+        </main>
+        <script type="module">
+            const form = document.querySelector("form");
+            const keyGroups = document.querySelector("#key-groups");
+            const overlapGroups = document.querySelector("#overlap-groups");
+            const save = document.querySelector("button");
+            const status = document.querySelector("output");
+
+            function showOverlapOptions(selected) {
+                const limit = Number(keyGroups.value);
+                const options = Array.from(
+                    { length: limit + 1 },
+                    (_, index) => new Option(`${index} 组`, index),
+                );
+                overlapGroups.replaceChildren(...options);
+                overlapGroups.value = String(Math.min(limit, selected));
+            }
+
+            keyGroups.addEventListener("change", () =>
+                showOverlapOptions(Number(overlapGroups.value)),
+            );
+            try {
+                const response = await fetch("/api/difficulty");
+                if (!response.ok) throw new Error("读取失败，请刷新重试");
+                const settings = await response.json();
+                keyGroups.value = String(settings.keyGroups);
+                showOverlapOptions(settings.overlapGroups);
+                status.textContent = "当前设置已加载";
+                save.disabled = false;
+            } catch (error) {
+                status.textContent = error.message;
+            }
+
+            form.addEventListener("submit", async (event) => {
+                event.preventDefault();
+                save.disabled = true;
+                status.textContent = "正在保存";
+                try {
+                    const response = await fetch("/api/difficulty", {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            keyGroups: Number(keyGroups.value),
+                            overlapGroups: Number(overlapGroups.value),
+                        }),
+                    });
+                    const result = await response.json();
+                    if (!response.ok)
+                        throw new Error(result.error ?? "保存失败");
+                    status.textContent = `已保存：命门 ${result.keyGroups} 组，叠压 ${result.overlapGroups} 组`;
+                } catch (error) {
+                    status.textContent = error.message;
+                } finally {
+                    save.disabled = false;
+                }
+            });
+        </script>
+    </body>
+</html>

@@ -75,7 +75,24 @@ function buildDeck(layers: string[][]): readonly Card[] {
     return cards;
 }
 
-const LEVELS = { 1: buildDeck(TUTORIAL), 2: buildDeck(MAIN_BOARD) };
+const TUTORIAL_DECK = buildDeck(TUTORIAL);
+const MAIN_DECK = buildDeck(MAIN_BOARD);
+
+export const DEFAULT_BOARD_KINDS: readonly number[] = MAIN_DECK.map(
+    (card) => card.kind,
+);
+
+export function isBoardKinds(value: unknown): value is number[] {
+    if (!Array.isArray(value) || value.length !== MAIN_DECK.length)
+        return false;
+    const counts = new Array<number>(16).fill(0);
+    for (const kind of value) {
+        if (!Number.isInteger(kind) || kind < 0 || kind >= counts.length)
+            return false;
+        counts[kind] += 1;
+    }
+    return counts.every((count) => count > 0 && count % 3 === 0);
+}
 
 export class Round {
     readonly level: Level;
@@ -89,10 +106,18 @@ export class Round {
     private slotted: Card[] = [];
     private capacity = INITIAL_SLOTS;
 
-    constructor(level: Level, group: Group) {
+    constructor(level: Level, group: Group, boardKinds?: readonly number[]) {
         this.level = level;
         this.group = group;
-        this.cards = LEVELS[level];
+        this.cards =
+            level === 1
+                ? TUTORIAL_DECK
+                : boardKinds
+                  ? MAIN_DECK.map((card) => ({
+                        ...card,
+                        kind: boardKinds[card.id],
+                    }))
+                  : MAIN_DECK;
         this.onBoard = new Set(this.cards.map((card) => card.id));
         if (level === 2 && group === "C") {
             for (const card of this.cards) {
