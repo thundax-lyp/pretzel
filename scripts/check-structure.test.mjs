@@ -29,15 +29,24 @@ function fixture(t, entries = {}) {
 }
 
 test("accepts a tree of documents and protocol-owned code", (t) => {
-    assert.equal(fixture(t).status, 0);
+    assert.equal(
+        fixture(t, {
+            "frontend/miniprograms/eyes-and-legs/package.json": "{}\n",
+        }).status,
+        0,
+    );
 });
-test("rejects frontend applications left at the repository root", (t) => {
+test("rejects retired frontend application locations", (t) => {
     const result = fixture(t, {
         "admin-web/package.json": "{}\n",
         "miniprogram/app.json": "{}\n",
+        "frontend/miniprogram/package.json": "{}\n",
     });
     assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /place frontend applications/);
+    assert.match(
+        result.stderr,
+        /frontend\/miniprogram: place frontend applications/,
+    );
 });
 test("separates production code from mirrored tests", (t) => {
     assert.equal(

@@ -6,7 +6,7 @@
 
 ```sh
 npm --prefix frontend/admin ci
-npm --prefix frontend/miniprogram ci
+npm --prefix frontend/miniprograms/eyes-and-legs ci
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements-dev.txt
 ```
@@ -18,7 +18,7 @@ python3 -m venv .venv
 node scripts/check-format.mjs
 npm --prefix frontend/admin run lint
 node --test scripts/check-structure.test.mjs
-frontend/admin/node_modules/.bin/oxlint --config .oxlintrc.json --deny-warnings frontend/miniprogram scripts
+frontend/admin/node_modules/.bin/oxlint --config .oxlintrc.json --deny-warnings frontend/miniprograms/eyes-and-legs scripts
 .venv/bin/ruff check scripts deploy
 .venv/bin/ruff format --check scripts deploy
 sh -n scripts/infra-tunnel.sh
@@ -35,8 +35,8 @@ check-structure 检查前端文件命名、服务依赖方向、HTTP 归属、�
 ## 测试与构建
 
 ```sh
-npm --prefix frontend/miniprogram run typecheck
-npm --prefix frontend/miniprogram run lint
+npm --prefix frontend/miniprograms/eyes-and-legs run typecheck
+npm --prefix frontend/miniprograms/eyes-and-legs run lint
 npm --prefix frontend/admin test
 npm --prefix frontend/admin run build
 ./backend/mvnw -f backend/pom.xml -B clean verify
@@ -87,11 +87,11 @@ prototype 为每个内容种子输出直叠对照、盖二重点、盖四重点�
 
 ## Cocos 构建
 
-`build-cocos.mjs` 调用本机 Cocos Creator 3.8.8。微信构建从私有环境读取 `WECHAT_GAME_APP_ID`，生成的项目目录导入微信开发者工具。
+`frontend/miniprograms/eyes-and-legs/scripts/build-cocos.mjs` 调用本机 Cocos Creator 3.8.8。微信构建从私有环境读取 `WECHAT_GAME_APP_ID`，生成的项目目录导入微信开发者工具。
 
 ```sh
-node scripts/build-cocos.mjs web-mobile --debug
-python3 scripts/with-env.py --env-file .env -- node scripts/build-cocos.mjs wechatgame --debug
+npm --prefix frontend/miniprograms/eyes-and-legs run build:web -- --debug
+python3 scripts/with-env.py --env-file .env -- npm --prefix frontend/miniprograms/eyes-and-legs run build:wechat -- --debug
 ```
 
 Node 关卡设计工具统一采用当前的免费原位复位与移出、纠错、重排规则。广告数据需要在固定输入和预算下重新运行，旧规则报告只可作为历史材料。

@@ -35,12 +35,12 @@ function files(directory) {
 function fail(file, message) {
     errors.push(`${path.relative(root, file)}: ${message}`);
 }
-for (const retired of ["admin-web", "miniprogram"]) {
+for (const retired of ["admin-web", "miniprogram", "frontend/miniprogram"]) {
     const directory = path.join(root, retired);
     if (fs.existsSync(directory))
         fail(
             directory,
-            "place frontend applications in frontend/admin and frontend/miniprogram",
+            "place frontend applications in frontend/admin and frontend/miniprograms/<game>",
         );
 }
 const sourceRoot = path.join(root, "frontend/admin/src");

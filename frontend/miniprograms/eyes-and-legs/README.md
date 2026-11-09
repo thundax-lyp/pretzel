@@ -1,6 +1,6 @@
 # 腿了个腿 · 微信小游戏客户端
 
-使用 Cocos Creator 3.8.8 与 TypeScript。打开本目录，进入 assets/scenes/start.scene。GameClient 在 Canvas 中呈现启动、动物园、游戏和弹层。动物 PNG 通过 Cocos resources 加载。
+工程名为 `eyes-and-legs`，使用 Cocos Creator 3.8.8 与 TypeScript。打开本目录，进入 assets/scenes/start.scene。GameClient 在 Canvas 中呈现启动、动物园、游戏和弹层。动物 PNG 通过 Cocos resources 加载。
 
 ## 检查
 
@@ -13,6 +13,10 @@ npm run format:check
 ```
 
 类型检查使用 3.8.8 的引擎声明。Node 回归覆盖两关参考路径、遮挡、暂存、重复操作和 HTTP 契约。编辑器预览按钮由 Creator 的 PREVIEW 标志开放。微信 Debug 构建开放「本地试玩（调试）」。Web Debug 构建可显式附加 ?fixture=1 开放相同入口，正式构建保持关闭。预览使用独立内存数据。
+
+## 构建
+
+在本目录执行 `npm run build:web -- --debug`，产物写入 `build/web-mobile`。在私有环境提供 `WECHAT_GAME_APP_ID` 后，执行 `npm run build:wechat` 生成 `build/wechatgame`，供微信开发者工具导入。
 
 ## 首页视觉检查
 

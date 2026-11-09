@@ -34,7 +34,8 @@ function moduleFor(file) {
     if (["docs", "deploy"].includes(p[0])) return p[0];
     if (p[0] === "frontend") {
         if (p[1] === "admin") return "admin";
-        if (p[1] === "miniprogram") return "miniprogram";
+        if (p[1] === "miniprograms" && p.length > 3)
+            return `miniprogram:${p[2]}`;
         return "repo-governance";
     }
     if (p[0] === "scripts") return "tooling";

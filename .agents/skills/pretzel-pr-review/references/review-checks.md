@@ -33,7 +33,7 @@
 - backend/common 与 biz：技术能力、领域、application、interface、infra 和 facade 的职责、依赖方向与权限边界。
 - backend/starter：运行时装配、配置注册及真实 MySQL/Redis 验证入口。
 - frontend/admin：api/auth/session/页面服务归属、Pro Components 的受控表单与异步刷新，以及 UI 与后端授权一致性。
-- miniprogram：TypeScript、微信 API、页面生命周期与后端契约；类型检查不能冒充真机验收。
+- `miniprogram:<工程名>`：TypeScript、微信 API、页面生命周期与后端契约；类型检查不能冒充真机验收。
 - deploy、scripts、CI 与文档：实际放行对象、配置隔离、失败清理及验证声明。
 
 ## Finding economy gate

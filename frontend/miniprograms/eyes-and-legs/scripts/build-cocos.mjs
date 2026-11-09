@@ -4,8 +4,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const project = path.join(root, "frontend/miniprogram");
+const project = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "..",
+);
+const name = path.basename(project);
 const platform = process.argv[2];
 if (!["web-mobile", "wechatgame"].includes(platform)) {
     throw new Error("Choose web-mobile or wechatgame");
@@ -21,10 +24,10 @@ if (platform === "wechatgame" && !/^wx[0-9a-f]{16}$/.test(appid ?? "")) {
         "Configure WECHAT_GAME_APP_ID using an authorized WeChat mini game AppID",
     );
 }
-const folder = fs.mkdtempSync(path.join(os.tmpdir(), "pretzel-cocos-build-"));
+const folder = fs.mkdtempSync(path.join(os.tmpdir(), `${name}-cocos-build-`));
 const configPath = path.join(folder, "build.json");
 const config = {
-    name: "pretzel",
+    name,
     platform,
     taskName: platform,
     buildPath: "project://build",

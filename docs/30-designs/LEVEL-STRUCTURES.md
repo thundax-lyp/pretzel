@@ -234,6 +234,6 @@
 
 ## 小游戏运行资源
 
-客户端使用 Cocos Creator 3.8.8 与 TypeScript，运行资源位于 `frontend/miniprogram/assets/resources`。`ui/animal-cutouts.png` 为六列四行的透明动物图集，按 A01—A24 对应 artworkKey；`ui-skin.ts` 在引擎内切分图集。`ui/meadow.png`、`ui/zoo-fence.png` 和 `ui/ui-atlas.png` 提供背景、围栏与控件。音效位于 audio。
+客户端使用 Cocos Creator 3.8.8 与 TypeScript，运行资源位于 `frontend/miniprograms/eyes-and-legs/assets/resources`。`ui/animal-cutouts.png` 为六列四行的透明动物图集，按 A01—A24 对应 artworkKey；`ui-skin.ts` 在引擎内切分图集。`ui/meadow.png`、`ui/zoo-fence.png` 和 `ui/ui-atlas.png` 提供背景、围栏与控件。音效位于 audio。
 
 牌面厚度、绿色底座、高光、投影和选中边框由 Cocos Graphics 绘制。棋盘、卡槽和暂存区复用相同动物图集。设计原图保留在本目录，客户端统一加载透明图集，眼睛与腿数以正式动物配置和牌面数字为准。美术属性校对与微信真机显示仍需验收。
