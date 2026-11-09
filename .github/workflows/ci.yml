@@ -87,17 +87,26 @@ jobs:
             - run: ruff format --check scripts deploy
             - run: sh -n scripts/infra-tunnel.sh
     miniprogram:
+        name: ${{ matrix.check-name }}
         runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - game: eyes-and-legs
+                      check-name: miniprogram
+                    - game: flip-zoo
+                      check-name: miniprogram (flip-zoo)
         defaults:
             run:
-                working-directory: frontend/miniprograms/eyes-and-legs
+                working-directory: frontend/miniprograms/${{ matrix.game }}
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-node@v4
               with:
                   node-version: "22"
                   cache: npm
-                  cache-dependency-path: frontend/miniprograms/eyes-and-legs/package-lock.json
+                  cache-dependency-path: frontend/miniprograms/${{ matrix.game }}/package-lock.json
             - run: npm ci
             - run: npm run typecheck
             - run: npm test
