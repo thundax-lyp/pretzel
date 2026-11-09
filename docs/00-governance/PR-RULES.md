@@ -17,7 +17,7 @@
 统一 CI 入口为 .github/workflows/ci.yml，必须显式列出检查，不通过单个脚本隐藏必过项。当前 workflow 仅对面向 main 的 PR 运行管理端、小程序、后端与工具验证。
 
 - frontend/admin 使用 Node 22 和 npm 锁文件；显式执行 npm ci、npm run format:check、npm run lint、npm test、npm run build。
-- frontend/miniprogram 使用 Node 22、独立 npm 锁文件和 Creator 3.8.8 引擎声明。执行 npm ci、npm run typecheck、npm test、npm run lint、npm run format:check。场景预览和微信小游戏构建使用 Creator，构建输出导入微信开发者工具验收。
+- `frontend/miniprograms/<工程名>/` 下每款游戏使用 Node 22、独立 npm 锁文件和 Creator 3.8.8 引擎声明。执行 npm ci、npm run typecheck、npm test、npm run lint、npm run format:check。场景预览和微信小游戏构建使用 Creator，构建输出导入微信开发者工具验收。
 - Python 工具使用 requirements-dev.txt 固定的 Ruff，显式执行 ruff check 与 ruff format --check；Shell 工具执行 sh -n。
 - 目录结构检查与 4 空格格式检查必须通过；检查器自身的回归测试由 CI 执行。
 - backend 使用 Java 21 和 Maven Wrapper；当前执行 ./mvnw -B clean verify，validate 阶段已绑定 Spotless 与 Checkstyle。CI 使用 MySQL 8.4 验证集成测试。

@@ -2,7 +2,7 @@
 
 ## 微信小游戏
 
-客户端采用 Cocos Creator 3.8.8（3.8 LTS）、TypeScript 和 2D UI，项目路径沿用 frontend/miniprogram。创建工程时将 package.json 的 creator.version 固定为 3.8.8，编辑器和构建环境使用同一版本。启动、首页、游戏由 Start 场景中的 GameClient 在同一 Canvas 上切换，弹层与牌区使用原生 Cocos 节点。棋盘触摸命中与覆盖规则分离，Tween 和音频组件负责表现，业务状态不依赖场景节点。
+《腿了个腿》的客户端工程名为 `eyes-and-legs`，路径为 `frontend/miniprograms/eyes-and-legs/`。客户端采用 Cocos Creator 3.8.8（3.8 LTS）、TypeScript 和 2D UI。创建工程时将 package.json 的 creator.version 固定为 3.8.8，编辑器和构建环境使用同一版本。启动、首页、游戏由 Start 场景中的 GameClient 在同一 Canvas 上切换，弹层与牌区使用原生 Cocos 节点。棋盘触摸命中与覆盖规则分离，Tween 和音频组件负责表现，业务状态不依赖场景节点。
 
 登录、HTTP、广告、分享、生命周期与本地存储经微信小游戏平台适配层接入。游戏规则与接口 DTO 保持纯 TypeScript。Cocos 编辑器构建微信小游戏目标后，将构建输出导入微信开发者工具，验证真机登录、网络、广告、输入和安全区。编辑器维护资源 .meta 与 UUID。
 

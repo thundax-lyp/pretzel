@@ -140,7 +140,7 @@
 | skin()                                 | resources 加载纹理，按 4×4 或动物 6×4 等格裁切；Sprite 为 SIMPLE、CUSTOM 尺寸 | 文字资源独立管理实际矩形与宽高比，不直接套用现有等格规则或整节点尺寸拉伸 |
 | showCollection()/showRank()/showGame() | 动物名、次数、昵称、名次、目标和库存由数据拼接                                | 保留动态文本，并提供稳定的列宽、字号与溢出策略                           |
 
-代码路径均位于 frontend/miniprogram/assets/scripts。当前图片缓存可复用资源加载思路，但 skin() 的等格切片和跟随父节点尺寸的展示方式不能直接承担任意比例文字资源。图片字也不能解决固定坐标、图鉴底部溢出或安全区问题。
+代码路径均位于 frontend/miniprograms/eyes-and-legs/assets/scripts。当前图片缓存可复用资源加载思路，但 skin() 的等格切片和跟随父节点尺寸的展示方式不能直接承担任意比例文字资源。图片字也不能解决固定坐标、图鉴底部溢出或安全区问题。
 
 ### 资源分配
 
