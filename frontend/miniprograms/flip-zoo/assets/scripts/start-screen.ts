@@ -14,6 +14,7 @@ import {
 } from "cc";
 import { loadZooArtwork, type ZooArtwork } from "./artwork";
 import { CardView, color, label, picture, uiNode } from "./card-view";
+import { ClearCelebration } from "./clear-celebration";
 import {
     FULL_EXPOSURE,
     GROUPS,
@@ -443,11 +444,18 @@ export class FlipZooStartScreen extends Component {
         this.paintButton(play, true);
     }
 
+    private celebrate(parent: Node, badge: Node, finale: boolean): void {
+        const effects = uiNode(parent, "ClearCelebration");
+        effects.setSiblingIndex(badge.getSiblingIndex());
+        effects.addComponent(ClearCelebration).play(badge, finale);
+    }
+
     private showTutorialClear(): void {
         const overlay = this.openOverlay("TutorialClear", false);
         this.panel(overlay, "ClearCard", 38, 490, 306, "#FFF2CC", "#C99D53");
         const badge = picture(overlay, "ClearBadge", this.art.paw, 96).node;
         badge.setPosition(0, 121);
+        this.celebrate(overlay, badge, false);
         const title = label(overlay, "教学完成！", 43, "#254D3C");
         title.isBold = true;
         title.node.setPosition(0, 30);
@@ -468,6 +476,7 @@ export class FlipZooStartScreen extends Component {
             142,
         ).node;
         badge.setPosition(0, 176);
+        if (won) this.celebrate(result, badge, true);
         const title = label(
             result,
             won ? "动物园通关！" : "卡槽满啦",
