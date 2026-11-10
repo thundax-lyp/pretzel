@@ -96,6 +96,44 @@ try {
             );
         }
     }
+    if (wechat) {
+        const firstScreenPath = path.join(output, "first-screen.js");
+        let firstScreen = fs.readFileSync(firstScreenPath, "utf8");
+        // The WeChat bootstrap draws before Cocos loads the game scene.
+        const appearance = {
+            displayRatio: "0.5",
+            bgColor: "[1, 244 / 255, 225 / 255, 1]",
+            useDefaultLogo: "false",
+            useCustomBg: "true",
+            fitWidth: "false",
+            fitHeight: "false",
+            logoName: '"zoo-launch-title.png"',
+            bgName: '"zoo-launch-garden.jpg"',
+            progressBarColor: "[255 / 255, 199 / 255, 85 / 255, 1]",
+            progressBackground: "[111 / 255, 63 / 255, 106 / 255, 1]",
+        };
+        for (const [key, value] of Object.entries(appearance)) {
+            const declaration = new RegExp(`^let ${key} = [^;]+;`, "m");
+            if (!declaration.test(firstScreen)) {
+                throw new Error(
+                    `Unexpected WeChat first-screen template: ${key}`,
+                );
+            }
+            firstScreen = firstScreen.replace(
+                declaration,
+                `let ${key} = ${value};`,
+            );
+        }
+        fs.copyFileSync(
+            path.join(project, "assets/resources/art/zoo-title.png"),
+            path.join(output, "zoo-launch-title.png"),
+        );
+        fs.copyFileSync(
+            path.join(project, "assets/resources/art/zoo-garden.jpg"),
+            path.join(output, "zoo-launch-garden.jpg"),
+        );
+        fs.writeFileSync(firstScreenPath, firstScreen);
+    }
     console.log("Cocos build output:", output);
 } finally {
     fs.rmSync(folder, { recursive: true, force: true });
