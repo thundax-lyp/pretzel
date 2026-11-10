@@ -14,17 +14,19 @@ import {
 } from "cc";
 import { WECHAT } from "cc/env";
 import { loadZooArtwork, type ZooArtwork } from "./artwork";
+import { createBoardApi } from "./board-api";
 import { CardView, color, label, picture, uiNode } from "./card-view";
 import { ClearCelebration } from "./clear-celebration";
 import {
     FULL_EXPOSURE,
     GROUPS,
+    MAIN_LAYOUTS,
     PROPS,
     Round,
     SLOT_LIMIT,
-    isBoardKinds,
     type Group,
     type Level,
+    type MainLayout,
     type Prop,
 } from "./round";
 
@@ -81,6 +83,8 @@ export class FlipZooStartScreen extends Component {
     private readonly groupButtons = new Map<Group, Control>();
     private readonly propButtons = new Map<Prop, Control>();
     private overlay?: Node;
+    private readonly boardApi = createBoardApi(WECHAT);
+    private failedBoardGroup?: Group;
     private requestVersion = 0;
     private loadingBoard = false;
     private progress!: Label;
@@ -215,41 +219,38 @@ export class FlipZooStartScreen extends Component {
     }
 
     private restartRound(): void {
-        if (this.round.level === 2) void this.startMainBoard(this.round.group);
-        else this.openRound(1, this.round.group);
+        if (this.failedBoardGroup) {
+            void this.startMainBoard(this.failedBoardGroup);
+        } else if (this.round.level === 2) {
+            void this.startMainBoard(this.round.group);
+        } else {
+            this.openRound(1, this.round.group);
+        }
     }
 
     private async startMainBoard(group: Group): Promise<void> {
         if (this.overlay) return;
         this.unschedule(this.advanceToMainBoard);
         const version = ++this.requestVersion;
-        let boardKinds: readonly number[] | undefined;
-        if (
-            !WECHAT &&
-            typeof location !== "undefined" &&
-            location.origin === "http://127.0.0.1:8874"
-        ) {
-            this.loadingBoard = true;
-            this.message.string = "读取第二关牌局…";
-            try {
-                const response = await fetch("/api/board", {
-                    signal: AbortSignal.timeout(3000),
-                });
-                const data: unknown = response.ok
-                    ? await response.json()
-                    : null;
-                if (!isBoardKinds(data)) throw new Error("Invalid board");
-                boardKinds = data;
-            } catch {
-                if (this.isValid && version === this.requestVersion) {
-                    this.loadingBoard = false;
-                    this.message.string = "读取牌局失败，点击重开或组别重试";
-                }
-                return;
+        this.loadingBoard = true;
+        this.failedBoardGroup = undefined;
+        this.message.string = "读取第二关牌局…";
+        let boardKinds: readonly number[];
+        const layout = WECHAT
+            ? MAIN_LAYOUTS[Math.floor(Math.random() * MAIN_LAYOUTS.length)]
+            : undefined;
+        try {
+            boardKinds = await this.boardApi.loadMainBoard(layout);
+        } catch {
+            if (this.isValid && version === this.requestVersion) {
+                this.loadingBoard = false;
+                this.failedBoardGroup = group;
+                this.message.string = "读取牌局失败，点击重开重试";
             }
+            return;
         }
         if (this.isValid && version === this.requestVersion) {
-            this.openRound(2, group, boardKinds);
+            this.openRound(2, group, boardKinds, layout);
         }
     }
 
@@ -257,12 +258,14 @@ export class FlipZooStartScreen extends Component {
         level: Level,
         group: Group,
         boardKinds?: readonly number[],
+        layout?: MainLayout,
     ): void {
         this.requestVersion += 1;
+        this.failedBoardGroup = undefined;
         this.loadingBoard = false;
         this.unschedule(this.advanceToMainBoard);
         this.closeOverlay();
-        this.round = new Round(level, group, boardKinds);
+        this.round = new Round(level, group, boardKinds, Math.random, layout);
         if (this.board) {
             this.board.removeFromParent();
             this.board.destroy();
