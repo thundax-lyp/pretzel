@@ -19,6 +19,7 @@ import { loadZooArtwork, type ZooArtwork } from "./artwork";
 import { createBoardApi } from "./board-api";
 import { CardView, color, label, picture, uiNode } from "./card-view";
 import { ClearCelebration } from "./clear-celebration";
+import { ZooAudio, type VolumeChannel } from "./zoo-audio";
 import {
     FULL_EXPOSURE,
     GROUPS,
@@ -80,6 +81,7 @@ export class FlipZooStartScreen extends Component {
     private round!: Round;
     private board?: Node;
     private matchLayer?: Node;
+    private audio!: ZooAudio;
     private playMats!: Record<Level, Node>;
     private slotTray?: Node;
     private cards: CardView[] = [];
@@ -125,6 +127,7 @@ export class FlipZooStartScreen extends Component {
         }
         if (!this.isValid) return;
         loading.node.destroy();
+        this.audio = this.node.addComponent(ZooAudio);
         picture(this.node, "ZooGarden", this.art.garden, 750, 1334);
         this.gameRoot = uiNode(this.node, "Game", 750, 1334);
         this.createGame();
@@ -134,6 +137,15 @@ export class FlipZooStartScreen extends Component {
     private createGame(): void {
         this.panel(this.gameRoot, "Sign", 608, 376, 68, "#FFF4E5", "#D29C80");
         this.placeTitle(this.gameRoot, 238, 608);
+        this.button(
+            "⚙ 设置",
+            -299,
+            608,
+            118,
+            () => this.showSettings(),
+            this.gameRoot,
+            58,
+        );
         this.button(
             "重开本关",
             286,
@@ -328,6 +340,57 @@ export class FlipZooStartScreen extends Component {
         );
     }
 
+    private showSettings(fromWelcome = false): void {
+        if (!fromWelcome && (this.overlay || this.round.status !== "playing"))
+            return;
+        const dialog = this.openOverlay("AudioSettings");
+        if (fromWelcome) this.gameRoot.active = false;
+        this.panel(dialog, "SettingsCard", 0, 630, 483, "#FFF4E5", "#CE9B83");
+        const title = label(dialog, "声音设置", 43, "#482755");
+        title.isBold = true;
+        title.node.setPosition(0, 166);
+        for (const [index, channel] of (["music", "sfx"] as const).entries()) {
+            const y = 62 - index * 105;
+            this.createVolumeRow(dialog, channel, y);
+        }
+        const back = this.button(
+            fromWelcome ? "返回首页" : "继续游戏",
+            0,
+            -151,
+            330,
+            () => {
+                if (fromWelcome) this.showWelcome();
+                else this.closeOverlay();
+            },
+            dialog,
+            71,
+        );
+        this.paintButton(back, true);
+    }
+
+    private createVolumeRow(
+        parent: Node,
+        channel: VolumeChannel,
+        y: number,
+    ): void {
+        const name = channel === "music" ? "背景音乐" : "消除音效";
+        const value = label(parent, "", 28, "#482755");
+        value.node.setPosition(0, y);
+        const update = () => {
+            const volume = this.audio.volume(channel);
+            value.string =
+                volume === 0 ? `${name}  静音` : `${name}  ${volume}%`;
+        };
+        const adjust = (delta: number) => {
+            this.audio.setVolume(channel, this.audio.volume(channel) + delta);
+            if (channel === "music") this.audio.startMusic();
+            update();
+        };
+        this.button("−", -218, y, 78, () => adjust(-10), parent, 65);
+        this.button("+", 218, y, 78, () => adjust(10), parent, 65);
+        update();
+    }
+
     private restartRound(): void {
         if (this.failedBoardGroup) {
             void this.startMainBoard(this.failedBoardGroup);
@@ -461,6 +524,7 @@ export class FlipZooStartScreen extends Component {
     }
 
     private playMatch(kind: number, indices: readonly number[]): void {
+        this.audio.playMatch();
         const { width, height } = TABLE[this.round.level];
         for (const index of indices) {
             const slot = this.slots[index].node.position;
@@ -605,6 +669,15 @@ export class FlipZooStartScreen extends Component {
     private showWelcome(): void {
         const welcome = this.openOverlay("Welcome", false);
         this.gameRoot.active = false;
+        this.button(
+            "⚙ 设置",
+            -299,
+            608,
+            118,
+            () => this.showSettings(true),
+            welcome,
+            58,
+        );
         this.panel(welcome, "WelcomeCard", 28, 638, 745, "#FFF4E5", "#D29C80");
         picture(welcome, "Paw", this.art.paw, 70).node.setPosition(0, 322);
         this.placeTitle(welcome, 540, 216);
@@ -639,6 +712,7 @@ export class FlipZooStartScreen extends Component {
             376,
             () => {
                 this.closeOverlay();
+                this.audio.startMusic();
             },
             welcome,
             86,
