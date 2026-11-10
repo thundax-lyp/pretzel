@@ -10,25 +10,6 @@ import {
 import type { ZooArtwork } from "./artwork";
 import { FULL_EXPOSURE } from "./round";
 
-const FACE_COLORS = [
-    "#D8EFB4",
-    "#E4F2AD",
-    "#FFD3B9",
-    "#BDE5DC",
-    "#FAD5DB",
-    "#CEE4F5",
-    "#BDDEF2",
-    "#F9E0A0",
-    "#F8D2A1",
-    "#FFF0E1",
-    "#EACDB7",
-    "#E3D6EE",
-    "#F8DEBB",
-    "#DDDDE6",
-    "#D8DEE6",
-    "#F2DEA4",
-];
-
 export function color(hex: string): Color {
     return Color.fromHEX(new Color(), hex);
 }
@@ -84,15 +65,23 @@ export class CardView {
     private readonly portrait: Sprite;
     private readonly portraitSize: UITransform;
     private readonly mark: Label;
-    private readonly size: number;
+    private readonly width: number;
+    private readonly height: number;
     private lastAppearance = "";
 
-    constructor(parent: Node, name: string, size: number, art: ZooArtwork) {
+    constructor(
+        parent: Node,
+        name: string,
+        width: number,
+        height: number,
+        art: ZooArtwork,
+    ) {
         this.art = art;
-        this.size = size;
-        this.node = uiNode(parent, name, size, size);
+        this.width = width;
+        this.height = height;
+        this.node = uiNode(parent, name, width, height);
         this.body = this.node.addComponent(Graphics);
-        this.portrait = picture(this.node, "Portrait", art.paw, size);
+        this.portrait = picture(this.node, "Portrait", art.paw, width);
         this.portraitSize = this.portrait.node.getComponent(UITransform)!;
         this.mark = label(this.node, "", 36);
         this.mark.isBold = true;
@@ -105,40 +94,47 @@ export class CardView {
         if (this.lastAppearance === appearance) return;
         this.lastAppearance = appearance;
 
-        const half = this.size / 2;
-        this.body.clear();
-        this.body.fillColor = color(
-            kind === null
-                ? selectable
-                    ? "#477563"
-                    : "#3D6256"
-                : FACE_COLORS[kind],
-        );
-        this.body.roundRect(
-            -half + 1,
-            -half + 1,
-            this.size - 2,
-            this.size - 2,
-            7,
-        );
-        this.body.fill();
-        this.body.strokeColor = color(selectable ? "#E9CD90" : "#72917D");
-        this.body.lineWidth = 2;
-        this.body.stroke();
-
         this.mark.string = "";
-        const partial = exposure !== FULL_EXPOSURE;
+        const faceDown = kind === null;
+        this.paintTile(faceDown, selectable);
+        const partial = !faceDown && exposure !== FULL_EXPOSURE;
         const quadrant = [0, 1, 2, 3].find((index) => exposure & (1 << index))!;
-        const size = this.size * (partial ? 0.35 : kind === null ? 0.6 : 0.83);
+        const size =
+            (Math.min(this.width, this.height) - 12) *
+            (faceDown ? 0.64 : partial ? 0.44 : 0.96);
         this.portrait.node.active = true;
         this.portrait.spriteFrame =
             kind === null ? this.art.paw : this.art.animals[kind];
-        this.portrait.color = color(selectable ? "#FFFFFF" : "#AEC5B2");
+        this.portrait.color = color(
+            faceDown || selectable ? "#FFFFFF" : "#E5E3C5",
+        );
         this.portraitSize.setContentSize(size, size);
         this.portrait.node.setPosition(
-            partial ? (quadrant % 2 === 0 ? -half : half) / 2 : 0,
-            partial ? (quadrant < 2 ? half : -half) / 2 : 0,
+            partial ? ((quadrant % 2 === 0 ? -1 : 1) * this.width) / 4 : 0,
+            partial ? ((quadrant < 2 ? 1 : -1) * this.height) / 4 : 3,
         );
+    }
+
+    private paintTile(faceDown: boolean, selectable: boolean): void {
+        const { body, width, height } = this;
+        const x = -width / 2 + 2;
+        const y = -height / 2 + 2;
+        const edge = 6;
+        body.clear();
+        body.lineWidth = 2;
+        body.strokeColor = color(selectable ? "#648835" : "#879360");
+
+        body.fillColor = color(selectable ? "#A8D25D" : "#ADB981");
+        body.roundRect(x, y, width - 4, height - 4, 7);
+        body.fill();
+        body.stroke();
+
+        body.fillColor = color(
+            faceDown ? "#C8D69A" : selectable ? "#FFFBDF" : "#DEDDB9",
+        );
+        body.roundRect(x, y + edge, width - 4, height - 4 - edge, 7);
+        body.fill();
+        body.stroke();
     }
 
     showEmpty(lockedLabel = ""): void {
@@ -150,14 +146,19 @@ export class CardView {
         this.mark.string = lockedLabel;
         this.mark.fontSize = 21;
         this.mark.lineHeight = 26;
-        this.mark.color = color("#F2D38F");
+        this.mark.color = color("#6E613A");
         this.mark.node.setPosition(0, 0);
         this.body.clear();
-        this.body.fillColor = color(locked ? "#576B4F" : "#2E5544");
-        this.body.strokeColor = color(locked ? "#C6A86B" : "#668F76");
+        this.body.fillColor = color(locked ? "#E7D8A9" : "#F7E8B9");
+        this.body.strokeColor = color(locked ? "#BCAB76" : "#D3B76C");
         this.body.lineWidth = 2;
-        const half = this.size / 2;
-        this.body.roundRect(-half, -half, this.size, this.size, 8);
+        this.body.roundRect(
+            -this.width / 2,
+            -this.height / 2,
+            this.width,
+            this.height,
+            8,
+        );
         this.body.fill();
         this.body.stroke();
     }

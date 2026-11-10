@@ -18,7 +18,7 @@ export interface Card {
     readonly top: number;
 }
 
-const TUTORIAL = [["338838", "838338", "383883", "838833", "338388", "388833"]];
+const TUTORIAL = [["338838", "838338", "383883", "838833"]];
 
 // Each string is a row of card types. Layers are stored bottom to top.
 const MAIN_BOARD = [
@@ -379,12 +379,28 @@ export class Round {
         return this.capacity;
     }
 
+    get slotLimit(): number {
+        return this.level === 1 ? INITIAL_SLOTS : SLOT_LIMIT;
+    }
+
     get remaining(): number {
         return this.onBoard.size + this.slotted.length;
     }
 
+    get hasProgress(): boolean {
+        return (
+            this.moves > 0 ||
+            this.usedProps.size > 0 ||
+            this.capacity !== INITIAL_SLOTS
+        );
+    }
+
+    propUsesLeft(prop: Prop): 0 | 1 {
+        return this.usedProps.has(prop) ? 0 : 1;
+    }
+
     unlockNextSlot(): boolean {
-        if (this.status !== "playing" || this.capacity === SLOT_LIMIT) {
+        if (this.status !== "playing" || this.capacity === this.slotLimit) {
             return false;
         }
         this.capacity += 1;
@@ -395,7 +411,7 @@ export class Round {
         if (
             this.level !== 2 ||
             this.status !== "playing" ||
-            this.usedProps.has(prop)
+            this.propUsesLeft(prop) === 0
         ) {
             return false;
         }
