@@ -119,7 +119,7 @@
                         "_value": false
                     },
                     "audio": {
-                        "_value": false
+                        "_value": true
                     },
                     "video": {
                         "_value": false
@@ -128,7 +128,7 @@
                         "_value": false
                     },
                     "tween": {
-                        "_value": false
+                        "_value": true
                     },
                     "websocket": {
                         "_value": false
@@ -193,11 +193,13 @@
                 "includeModules": [
                     "2d",
                     "affine-transform",
+                    "audio",
                     "base",
                     "custom-pipeline",
                     "gfx-webgl",
                     "gfx-webgl2",
                     "graphics",
+                    "tween",
                     "ui"
                 ],
                 "noDeprecatedFeatures": {

@@ -3,6 +3,7 @@ import type { Prop } from "./round";
 
 export interface ZooArtwork {
     readonly garden: SpriteFrame;
+    readonly title: SpriteFrame;
     readonly animals: readonly SpriteFrame[];
     readonly paw: SpriteFrame;
     readonly trophy: SpriteFrame;
@@ -43,17 +44,21 @@ function slice(
 }
 
 export async function loadZooArtwork(): Promise<ZooArtwork> {
-    const [garden, animals, symbols] = await Promise.all([
+    const [garden, title, animals, symbols, props] = await Promise.all([
         loadTexture("zoo-garden"),
+        loadTexture("zoo-title"),
         loadTexture("animal-portraits"),
         loadTexture("zoo-symbols"),
+        loadTexture("zoo-props"),
     ]);
-    const [paw, undo, peek, remove, shuffle, trophy] = slice(symbols, 3, 2);
+    const symbolsFrames = slice(symbols, 3, 2);
+    const [undo, peek, remove, shuffle] = slice(props, 2, 2);
     return {
         garden: slice(garden, 1, 1)[0],
+        title: slice(title, 1, 1)[0],
         animals: slice(animals, 4, 4),
-        paw,
-        trophy,
+        paw: symbolsFrames[0],
+        trophy: symbolsFrames[5],
         props: { undo, peek, remove, shuffle },
     };
 }

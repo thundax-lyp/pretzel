@@ -3,6 +3,7 @@
         "target": "ES2020",
         "module": "ESNext",
         "moduleResolution": "Bundler",
+        "allowImportingTsExtensions": true,
         "types": ["@cocos/creator-types/engine"],
         "lib": ["ES2020", "DOM"],
         "strict": true,

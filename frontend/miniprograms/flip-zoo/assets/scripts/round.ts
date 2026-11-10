@@ -18,7 +18,7 @@ export interface Card {
     readonly top: number;
 }
 
-const TUTORIAL = [["338838", "838338", "383883", "838833", "338388", "388833"]];
+const TUTORIAL = [["338838", "838338", "383883", "838833"]];
 
 // Each string is a row of card types. Layers are stored bottom to top.
 const MAIN_BOARD = [
@@ -80,9 +80,223 @@ function buildDeck(layers: string[][]): readonly Card[] {
 const TUTORIAL_DECK = buildDeck(TUTORIAL);
 const MAIN_DECK = buildDeck(MAIN_BOARD);
 
+export const MAIN_LAYOUTS = ["pyramid", "double-peak", "triple-peak"] as const;
+export type MainLayout = (typeof MAIN_LAYOUTS)[number];
+
+type Footprint = readonly [
+    left: number,
+    top: number,
+    width: number,
+    height: number,
+];
+
+const PEAKS: Record<MainLayout, readonly (readonly Footprint[])[]> = {
+    pyramid: [
+        [[0, 0, 7, 9]],
+        [[0.5, 0.5, 6, 8]],
+        [[1, 1, 5, 7]],
+        [[1.5, 1.5, 4, 6]],
+        [[2, 2, 3, 5]],
+        [[2.5, 3.5, 2, 2]],
+    ],
+    "double-peak": [
+        [[0, 0, 7, 9]],
+        [[0, 0.5, 7, 8]],
+        [[0, 1, 7, 7]],
+        [
+            [1, 0.5, 3, 2],
+            [3, 6.5, 3, 2],
+        ],
+        [
+            [0.5, 0, 3, 1],
+            [3.5, 8, 3, 1],
+        ],
+        [
+            [0, 0.5, 2, 1],
+            [6, 8.5, 1, 1],
+        ],
+    ],
+    "triple-peak": [
+        [[0, 0, 7, 9]],
+        [[0.5, 0, 6, 9]],
+        [[1, 1, 6, 7]],
+        [
+            [1.5, 0.5, 3, 2],
+            [3.5, 3.5, 3, 2],
+            [1.5, 6.5, 3, 2],
+        ],
+        [
+            [1, 0, 3, 1],
+            [4, 4, 3, 1],
+            [1, 8, 3, 1],
+        ],
+        [
+            [0.5, 0.5, 1, 1],
+            [6.5, 4.5, 1, 1],
+            [0.5, 8.5, 1, 1],
+        ],
+    ],
+};
+
+function buildPeakDeck(layout: MainLayout): Card[] {
+    const cards: Card[] = [];
+    PEAKS[layout].forEach((footprints, layer) => {
+        for (const [left, top, width, height] of footprints) {
+            for (let row = 0; row < height; row += 1) {
+                for (let column = 0; column < width; column += 1) {
+                    const x = left + column;
+                    const y = top + row;
+                    cards.push({
+                        id: cards.length,
+                        kind: 0,
+                        layer,
+                        x,
+                        y,
+                        left: x,
+                        top: y,
+                    });
+                }
+            }
+        }
+    });
+    return cards;
+}
+
+const PEAK_DECKS = {
+    pyramid: buildPeakDeck("pyramid"),
+    "double-peak": buildPeakDeck("double-peak"),
+    "triple-peak": buildPeakDeck("triple-peak"),
+};
+
 export const DEFAULT_BOARD_KINDS: readonly number[] = MAIN_DECK.map(
     (card) => card.kind,
 );
+
+function covers(upper: Card, lower: Card): boolean {
+    return (
+        upper.layer > lower.layer &&
+        Math.abs(upper.left - lower.left) < 1 &&
+        Math.abs(upper.top - lower.top) < 1
+    );
+}
+
+export function generateMainBoard(
+    random = Math.random,
+    previous?: readonly number[],
+    layout?: MainLayout,
+): { kinds: number[]; clearOrder: number[] } {
+    const deck = layout ? PEAK_DECKS[layout] : MAIN_DECK;
+    const blockers = deck.map((card) =>
+        deck.filter((upper) => covers(upper, card)),
+    );
+    const keyGroupCount = 2 + Math.floor(random() * 4);
+    const counts = new Array<number>(16).fill(0);
+    for (const kind of DEFAULT_BOARD_KINDS) counts[kind] += 1;
+    const reservedKinds = [counts.indexOf(3)];
+    const eligible = counts.flatMap((count, kind) => (count > 3 ? [kind] : []));
+    while (reservedKinds.length < keyGroupCount) {
+        const [kind] = eligible.splice(
+            Math.floor(random() * eligible.length),
+            1,
+        );
+        reservedKinds.push(kind);
+    }
+    for (const kind of reservedKinds.slice(1)) {
+        const [recipient] = eligible.splice(
+            Math.floor(random() * eligible.length),
+            1,
+        );
+        counts[recipient] += counts[kind] - 3;
+        counts[kind] = 3;
+    }
+
+    const kinds = new Array<number>(deck.length);
+    const reservedGroups: Card[][] = [];
+    const alongRows = layout !== undefined || random() < 0.5;
+    const mirrored = layout === undefined && random() < 0.5;
+    // Separate layers into bands so reserved cards never depend on another
+    // reserved card, even through a chain of two overlapping ordinary cards.
+    const bands = layout
+        ? [
+              [0, 1],
+              [3, 4],
+              [7, 8],
+          ]
+        : [[0, 1], [3, 4], [6]];
+    for (const kind of reservedKinds) {
+        const group: Card[] = [];
+        for (let layer = 0; layer < MAIN_BOARD.length; layer += 1) {
+            const candidates = deck.filter((card) => {
+                const coordinate = Math.floor(alongRows ? card.y : card.x);
+                const edge = alongRows ? 8 : 6;
+                const position = mirrored ? edge - coordinate : coordinate;
+                return (
+                    card.layer === layer &&
+                    bands[layer].includes(position) &&
+                    kinds[card.id] === undefined
+                );
+            });
+            const card = candidates[Math.floor(random() * candidates.length)];
+            kinds[card.id] = kind;
+            group.push(card);
+        }
+        reservedGroups.push(group);
+    }
+
+    const remaining = new Set(deck);
+    const clearOrder: number[] = [];
+    const exposed = (card: Card) =>
+        blockers[card.id].every((upper) => !remaining.has(upper));
+    const take = (card: Card) => {
+        remaining.delete(card);
+        clearOrder.push(card.id);
+    };
+    while (remaining.size > 0) {
+        const moves = deck
+            .filter(
+                (card) =>
+                    remaining.has(card) &&
+                    kinds[card.id] === undefined &&
+                    exposed(card),
+            )
+            .map((card) => [card]);
+        for (const group of reservedGroups) {
+            if (remaining.has(group[0]) && group.every(exposed))
+                moves.push(group);
+        }
+        moves[Math.floor(random() * moves.length)].forEach(take);
+    }
+
+    const triples = counts.flatMap((count, kind) =>
+        count === 3 ? [] : new Array<number>(count / 3).fill(kind),
+    );
+    for (let index = triples.length - 1; index > 0; index -= 1) {
+        const picked = Math.floor(random() * (index + 1));
+        [triples[index], triples[picked]] = [triples[picked], triples[index]];
+    }
+
+    // A whole reserved group clears in three takes even when an
+    // ordinary triple is waiting in up to two slots.
+    let ordinary = 0;
+    for (const id of clearOrder) {
+        if (kinds[id] === undefined) {
+            kinds[id] = triples[Math.floor(ordinary++ / 3)];
+        }
+    }
+    if (previous && kinds.every((kind, id) => kind === previous[id])) {
+        // Rename two kinds with equal counts. The same path still clears,
+        // and even a repeated random sequence produces a different deal.
+        const first = counts.findIndex(
+            (count, kind) => count > 3 && counts.indexOf(count) < kind,
+        );
+        const second = counts.indexOf(counts[first]);
+        for (const [id, kind] of kinds.entries()) {
+            if (kind === first) kinds[id] = second;
+            else if (kind === second) kinds[id] = first;
+        }
+    }
+    return { kinds, clearOrder };
+}
 
 export function isBoardKinds(value: unknown): value is number[] {
     if (!Array.isArray(value) || value.length !== MAIN_DECK.length)
@@ -99,6 +313,7 @@ export function isBoardKinds(value: unknown): value is number[] {
 export class Round {
     readonly level: Level;
     readonly group: Group;
+    readonly layout?: MainLayout;
     status: "playing" | "won" | "lost" = "playing";
     moves = 0;
     firstMatchAt: number | "prop" | null = null;
@@ -116,30 +331,39 @@ export class Round {
         group: Group,
         boardKinds?: readonly number[],
         random = Math.random,
+        layout?: MainLayout,
     ) {
         this.level = level;
         this.group = group;
+        this.layout = layout;
         this.random = random;
+        const mainDeck = layout ? PEAK_DECKS[layout] : MAIN_DECK;
         this.board =
             level === 1
                 ? TUTORIAL_DECK
                 : boardKinds
-                  ? MAIN_DECK.map((card) => ({
+                  ? mainDeck.map((card) => ({
                         ...card,
                         kind: boardKinds[card.id],
                     }))
-                  : MAIN_DECK;
+                  : mainDeck;
         this.onBoard = new Set(this.cards.map((card) => card.id));
         if (level === 2 && group === "C") {
-            for (const card of this.cards) {
-                if (
-                    card.layer === 2 &&
-                    (card.x === 1 || card.x === 5) &&
-                    (card.y === 1 || card.y === 4 || card.y === 7)
-                ) {
-                    this.revealed.add(card.id);
-                }
-            }
+            const opening = layout
+                ? this.cards
+                      .slice()
+                      .reverse()
+                      // Leave one summit card dark so peek works at the start.
+                      .slice(1)
+                      .filter((card) => this.isSelectable(this.exposure(card)))
+                      .slice(0, 6)
+                : this.cards.filter(
+                      (card) =>
+                          card.layer === 2 &&
+                          (card.x === 1 || card.x === 5) &&
+                          (card.y === 1 || card.y === 4 || card.y === 7),
+                  );
+            for (const card of opening) this.revealed.add(card.id);
         }
     }
 
@@ -155,12 +379,28 @@ export class Round {
         return this.capacity;
     }
 
+    get slotLimit(): number {
+        return this.level === 1 ? INITIAL_SLOTS : SLOT_LIMIT;
+    }
+
     get remaining(): number {
         return this.onBoard.size + this.slotted.length;
     }
 
+    get hasProgress(): boolean {
+        return (
+            this.moves > 0 ||
+            this.usedProps.size > 0 ||
+            this.capacity !== INITIAL_SLOTS
+        );
+    }
+
+    propUsesLeft(prop: Prop): 0 | 1 {
+        return this.usedProps.has(prop) ? 0 : 1;
+    }
+
     unlockNextSlot(): boolean {
-        if (this.status !== "playing" || this.capacity === SLOT_LIMIT) {
+        if (this.status !== "playing" || this.capacity === this.slotLimit) {
             return false;
         }
         this.capacity += 1;
@@ -171,7 +411,7 @@ export class Round {
         if (
             this.level !== 2 ||
             this.status !== "playing" ||
-            this.usedProps.has(prop)
+            this.propUsesLeft(prop) === 0
         ) {
             return false;
         }
@@ -235,10 +475,9 @@ export class Round {
     exposure(card: Card): number {
         let visible = FULL_EXPOSURE;
         for (const other of this.cards) {
-            if (other.layer <= card.layer || !this.isOnBoard(other)) continue;
+            if (!covers(other, card) || !this.isOnBoard(other)) continue;
             const dx = other.left - card.left;
             const dy = other.top - card.top;
-            if (Math.abs(dx) >= 1 || Math.abs(dy) >= 1) continue;
             const columns = dx < 0 ? 0b0101 : dx > 0 ? 0b1010 : FULL_EXPOSURE;
             const rows = dy < 0 ? 0b0011 : dy > 0 ? 0b1100 : FULL_EXPOSURE;
             visible &= ~(columns & rows);
@@ -316,13 +555,9 @@ export class Round {
     }
 
     private topCards(): Card[] {
-        for (let layer = 2; layer >= 0; layer -= 1) {
-            const cards = this.cards.filter(
-                (card) => card.layer === layer && this.isOnBoard(card),
-            );
-            if (cards.length > 0) return cards;
-        }
-        return [];
+        const remaining = this.cards.filter((card) => this.isOnBoard(card));
+        const topLayer = Math.max(...remaining.map((card) => card.layer));
+        return remaining.filter((card) => card.layer === topLayer);
     }
 
     private shuffleBoard(): boolean {
@@ -353,7 +588,7 @@ export class Round {
             movable.forEach((card, index) => {
                 kinds[card.id] = shuffled[index].kind;
             });
-            const proof = new Round(2, "B", kinds);
+            const proof = new Round(2, "B", kinds, this.random, this.layout);
             proof.capacity = this.capacity;
             proof.slotted = [...this.slotted];
             for (const card of proof.cards) {
