@@ -32,8 +32,10 @@ test("WeChat draws each saved board without contacting the preview server", asyn
         const saved = MAIN_BOARD_POOL[layout];
         assert.equal(saved.length, 4);
         for (const [variant, expected] of saved.entries()) {
-            draw = (variant + 0.5) / 4;
-            const kinds = await api.loadMainBoard(layout);
+            draw = 0;
+            const deal = await api.loadMainBoard();
+            const { kinds } = deal;
+            assert.equal(deal.layout, layout);
             assert.deepEqual(kinds, expected);
             assert.ok(isBoardKinds(kinds));
             boards.add(kinds.join(","));
@@ -44,7 +46,7 @@ test("WeChat draws each saved board without contacting the preview server", asyn
             const random = () => {
                 if (first) {
                     first = false;
-                    return draw;
+                    return (variant + 0.5) / 4;
                 }
                 state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
                 return state / 2 ** 32;
@@ -58,6 +60,16 @@ test("WeChat draws each saved board without contacting the preview server", asyn
             assert.equal(round.status, "won");
         }
     }
+    const last = [...boards].at(-1);
+    const nextCycle = new Set();
+    draw = 0.999;
+    for (let i = 0; i < 12; i += 1) {
+        const { kinds } = await api.loadMainBoard();
+        const key = kinds.join(",");
+        if (i === 0) assert.notEqual(key, last);
+        nextCycle.add(key);
+    }
+    assert.deepEqual(nextCycle, boards);
     assert.equal(boards.size, 12);
     assert.equal(fetch.mock.callCount(), 0);
 });
@@ -228,7 +240,7 @@ test("Web preview loads the existing HTTP payload and surfaces failures", async 
     );
 
     const api = createBoardApi(false);
-    assert.deepEqual(await api.loadMainBoard(), board);
+    assert.deepEqual(await api.loadMainBoard(), { kinds: board });
     assert.equal(fetch.mock.calls[0].arguments[0], "/api/board");
     await assert.rejects(api.loadMainBoard(), /503/);
     await assert.rejects(api.loadMainBoard(), /Invalid board/);

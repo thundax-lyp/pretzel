@@ -16,7 +16,7 @@ import {
 } from "cc";
 import { WECHAT } from "cc/env";
 import { loadZooArtwork, type ZooArtwork } from "./artwork";
-import { createBoardApi } from "./board-api";
+import { createBoardApi, type MainBoardDeal } from "./board-api";
 import { CardView, color, label, picture, uiNode } from "./card-view";
 import { ClearCelebration } from "./clear-celebration";
 import { ZooAudio, type VolumeChannel } from "./zoo-audio";
@@ -24,7 +24,6 @@ import {
     FULL_EXPOSURE,
     GROUPS,
     INITIAL_SLOTS,
-    MAIN_LAYOUTS,
     PROPS,
     Round,
     type Group,
@@ -408,12 +407,9 @@ export class FlipZooStartScreen extends Component {
         this.loadingBoard = true;
         this.failedBoardGroup = undefined;
         this.message.string = "读取第二关牌局…";
-        let boardKinds: readonly number[];
-        const layout = WECHAT
-            ? MAIN_LAYOUTS[Math.floor(Math.random() * MAIN_LAYOUTS.length)]
-            : undefined;
+        let deal: MainBoardDeal;
         try {
-            boardKinds = await this.boardApi.loadMainBoard(layout);
+            deal = await this.boardApi.loadMainBoard();
         } catch {
             if (this.isValid && version === this.requestVersion) {
                 this.loadingBoard = false;
@@ -423,7 +419,7 @@ export class FlipZooStartScreen extends Component {
             return;
         }
         if (this.isValid && version === this.requestVersion) {
-            this.openRound(2, group, boardKinds, layout);
+            this.openRound(2, group, deal.kinds, deal.layout);
         }
     }
 
