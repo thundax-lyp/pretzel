@@ -40,8 +40,8 @@ const GROUP_LABELS: Record<Group, string> = {
 };
 
 const TABLE = {
-    1: { columns: 6, rows: 4, width: 116, height: 142, y: 151 },
-    2: { columns: 8, rows: 10, width: 88, height: 92, y: 14 },
+    1: { width: 116, height: 142, y: 151 },
+    2: { width: 88, height: 92, y: 14 },
 } as const;
 const MATCH_DURATION = 0.36;
 
@@ -91,7 +91,7 @@ export class FlipZooStartScreen extends Component {
     private art!: ZooArtwork;
     private gameRoot!: Node;
     private round!: Round;
-    private board?: Node;
+    private board?: { node: Node; left: number; top: number };
     private matchLayer?: Node;
     private audio!: ZooAudio;
     private playMats!: Record<Level, Node>;
@@ -529,16 +529,20 @@ export class FlipZooStartScreen extends Component {
         this.closeOverlay();
         this.round = new Round(level, group, boardKinds, Math.random, layout);
         if (this.board) {
-            this.board.removeFromParent();
-            this.board.destroy();
+            this.board.node.removeFromParent();
+            this.board.node.destroy();
         }
 
         const table = TABLE[level];
-        const width = table.columns * table.width;
-        const height = table.rows * table.height;
+        const lefts = this.round.cards.map((card) => card.left);
+        const tops = this.round.cards.map((card) => card.top);
+        const left = Math.min(...lefts);
+        const top = Math.min(...tops);
+        const width = (Math.max(...lefts) + 1 - left) * table.width;
+        const height = (Math.max(...tops) + 1 - top) * table.height;
         const board = uiNode(this.gameRoot, "Board", width, height);
         board.setPosition(0, table.y);
-        this.board = board;
+        this.board = { node: board, left, top };
         board.on(Node.EventType.TOUCH_END, this.onBoardTouch, this);
         this.cards = this.round.cards.map((card) => {
             const view = new CardView(
@@ -549,8 +553,8 @@ export class FlipZooStartScreen extends Component {
                 this.art,
             );
             view.node.setPosition(
-                (card.left + 0.5) * table.width - width / 2,
-                height / 2 - (card.top + 0.5) * table.height,
+                (card.left - left + 0.5) * table.width - width / 2,
+                height / 2 - (card.top - top + 0.5) * table.height,
             );
             return view;
         });
@@ -582,15 +586,16 @@ export class FlipZooStartScreen extends Component {
 
     private onBoardTouch(event: EventTouch): void {
         if (!this.board || this.overlay || this.loadingBoard) return;
-        const transform = this.board.getComponent(UITransform)!;
+        const { node, left, top } = this.board;
+        const transform = node.getComponent(UITransform)!;
         const point = event.getUILocation();
         const local = transform.convertToNodeSpaceAR(
             new Vec3(point.x, point.y),
         );
         const table = TABLE[this.round.level];
         const card = this.round.cardAt(
-            (local.x + transform.width / 2) / table.width,
-            (transform.height / 2 - local.y) / table.height,
+            left + (local.x + transform.width / 2) / table.width,
+            top + (transform.height / 2 - local.y) / table.height,
         );
         if (!card) return;
         const previous = [...this.round.slots];
