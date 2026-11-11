@@ -287,6 +287,15 @@ test("filling the active capacity without a match loses immediately", () => {
         assert.equal(round.unlockNextSlot(), false);
         assert.equal(round.use("remove"), false);
         assert.equal(round.moves, capacity);
+        const slots = [...round.slots];
+        const remaining = round.remaining;
+        assert.equal(round.canRevive, capacity < 7);
+        assert.equal(round.revive(), capacity < 7);
+        assert.equal(round.revive(), false);
+        assert.equal(round.slotCapacity, Math.min(capacity + 1, 7));
+        assert.equal(round.status, capacity < 7 ? "playing" : "lost");
+        assert.deepEqual(round.slots, slots);
+        assert.equal(round.remaining, remaining);
     }
 });
 

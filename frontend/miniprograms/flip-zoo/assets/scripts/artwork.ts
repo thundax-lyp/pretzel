@@ -6,7 +6,6 @@ export interface ZooArtwork {
     readonly title: SpriteFrame;
     readonly animals: readonly SpriteFrame[];
     readonly paw: SpriteFrame;
-    readonly trophy: SpriteFrame;
     readonly props: Readonly<Record<Prop, SpriteFrame>>;
 }
 
@@ -58,7 +57,6 @@ export async function loadZooArtwork(): Promise<ZooArtwork> {
         title: slice(title, 1, 1)[0],
         animals: slice(animals, 4, 4),
         paw: symbolsFrames[0],
-        trophy: symbolsFrames[5],
         props: { undo, peek, remove, shuffle },
     };
 }

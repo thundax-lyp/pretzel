@@ -1,10 +1,13 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setImmediate } from "node:timers/promises";
+import { compileFunction } from "node:vm";
+import ts from "typescript";
 import { ANIMALS } from "../../../../.agents/skills/pretzel-level-design/scripts/catalog.mjs";
 import { generate } from "../../../../.agents/skills/pretzel-level-design/scripts/levels.mjs";
 
@@ -31,6 +34,84 @@ const { createHttpGameApi, GameApiError } = require(
     join(out, "http-game-api.js"),
 );
 const { RunState, canPick } = require(join(out, "run-state.js"));
+
+function createGameClient() {
+    const { outputText } = ts.transpileModule(
+        readFileSync("assets/scripts/game-client.ts", "utf8"),
+        {
+            compilerOptions: {
+                module: ts.ModuleKind.CommonJS,
+                target: ts.ScriptTarget.ES2020,
+                experimentalDecorators: true,
+            },
+        },
+    );
+    const exports = {};
+    const imports = {
+        cc: {
+            Component: class {},
+            _decorator: { ccclass: () => (target) => target, property() {} },
+        },
+        "cc/env": { DEBUG: false, PREVIEW: false },
+        "./http-game-api": { GameApiError },
+    };
+    compileFunction(outputText, ["exports", "require"])(
+        exports,
+        (name) => imports[name] ?? {},
+    );
+    return new exports.GameClient();
+}
+
+test("retrying an accepted abandonment after a lost response returns home", async () => {
+    const client = createGameClient();
+    const api = createPreviewApi();
+    const operate = api.operate;
+    let original;
+    api.operate = async (id, request) => {
+        const result = await operate(id, request);
+        if (!original) {
+            original = request;
+            throw new Error("response lost");
+        }
+        assert.deepEqual(request, original);
+        return result;
+    };
+    client.state = new RunState(api, await api.start("abandon"), () => "op");
+    await assert.rejects(client.state.submit({ type: "ABANDON" }));
+    let homeVisits = 0;
+    client.home = async () => {
+        homeVisits++;
+    };
+    client.showGame = () => assert.fail("abandoned run reopened");
+    await client.retryOperation();
+    assert.equal(homeVisits, 1);
+    assert.equal(client.state.snapshot.status, "ABANDONED");
+});
+
+test("home offers reconnection after expiry and keeps it after a login failure", async () => {
+    const client = createGameClient();
+    client.scene = "home";
+    let reconnect;
+    client.showNotice = (_title, _body, action, caption) => {
+        assert.equal(caption, "重新连接");
+        reconnect = action;
+    };
+    let attempts = 0;
+    client.connect = async () => {
+        if (++attempts === 1) throw new Error("微信登录失败");
+    };
+    await client.work(async () => {
+        throw new GameApiError(401, "UNAUTHORIZED", "expired");
+    });
+    const firstReconnect = reconnect;
+    reconnect = undefined;
+    firstReconnect();
+    await setImmediate();
+    assert.equal(typeof reconnect, "function");
+    reconnect();
+    await setImmediate();
+    assert.equal(attempts, 2);
+});
 
 async function enterSecond(api) {
     let n = 0;
