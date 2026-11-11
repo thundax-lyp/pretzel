@@ -375,9 +375,10 @@ export class GameClient extends Component {
         try {
             await callback();
         } catch (error) {
-            this.lostSession =
+            const expired =
                 error instanceof GameApiError && error.status === 401;
-            this.message = this.lostSession
+            if (expired) this.lostSession = true;
+            this.message = expired
                 ? "登录已失效，请重新连接"
                 : error instanceof Error
                   ? error.message
@@ -392,10 +393,24 @@ export class GameClient extends Component {
                 }
                 this.showGame();
             } else if (this.scene === "start") this.showStart();
+            else if (this.lostSession)
+                this.showNotice(
+                    "暂时无法完成",
+                    this.message,
+                    () => void this.work(() => this.connect()),
+                    "重新连接",
+                );
             else this.showNotice("暂时无法完成", this.message);
         } finally {
             this.busy = false;
         }
+    }
+
+    private async retryOperation() {
+        const state = this.state!;
+        await state.retry();
+        if (state.snapshot.status === "ABANDONED") await this.home();
+        else this.showGame();
     }
 
     private async connect() {
@@ -1104,11 +1119,7 @@ export class GameClient extends Component {
                 0,
                 420,
                 83,
-                () =>
-                    void this.work(async () => {
-                        await this.state!.retry();
-                        this.showGame();
-                    }),
+                () => void this.work(() => this.retryOperation()),
                 gold,
             );
         else if (run.status === "LEVEL_1_PASSED")
