@@ -23,7 +23,6 @@ import { ZooAudio, type VolumeChannel } from "./zoo-audio";
 import {
     FULL_EXPOSURE,
     GROUPS,
-    INITIAL_SLOTS,
     PROPS,
     Round,
     type Group,
@@ -270,7 +269,7 @@ export class FlipZooStartScreen extends Component {
         this.slotTray?.destroy();
         this.slots.length = 0;
 
-        const { level, slotLimit } = this.round;
+        const { level, slotLimit, initialCapacity } = this.round;
         const { width, height } = TABLE[level];
         const slotPitch = width + 5;
         const tutorial = level === 1;
@@ -294,9 +293,9 @@ export class FlipZooStartScreen extends Component {
                 height,
                 this.art,
             );
-            const extra = index >= INITIAL_SLOTS;
+            const extra = index >= initialCapacity;
             const column = index - (slotLimit - 1) / 2;
-            const offset = tutorial ? 0 : extra ? 10 : -6;
+            const offset = initialCapacity === slotLimit ? 0 : extra ? 10 : -6;
             slot.node.setPosition(
                 column * slotPitch + offset,
                 tutorial ? -12 : -10,

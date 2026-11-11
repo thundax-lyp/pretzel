@@ -322,7 +322,7 @@ export class Round {
     private readonly usedProps = new Set<Prop>();
     private board: readonly Card[];
     private slotted: Card[] = [];
-    private capacity = INITIAL_SLOTS;
+    private capacity: number;
     private lastTaken: Card | null = null;
     private readonly random: () => number;
 
@@ -336,6 +336,7 @@ export class Round {
         this.level = level;
         this.group = group;
         this.layout = layout;
+        this.capacity = this.initialCapacity;
         this.random = random;
         const mainDeck = layout ? PEAK_DECKS[layout] : MAIN_DECK;
         this.board =
@@ -375,6 +376,10 @@ export class Round {
         return this.board;
     }
 
+    get initialCapacity(): number {
+        return this.level === 2 && this.layout ? SLOT_LIMIT : INITIAL_SLOTS;
+    }
+
     get slotCapacity(): number {
         return this.capacity;
     }
@@ -391,7 +396,7 @@ export class Round {
         return (
             this.moves > 0 ||
             this.usedProps.size > 0 ||
-            this.capacity !== INITIAL_SLOTS
+            this.capacity !== this.initialCapacity
         );
     }
 

@@ -123,6 +123,28 @@ test("generated deals clear with five slots using the actual Round rules", () =>
     }
 });
 
+test("peak layouts open seven slots and cannot expand after a full tray", () => {
+    for (const layout of MAIN_LAYOUTS) {
+        const kinds = MAIN_BOARD_POOL[layout][0].map((_, id) => id % 16);
+        const round = new Round(2, "C", kinds, Math.random, layout);
+        const byKind = new Map();
+        for (const card of round.cards) {
+            if (round.isSelectable(round.exposure(card)))
+                byKind.set(card.kind, card);
+        }
+        const picks = [...byKind.values()].slice(0, 7);
+        assert.equal(picks.length, 7);
+        for (const card of picks.slice(0, 6)) {
+            assert.equal(round.take(card.id), 0);
+            assert.equal(round.status, "playing");
+        }
+        assert.equal(round.take(picks[6].id), 0);
+        assert.equal(round.status, "lost");
+        assert.equal(round.slots.length, 7);
+        assert.equal(round.canRevive, false);
+    }
+});
+
 test("each peak shape fits the table and clears across all four key-group counts", () => {
     const overlap = (a, b) =>
         Math.max(0, 1 - Math.abs(a.left - b.left)) *
