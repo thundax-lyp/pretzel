@@ -47,6 +47,7 @@ const TABLE = {
 const MATCH_DURATION = 0.36;
 
 interface RewardedAd {
+    load(): Promise<void>;
     show(): Promise<void>;
     onClose(listener: (result?: { isEnded?: boolean }) => void): void;
     offClose(listener: (result?: { isEnded?: boolean }) => void): void;
@@ -759,6 +760,7 @@ export class FlipZooStartScreen extends Component {
         }
         const ad = (this.rewardedAd ??= wx.createRewardedVideoAd({ adUnitId }));
         return new Promise((resolve, reject) => {
+            let displayed = false;
             const cleanup = () => {
                 ad.offClose(onClose);
                 ad.offError(onError);
@@ -767,15 +769,25 @@ export class FlipZooStartScreen extends Component {
                 cleanup();
                 resolve(result?.isEnded === true);
             };
-            const onError = () => {
+            const fail = () => {
                 cleanup();
                 reject(new Error("Rewarded ad unavailable"));
+            };
+            const onError = () => {
+                // Before display, show/load promise failures drive recovery.
+                if (displayed) fail();
             };
             ad.onClose(onClose);
             ad.onError(onError);
             void Promise.resolve()
                 .then(() => ad.show())
-                .catch(onError);
+                .catch(async () => {
+                    await ad.load();
+                    await ad.show();
+                })
+                .then(() => {
+                    displayed = true;
+                }, fail);
         });
     }
 
