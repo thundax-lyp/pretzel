@@ -97,6 +97,14 @@ try {
         }
     }
     if (wechat) {
+        const adUnitId = process.env.FLIP_ZOO_WECHAT_REWARDED_AD_UNIT_ID;
+        if (adUnitId) {
+            fs.writeFileSync(
+                entry,
+                `GameGlobal.flipZooRewardedAdUnitId = ${JSON.stringify(adUnitId)};\n` +
+                    fs.readFileSync(entry, "utf8"),
+            );
+        }
         const firstScreenPath = path.join(output, "first-screen.js");
         let firstScreen = fs.readFileSync(firstScreenPath, "utf8");
         const artPath = (filename) => {

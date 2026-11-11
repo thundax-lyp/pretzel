@@ -407,6 +407,21 @@ export class Round {
         return true;
     }
 
+    get canRevive(): boolean {
+        return (
+            this.level === 2 &&
+            this.status === "lost" &&
+            this.capacity < this.slotLimit
+        );
+    }
+
+    revive(): boolean {
+        if (!this.canRevive) return false;
+        this.capacity += 1;
+        this.status = "playing";
+        return true;
+    }
+
     canUse(prop: Prop): boolean {
         if (
             this.level !== 2 ||

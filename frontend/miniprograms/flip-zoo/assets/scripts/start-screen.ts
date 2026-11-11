@@ -46,6 +46,19 @@ const TABLE = {
 } as const;
 const MATCH_DURATION = 0.36;
 
+interface RewardedAd {
+    show(): Promise<void>;
+    onClose(listener: (result?: { isEnded?: boolean }) => void): void;
+    offClose(listener: (result?: { isEnded?: boolean }) => void): void;
+    onError(listener: () => void): void;
+    offError(listener: () => void): void;
+}
+
+declare const GameGlobal: { flipZooRewardedAdUnitId?: string };
+declare const wx: {
+    createRewardedVideoAd?: (options: { adUnitId: string }) => RewardedAd;
+};
+
 const PROP_LABELS: Record<Prop, string> = {
     undo: "撤回",
     peek: "透视",
@@ -91,6 +104,8 @@ export class FlipZooStartScreen extends Component {
         { button: Control; count: Label }
     >();
     private overlay?: Node;
+    private rewardedAd?: RewardedAd;
+    private adPending = false;
     private readonly boardApi = createBoardApi(WECHAT);
     private requestVersion = 0;
     private failedBoardGroup?: Group;
@@ -286,6 +301,7 @@ export class FlipZooStartScreen extends Component {
                 tutorial ? -12 : -10,
             );
             if (extra) {
+                if (!WECHAT) this.addAdBadge(slot.node, width, height);
                 slot.node.on(Node.EventType.TOUCH_END, () =>
                     this.onSlotTouch(index),
                 );
@@ -692,16 +708,37 @@ export class FlipZooStartScreen extends Component {
             this.message.string = `请先解锁第 ${this.round.slotCapacity + 1} 格`;
             return;
         }
+        this.showMockAd(
+            `看完解锁第 ${index + 1} 格，本局有效`,
+            () => {
+                if (!this.round.unlockNextSlot()) return;
+                this.message.string = `已解锁第 ${this.round.slotCapacity} 格`;
+                this.refresh();
+            },
+            () => {},
+        );
+    }
+
+    private showMockAd(
+        description: string,
+        complete: () => void,
+        cancel: () => void,
+    ): void {
         const dialog = this.openOverlay("MockAd");
         this.panel(dialog, "AdCard", 0, 606, 308, "#FFF1D2", "#9B6838");
         label(dialog, "模拟激励广告", 40, "#56351C").node.setPosition(0, 79);
-        label(
+        label(dialog, description, 27, "#503918").node.setPosition(0, 12);
+        this.button(
+            "取消",
+            -134,
+            -81,
+            232,
+            () => {
+                this.closeOverlay();
+                cancel();
+            },
             dialog,
-            `看完解锁第 ${index + 1} 格，本局有效`,
-            27,
-            "#503918",
-        ).node.setPosition(0, 12);
-        this.button("取消", -134, -81, 232, () => this.closeOverlay(), dialog);
+        );
         this.button(
             "模拟看完",
             134,
@@ -709,12 +746,37 @@ export class FlipZooStartScreen extends Component {
             232,
             () => {
                 this.closeOverlay();
-                if (!this.round.unlockNextSlot()) return;
-                this.message.string = `已解锁第 ${this.round.slotCapacity} 格`;
-                this.refresh();
+                complete();
             },
             dialog,
         );
+    }
+
+    private async playRewardedAd(): Promise<boolean> {
+        const adUnitId = GameGlobal.flipZooRewardedAdUnitId;
+        if (!adUnitId || !wx.createRewardedVideoAd) {
+            throw new Error("Rewarded ad unavailable");
+        }
+        const ad = (this.rewardedAd ??= wx.createRewardedVideoAd({ adUnitId }));
+        return new Promise((resolve, reject) => {
+            const cleanup = () => {
+                ad.offClose(onClose);
+                ad.offError(onError);
+            };
+            const onClose = (result?: { isEnded?: boolean }) => {
+                cleanup();
+                resolve(result?.isEnded === true);
+            };
+            const onError = () => {
+                cleanup();
+                reject(new Error("Rewarded ad unavailable"));
+            };
+            ad.onClose(onClose);
+            ad.onError(onError);
+            void Promise.resolve()
+                .then(() => ad.show())
+                .catch(onError);
+        });
     }
 
     private openOverlay(name: string, shade = true): Node {
@@ -806,8 +868,9 @@ export class FlipZooStartScreen extends Component {
         this.scheduleOnce(this.advanceToMainBoard, 1.25);
     }
 
-    private showResult(won: boolean): void {
+    private showResult(won: boolean, feedback?: string): void {
         const result = this.openOverlay("RoundResult");
+        const canRevive = this.round.canRevive;
         this.panel(result, "ResultCard", 22, 622, 522, "#FFF1D2", "#9B6838");
         const badge = picture(
             result,
@@ -827,34 +890,109 @@ export class FlipZooStartScreen extends Component {
         title.node.setPosition(0, 62);
         label(
             result,
-            won ? "所有动物都找到伙伴了" : "还差一点，再来一局吧",
+            feedback ??
+                (won
+                    ? "所有动物都找到伙伴了"
+                    : canRevive
+                      ? "解锁 1 格，继续本局"
+                      : "还差一点，再来一局吧"),
             28,
             "#503918",
         ).node.setPosition(0, 1);
+        if (canRevive) {
+            const revive = this.button(
+                "看视频复活",
+                0,
+                -75,
+                342,
+                () => void this.requestRevive(result),
+                result,
+                66,
+            );
+            this.paintButton(revive, true);
+            this.addAdBadge(revive.graphic.node, revive.width, revive.height);
+        }
         const replay = this.button(
             won ? "再玩一局" : "再试一次",
-            0,
-            -91,
-            342,
+            canRevive ? -116 : 0,
+            canRevive ? -157 : -91,
+            canRevive ? 208 : 342,
             () => {
+                if (this.adPending) return;
                 this.closeOverlay();
                 this.restartRound();
             },
             result,
             72,
         );
-        this.paintButton(replay, true);
+        this.paintButton(replay, !canRevive);
         this.button(
             "返回首页",
-            0,
-            -177,
-            342,
+            canRevive ? 116 : 0,
+            canRevive ? -157 : -177,
+            canRevive ? 208 : 342,
             () => {
+                if (this.adPending) return;
                 this.returnHome();
             },
             result,
-            64,
+            canRevive ? 72 : 64,
         );
+    }
+
+    private async requestRevive(result: Node): Promise<void> {
+        const round = this.round;
+        if (this.overlay !== result || this.adPending || !round.canRevive)
+            return;
+        const revive = () => {
+            if (this.round !== round || !round.revive()) return;
+            this.closeOverlay();
+            this.message.string = `已解锁第 ${round.slotCapacity} 格 · 继续本局`;
+            this.finishAction(false);
+        };
+        if (!WECHAT) {
+            this.showMockAd("看完解锁 1 格，继续本局", revive, () =>
+                this.showResult(false),
+            );
+            return;
+        }
+        this.adPending = true;
+        try {
+            const completed = await this.playRewardedAd();
+            if (
+                this.overlay !== result ||
+                this.round !== round ||
+                !this.isValid
+            )
+                return;
+            if (completed) revive();
+            else this.showResult(false, "完整观看广告后才能复活");
+        } catch {
+            if (
+                this.overlay === result &&
+                this.round === round &&
+                this.isValid
+            ) {
+                this.showResult(false, "广告暂不可用，可以稍后重试");
+            }
+        } finally {
+            this.adPending = false;
+        }
+    }
+
+    private addAdBadge(parent: Node, width: number, height: number): void {
+        const badge = uiNode(parent, "RewardedAdBadge", 38, 28);
+        badge.setPosition(width / 2 - 23, height / 2 - 13);
+        const graphic = badge.addComponent(Graphics);
+        graphic.fillColor = color("#56351C");
+        graphic.roundRect(-19, -14, 38, 28, 7);
+        graphic.fill();
+        graphic.fillColor = color("#FFF1DE");
+        graphic.moveTo(-5, -7);
+        graphic.lineTo(8, 0);
+        graphic.lineTo(-5, 7);
+        graphic.close();
+        graphic.fill();
     }
 
     private onPropTouch(prop: Prop): void {
@@ -899,9 +1037,11 @@ export class FlipZooStartScreen extends Component {
         }
         this.slots.forEach((slot, index) => {
             const card = round.slots[index];
+            const adBadge = slot.node.getChildByName("RewardedAdBadge");
+            if (adBadge) adBadge.active = index >= round.slotCapacity;
             if (card) slot.show(card.kind, FULL_EXPOSURE, true);
             else if (index < round.slotCapacity) slot.showEmpty();
-            else slot.showEmpty(WECHAT ? "锁定" : "广告");
+            else slot.showEmpty("锁定");
         });
         for (const [prop, { button, count }] of this.propButtons) {
             button.graphic.node.active = round.level === 2;
