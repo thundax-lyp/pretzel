@@ -190,6 +190,36 @@ export function generateMainBoard(
         deck.filter((upper) => covers(upper, card)),
     );
     const keyGroupCount = 2 + Math.floor(random() * 4);
+    let bestDeal: ReturnType<typeof dealMainBoard> | undefined;
+    let bestScore = -1;
+    for (let attempt = 0; attempt < (layout ? 256 : 1); attempt += 1) {
+        const deal = dealMainBoard(
+            deck,
+            blockers,
+            keyGroupCount,
+            random,
+            previous,
+            layout,
+        );
+        if (!layout) return deal;
+        const score = peakDiversityScore(layout, deal.kinds);
+        if (score <= bestScore || !verifiesPeakDeal(layout, deal)) continue;
+        bestDeal = deal;
+        bestScore = score;
+        if (score === (PEAKS[layout].length - 2) * (16 - keyGroupCount)) break;
+    }
+    if (bestDeal) return bestDeal;
+    throw new Error(`Cannot deal ${layout} with ${keyGroupCount} key groups`);
+}
+
+function dealMainBoard(
+    deck: readonly Card[],
+    blockers: readonly (readonly Card[])[],
+    keyGroupCount: number,
+    random: () => number,
+    previous?: readonly number[],
+    layout?: MainLayout,
+): { kinds: number[]; clearOrder: number[] } {
     const counts = new Array<number>(16).fill(0);
     for (const kind of DEFAULT_BOARD_KINDS) counts[kind] += 1;
     const reservedKinds = [counts.indexOf(3)];
@@ -264,7 +294,14 @@ export function generateMainBoard(
             if (remaining.has(group[0]) && group.every(exposed))
                 moves.push(group);
         }
-        moves[Math.floor(random() * moves.length)].forEach(take);
+        const highest = layout
+            ? Math.max(...moves.map(([card]) => card.layer))
+            : undefined;
+        const candidates =
+            highest === undefined
+                ? moves
+                : moves.filter(([card]) => card.layer === highest);
+        candidates[Math.floor(random() * candidates.length)].forEach(take);
     }
 
     const triples = counts.flatMap((count, kind) =>
@@ -274,7 +311,6 @@ export function generateMainBoard(
         const picked = Math.floor(random() * (index + 1));
         [triples[index], triples[picked]] = [triples[picked], triples[index]];
     }
-
     // A whole reserved group clears in three takes even when an
     // ordinary triple is waiting in up to two slots.
     let ordinary = 0;
@@ -296,6 +332,54 @@ export function generateMainBoard(
         }
     }
     return { kinds, clearOrder };
+}
+
+function peakDiversityScore(
+    layout: MainLayout,
+    kinds: readonly number[],
+): number {
+    const counts = new Array<number>(16).fill(0);
+    for (const kind of kinds) counts[kind] += 1;
+    const layers = PEAKS[layout].map(() => new Set<number>());
+    for (const card of PEAK_DECKS[layout]) {
+        const kind = kinds[card.id];
+        if (counts[kind] > 3) layers[card.layer].add(kind);
+    }
+    let score = 0;
+    for (let layer = 0; layer + 3 <= layers.length; layer += 1) {
+        const window = new Set<number>();
+        for (const layerKinds of layers.slice(layer, layer + 3)) {
+            for (const kind of layerKinds) window.add(kind);
+        }
+        score += window.size;
+    }
+    return score;
+}
+
+function verifiesPeakDeal(
+    layout: MainLayout,
+    deal: { kinds: number[]; clearOrder: number[] },
+): boolean {
+    const round = new Round(2, "C", deal.kinds, Math.random, layout);
+    const counts = new Array<number>(16).fill(0);
+    for (const kind of deal.kinds) counts[kind] += 1;
+    const ordinary = (card: Card) => counts[card.kind] > 3;
+
+    // Replay carries all unmatched cards across layers and reserved groups.
+    for (const id of deal.clearOrder) {
+        const card = round.cards[id];
+        const groupLayers = round.slots
+            .filter((slotted) => slotted.kind === card.kind)
+            .map((slotted) => slotted.layer);
+        const taken = round.take(id);
+        if (taken === null) return false;
+        if (taken === 3 && ordinary(card)) {
+            groupLayers.push(card.layer);
+            if (Math.max(...groupLayers) - Math.min(...groupLayers) > 2)
+                return false;
+        }
+    }
+    return round.status === "won" && round.firstMatchAt === 3;
 }
 
 export function isBoardKinds(value: unknown): value is number[] {
@@ -322,7 +406,7 @@ export class Round {
     private readonly usedProps = new Set<Prop>();
     private board: readonly Card[];
     private slotted: Card[] = [];
-    private capacity = INITIAL_SLOTS;
+    private capacity: number;
     private lastTaken: Card | null = null;
     private readonly random: () => number;
 
@@ -336,6 +420,7 @@ export class Round {
         this.level = level;
         this.group = group;
         this.layout = layout;
+        this.capacity = this.initialCapacity;
         this.random = random;
         const mainDeck = layout ? PEAK_DECKS[layout] : MAIN_DECK;
         this.board =
@@ -375,6 +460,10 @@ export class Round {
         return this.board;
     }
 
+    get initialCapacity(): number {
+        return this.level === 2 && this.layout ? SLOT_LIMIT : INITIAL_SLOTS;
+    }
+
     get slotCapacity(): number {
         return this.capacity;
     }
@@ -391,7 +480,7 @@ export class Round {
         return (
             this.moves > 0 ||
             this.usedProps.size > 0 ||
-            this.capacity !== INITIAL_SLOTS
+            this.capacity !== this.initialCapacity
         );
     }
 

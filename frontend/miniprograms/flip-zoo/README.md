@@ -22,13 +22,13 @@ npm run preview
 
 在本机私有环境提供《翻翻动物园》自己的 `FLIP_ZOO_WECHAT_GAME_APP_ID`，再执行 `npm run build:wechat`。将 `build/wechatgame` 导入微信开发者工具，使用小游戏项目类型进行预览和真机验证。
 
-微信小游戏的复活入口使用激励视频。构建时通过本机环境变量 `FLIP_ZOO_WECHAT_REWARDED_AD_UNIT_ID` 提供该 AppID 对应的激励视频广告位 ID。未配置或广告不可用时，复活入口提示稍后重试。
+微信小游戏第二关开局开放 7 格，槽满失败后可以重试或返回首页。
 
 本地模拟器调试可执行 `npm run build:wechat -- --test`。该命令用 Cocos 的公开测试 AppID 生成 `build/wechatgame-test`。在微信开发者工具选择「小游戏」→「导入」，指定这个目录，在 AppID 栏选择工具提供的「测试号」，选择「不使用云服务」后创建并编译。正式验收使用游戏自己的 AppID 构建。
 
 两个微信构建都从教学关开始，每次进入或重开第二关，都从本轮尚未发过的固定牌局中随机抽取。12 副发完后开启下一轮，首副避开上一轮最后一副。完全退出小游戏后，抽取记录重置。金字塔、双峰、三峰各有 4 副，分别有 2、3、4、5 组命门。三种形态均为六层，双峰和三峰支持错位外挑的峰尖。A/B/C 对照、难度后台和模拟广告由 Web Demo 提供。
 
-第二关统一通过 `BoardApi.loadMainBoard()` 读牌。微信首发由 `LocalBoardAdapter` 从固定牌库抽取牌序，每副牌局都有一条仅用五格、无需道具的清盘路径。Creator 直接预览使用本地生成的三层牌序；本地 Web Demo 由 `HttpBoardAdapter` 请求现有的 `GET /api/board`，响应仍是按牌 ID 排列的动物编号数组。第二版微信小游戏接入服务器时，在 `createBoardApi` 选择实现相同接口的联网适配器，场景和关卡规则继续使用同一接口。
+第二关统一通过 `BoardApi.loadMainBoard()` 读牌。微信首发由 `LocalBoardAdapter` 从固定牌库抽取牌序，每副牌局都有一条仅用七格、无需道具的清盘路径。Creator 直接预览使用本地生成的三层牌序；本地 Web Demo 由 `HttpBoardAdapter` 请求现有的 `GET /api/board`，响应仍是按牌 ID 排列的动物编号数组。第二版微信小游戏接入服务器时，在 `createBoardApi` 选择实现相同接口的联网适配器，场景和关卡规则继续使用同一接口。
 
 ## 难度对照
 
