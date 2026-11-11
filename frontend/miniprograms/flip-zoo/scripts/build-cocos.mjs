@@ -99,6 +99,21 @@ try {
     if (wechat) {
         const firstScreenPath = path.join(output, "first-screen.js");
         let firstScreen = fs.readFileSync(firstScreenPath, "utf8");
+        const artPath = (filename) => {
+            const { uuid } = JSON.parse(
+                fs.readFileSync(
+                    path.join(
+                        project,
+                        "assets/resources/art",
+                        filename + ".meta",
+                    ),
+                    "utf8",
+                ),
+            );
+            const nativePath = `assets/resources/native/${uuid.slice(0, 2)}/${uuid}${path.extname(filename)}`;
+            fs.accessSync(path.join(output, nativePath), fs.constants.R_OK);
+            return JSON.stringify(nativePath);
+        };
         // The WeChat bootstrap draws before Cocos loads the game scene.
         const appearance = {
             displayRatio: "0.5",
@@ -107,8 +122,8 @@ try {
             useCustomBg: "true",
             fitWidth: "false",
             fitHeight: "false",
-            logoName: '"zoo-launch-title.png"',
-            bgName: '"zoo-launch-garden.jpg"',
+            logoName: artPath("zoo-title.png"),
+            bgName: artPath("zoo-garden.jpg"),
             progressBarColor: "[255 / 255, 199 / 255, 85 / 255, 1]",
             progressBackground: "[111 / 255, 63 / 255, 106 / 255, 1]",
         };
@@ -124,14 +139,6 @@ try {
                 `let ${key} = ${value};`,
             );
         }
-        fs.copyFileSync(
-            path.join(project, "assets/resources/art/zoo-title.png"),
-            path.join(output, "zoo-launch-title.png"),
-        );
-        fs.copyFileSync(
-            path.join(project, "assets/resources/art/zoo-garden.jpg"),
-            path.join(output, "zoo-launch-garden.jpg"),
-        );
         fs.writeFileSync(firstScreenPath, firstScreen);
     }
     console.log("Cocos build output:", output);
