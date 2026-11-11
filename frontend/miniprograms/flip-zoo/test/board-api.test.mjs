@@ -58,6 +58,8 @@ test("WeChat draws each saved board without contacting the preview server", asyn
                 assert.notEqual(round.take(id), null);
             }
             assert.equal(round.status, "won");
+            assert.equal(round.firstMatchAt, 3);
+            assert.equal(round.slotCapacity, 7);
         }
     }
     const last = [...boards].at(-1);
@@ -149,7 +151,6 @@ test("each peak shape fits the table and clears across all four key-group counts
     const overlap = (a, b) =>
         Math.max(0, 1 - Math.abs(a.left - b.left)) *
         Math.max(0, 1 - Math.abs(a.top - b.top));
-
     for (const [index, layout] of MAIN_LAYOUTS.entries()) {
         for (let sample = 0; sample < 20; sample += 1) {
             const count = 2 + (sample % 4);
@@ -219,6 +220,7 @@ test("each peak shape fits the table and clears across all four key-group counts
             const keys = [...byKind.values()].filter(
                 (cards) => cards.length === 3,
             );
+            assert.equal(byKind.size, 16);
             assert.equal(keys.length, count);
             for (const cards of keys) {
                 assert.deepEqual(
@@ -232,19 +234,38 @@ test("each peak shape fits the table and clears across all four key-group counts
                     0,
                 );
             }
+            const isOrdinary = (card) => byKind.get(card.kind).length > 3;
+            assert.equal(round.slotCapacity, 7);
+            assert.equal(round.hasProgress, false);
+            assert.equal(round.unlockNextSlot(), false);
             for (const id of clearOrder) {
                 const card = round.cards[id];
                 assert.equal(
                     round.cardAt(card.left + 0.5, card.top + 0.5),
                     card,
                 );
+                const matchingSlots = round.slots.filter(
+                    ({ kind }) => kind === card.kind,
+                );
+                const taken = round.take(id);
                 assert.notEqual(
-                    round.take(id),
+                    taken,
                     null,
                     `${layout}, sample ${sample}, card ${id}`,
                 );
+                if (taken === 3 && isOrdinary(card)) {
+                    const matchedLayers = [...matchingSlots, card].map(
+                        ({ layer }) => layer,
+                    );
+                    assert.ok(
+                        Math.max(...matchedLayers) -
+                            Math.min(...matchedLayers) <=
+                            2,
+                    );
+                }
             }
             assert.equal(round.status, "won");
+            assert.equal(round.firstMatchAt, 3);
         }
     }
 });
