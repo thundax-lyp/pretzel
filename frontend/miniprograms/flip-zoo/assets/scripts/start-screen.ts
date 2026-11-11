@@ -340,22 +340,25 @@ export class FlipZooStartScreen extends Component {
     }
 
     private showSettings(fromWelcome = false): void {
-        if (!fromWelcome && (this.overlay || this.round.status !== "playing"))
+        if (
+            !fromWelcome &&
+            (this.overlay ||
+                this.loadingBoard ||
+                this.round.status !== "playing")
+        )
             return;
         const dialog = this.openOverlay("AudioSettings");
         if (fromWelcome) this.gameRoot.active = false;
-        this.panel(dialog, "SettingsCard", 0, 630, 483, "#FFF1D2", "#9B6838");
-        const title = label(dialog, "声音设置", 43, "#56351C");
-        title.isBold = true;
-        title.node.setPosition(0, 166);
+        this.panel(dialog, "SettingsCard", 0, 630, 535, "#FFF1D2", "#9B6838");
+        this.woodenHeading(dialog, "设置", 194);
         for (const [index, channel] of (["music", "sfx"] as const).entries()) {
-            const y = 62 - index * 105;
+            const y = 90 - index * 105;
             this.createVolumeRow(dialog, channel, y);
         }
         const back = this.button(
             fromWelcome ? "返回首页" : "继续游戏",
             0,
-            -151,
+            fromWelcome ? -149 : -187,
             330,
             () => {
                 if (fromWelcome) this.showWelcome();
@@ -365,6 +368,46 @@ export class FlipZooStartScreen extends Component {
             71,
         );
         this.paintButton(back, true);
+        if (!fromWelcome) {
+            this.button(
+                "放弃挑战",
+                0,
+                -104,
+                330,
+                () => this.confirmAbandon(),
+                dialog,
+                64,
+            );
+        }
+    }
+
+    private confirmAbandon(): void {
+        const dialog = this.openOverlay("ConfirmAbandon");
+        this.panel(dialog, "AbandonCard", 0, 616, 315, "#FFF1D2", "#9B6838");
+        const title = label(dialog, "放弃挑战？", 42, "#56351C");
+        title.isBold = true;
+        title.node.setPosition(0, 91);
+        label(dialog, "结束本局并返回首页", 25, "#684824").node.setPosition(
+            0,
+            19,
+        );
+        this.button(
+            "放弃本局",
+            -135,
+            -80,
+            236,
+            () => this.returnHome(),
+            dialog,
+        );
+        const resume = this.button(
+            "继续游戏",
+            135,
+            -80,
+            236,
+            () => this.closeOverlay(),
+            dialog,
+        );
+        this.paintButton(resume, true);
     }
 
     private createVolumeRow(
@@ -373,21 +416,55 @@ export class FlipZooStartScreen extends Component {
         y: number,
     ): void {
         const name = channel === "music" ? "背景音乐" : "消除音效";
-        const value = label(parent, "", 28, "#56351C");
-        value.node.setPosition(0, y);
-        const update = () => {
-            const volume = this.audio.volume(channel);
+        const value = label(parent, "", 27, "#56351C");
+        value.node.setPosition(0, y + 30);
+        const width = 340;
+        const track = uiNode(parent, name, width + 40, 52);
+        track.setPosition(0, y - 12);
+        const graphic = track.addComponent(Graphics);
+        const draw = (volume: number) => {
             value.string =
                 volume === 0 ? `${name}  静音` : `${name}  ${volume}%`;
+            const fill = (width * volume) / 100;
+            graphic.clear();
+            graphic.fillColor = color("#DBC89B");
+            graphic.roundRect(-width / 2, -9, width, 18, 9);
+            graphic.fill();
+            graphic.fillColor = color("#739843");
+            graphic.rect(-width / 2, -7, fill, 14);
+            graphic.fill();
+            graphic.fillColor = color("#FFF1D2");
+            graphic.strokeColor = color("#986125");
+            graphic.lineWidth = 3;
+            graphic.circle(fill - width / 2, 0, 15);
+            graphic.fill();
+            graphic.stroke();
         };
-        const adjust = (delta: number) => {
-            this.audio.setVolume(channel, this.audio.volume(channel) + delta);
+        const volumeAt = (event: EventTouch) => {
+            const point = event.getUILocation();
+            const { x } = track
+                .getComponent(UITransform)!
+                .convertToNodeSpaceAR(new Vec3(point.x, point.y));
+            return Math.max(
+                0,
+                Math.min(100, Math.round((x / width + 0.5) * 100)),
+            );
+        };
+        track.on(Node.EventType.TOUCH_START, (event: EventTouch) =>
+            draw(volumeAt(event)),
+        );
+        track.on(Node.EventType.TOUCH_MOVE, (event: EventTouch) =>
+            draw(volumeAt(event)),
+        );
+        track.on(Node.EventType.TOUCH_CANCEL, () =>
+            draw(this.audio.volume(channel)),
+        );
+        track.on(Node.EventType.TOUCH_END, (event: EventTouch) => {
+            this.audio.setVolume(channel, volumeAt(event));
             if (channel === "music") this.audio.startMusic();
-            update();
-        };
-        this.button("−", -218, y, 78, () => adjust(-10), parent, 65);
-        this.button("+", 218, y, 78, () => adjust(10), parent, 65);
-        update();
+            draw(this.audio.volume(channel));
+        });
+        draw(this.audio.volume(channel));
     }
 
     private restartRound(): void {
@@ -662,6 +739,11 @@ export class FlipZooStartScreen extends Component {
         this.gameRoot.active = true;
     }
 
+    private returnHome(): void {
+        this.openRound(1, "C");
+        this.showWelcome();
+    }
+
     private showWelcome(): void {
         const welcome = this.openOverlay("Welcome", false);
         this.gameRoot.active = false;
@@ -768,8 +850,7 @@ export class FlipZooStartScreen extends Component {
             -177,
             342,
             () => {
-                this.openRound(1, "C");
-                this.showWelcome();
+                this.returnHome();
             },
             result,
             64,
@@ -891,6 +972,20 @@ export class FlipZooStartScreen extends Component {
             trail.circle(x + 10, y + 5, 3.2);
         }
         trail.fill();
+    }
+
+    private woodenHeading(parent: Node, text: string, y: number): void {
+        const sign = this.panel(
+            parent,
+            "Heading",
+            y,
+            318,
+            67,
+            "#93602F",
+            "#63401F",
+        );
+        const caption = label(sign, text, 43, "#FFF1D2");
+        caption.isBold = true;
     }
 
     private panel(
