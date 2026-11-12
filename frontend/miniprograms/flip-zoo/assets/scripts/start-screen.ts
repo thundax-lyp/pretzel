@@ -67,13 +67,13 @@ const PROP_LABELS: Record<Prop, string> = {
 };
 const PROP_MESSAGES: Record<Prop, string> = {
     undo: "上一张已回原位，仍保持亮面",
-    peek: "已翻开最高层的暗牌",
+    peek: "已翻开未被覆盖的暗牌",
     remove: "已用最高层的同款补齐并消除一组",
     shuffle: "桌面已重新洗牌",
 };
 const PROP_UNAVAILABLE: Record<Prop, string> = {
     undo: "当前没有可以撤回的牌",
-    peek: "最高层没有暗牌",
+    peek: "没有未被覆盖的暗牌",
     remove: "最高层的牌暂时凑不成槽内同款",
     shuffle: "当前无法洗牌，次数保留",
 };

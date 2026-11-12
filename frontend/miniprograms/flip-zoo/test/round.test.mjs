@@ -322,7 +322,7 @@ test("undo preserves tile count and can only be used once", () => {
     assert.equal(round.use("undo"), false);
 });
 
-test("peek samples three dark cards from the top layer and permits immediate takes", () => {
+test("peek reveals three eligible dark cards and permits immediate takes", () => {
     const round = new Round(2, "C", undefined, () => 0);
     const previouslyVisible = new Set(
         round.cards.filter((card) => round.isFaceUp(card)),
@@ -343,26 +343,27 @@ test("peek samples three dark cards from the top layer and permits immediate tak
     assert.equal(round.use("peek"), false);
 });
 
-test("peek goes down a layer when all cards above it are gone", () => {
-    const round = new Round(2, "A", undefined, () => 0);
-    round.unlockNextSlot();
-    round.unlockNextSlot();
-    while (
-        round.cards.some((card) => card.layer === 2 && round.isOnBoard(card))
-    ) {
-        assert.equal(round.status, "playing");
-        takeWithFullInformation(round, true);
-    }
-    const dark = round.cards.filter(
-        (card) => round.isOnBoard(card) && !round.isFaceUp(card),
-    );
-    const expected = dark.filter((card) => card.layer === 1).slice(0, 3);
-    assert.ok(expected.length > 0);
+test("peek includes uncovered lower layers while the summit remains", () => {
+    const round = new Round(2, "C", undefined, () => 0, "pyramid");
+    const dark = round.cards.filter((card) => !round.isFaceUp(card));
+    const expected = dark
+        .filter((card) => round.isSelectable(round.exposure(card)))
+        .slice(0, 3);
+    assert.equal(expected.length, 3);
+    assert.ok(expected.some((card) => card.layer < 5));
+    assert.ok(dark.some((card) => card.layer === 5));
+    assert.ok(dark.some((card) => !round.isSelectable(round.exposure(card))));
     assert.equal(round.use("peek"), true);
     assert.deepEqual(
         dark.filter((card) => round.isFaceUp(card)),
         expected,
     );
+});
+
+test("peek preserves its use when all uncovered cards are already face up", () => {
+    const round = new Round(2, "B", undefined, () => 0, "pyramid");
+    assert.equal(round.use("peek"), false);
+    assert.equal(round.propUsesLeft("peek"), 1);
 });
 
 test("remove completes a slotted pair before an earlier singleton", () => {

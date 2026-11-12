@@ -536,9 +536,14 @@ export class Round {
                 break;
             }
             case "peek": {
-                const hidden = this.topCards().filter(
-                    (card) => !this.isFaceUp(card),
-                );
+                const hidden = this.cards.filter((card) => {
+                    if (!this.isOnBoard(card)) return false;
+                    const exposure = this.exposure(card);
+                    return (
+                        this.isSelectable(exposure) &&
+                        !this.isFaceUp(card, exposure)
+                    );
+                });
                 if (hidden.length === 0) return false;
                 const count = Math.min(3, hidden.length);
                 for (let index = 0; index < count; index += 1) {
