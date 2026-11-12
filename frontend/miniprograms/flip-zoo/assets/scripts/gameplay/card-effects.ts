@@ -13,6 +13,7 @@ import { CardView } from "./card-view";
 import { FULL_EXPOSURE } from "./round";
 
 export const MATCH_DURATION = 0.36;
+const SLOT_MOVE_DURATION = 0.18;
 
 interface CardDimensions {
     readonly width: number;
@@ -48,7 +49,7 @@ export function flyCardToSlot(
     source.active = false;
     tween({ progress: 0 })
         .to(
-            0.18,
+            SLOT_MOVE_DURATION,
             { progress: 1 },
             {
                 easing: "quadOut",
@@ -67,6 +68,32 @@ export function flyCardToSlot(
             flight.node.active = false;
             flight.node.destroy();
             onLanded();
+        })
+        .start();
+}
+
+export function slideSlotCard(
+    tray: Node,
+    art: ZooArtwork,
+    source: Node,
+    target: Node,
+    kind: number,
+    { width, height }: CardDimensions,
+): void {
+    const card = new CardView(tray, "SlidingCard", width, height, art);
+    card.show(kind, FULL_EXPOSURE, true);
+    card.node.setPosition(source.position);
+    tween(card.node)
+        .to(
+            SLOT_MOVE_DURATION,
+            { position: target.position.clone() },
+            {
+                easing: "quadOut",
+            },
+        )
+        .call(() => {
+            card.node.active = false;
+            card.node.destroy();
         })
         .start();
 }

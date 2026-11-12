@@ -37,6 +37,15 @@ test("the tutorial has 24 flat tiles, 12 per type, and clears with five slots", 
     assert.equal(round.remaining, 0);
 });
 
+test("returning to the tutorial from group B preserves neighbor reveals", () => {
+    const round = new Round(1, "B");
+    assert.equal(round.isFaceUp(round.cards[1]), false);
+    assert.equal(round.take(0), 0);
+    assert.equal(round.isFaceUp(round.cards[1]), true);
+    assert.equal(round.isFaceUp(round.cards[6]), true);
+    assert.equal(round.isFaceUp(round.cards[7]), false);
+});
+
 test("restart protection includes takes, successful props and slot unlocks", () => {
     const tutorial = new Round(1, "C");
     assert.equal(tutorial.hasProgress, false);
@@ -302,20 +311,28 @@ test("filling the active capacity without a match loses immediately", () => {
 test("a matching fifth tile clears before checking for failure", () => {
     const round = new Round(2, "A");
     const top = round.cards.filter((card) => card.layer === 2);
-    for (const index of [0, 2, 5, 1])
+    for (const index of [2, 0, 1, 5])
         assert.equal(round.take(top[index].id), 0);
+    assert.deepEqual(round.slots, [top[2], top[5], top[0], top[1]]);
+    assert.equal(round.slotInsertionIndex(top[6].kind), 2);
     assert.equal(round.take(top[6].id), 3);
     assert.equal(round.firstMatchAt, 5);
     assert.equal(round.status, "playing");
-    assert.equal(round.slots.length, 2);
+    assert.deepEqual(round.slots, [top[0], top[1]]);
 });
 
 test("undo preserves tile count and can only be used once", () => {
     const round = new Round(2, "A");
-    const card = round.cards[126];
+    const first = round.cards[128];
+    const card = round.cards[131];
+    const other = round.cards[126];
     assert.equal(round.use("undo"), false);
+    assert.equal(round.take(first.id), 0);
+    assert.equal(round.take(other.id), 0);
     assert.equal(round.take(card.id), 0);
+    assert.deepEqual(round.slots, [first, card, other]);
     assert.equal(round.use("undo"), true);
+    assert.deepEqual(round.slots, [first, other]);
     assert.equal(round.remaining, 189);
     assert.equal(round.isOnBoard(card), true);
     assert.equal(round.isFaceUp(card), true);
