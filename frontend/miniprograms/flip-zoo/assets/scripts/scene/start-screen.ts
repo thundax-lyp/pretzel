@@ -8,7 +8,6 @@ import {
     LabelOutline,
     Node,
     ResolutionPolicy,
-    Sprite,
     SubContextView,
     UIOpacity,
     UITransform,
@@ -22,14 +21,24 @@ import {
 import { WECHAT } from "cc/env";
 import { loadZooArtwork, type ZooArtwork } from "../services/artwork";
 import { createBoardApi, type MainBoardDeal } from "../services/board-api";
-import { CardView, color, label, picture, uiNode } from "../gameplay/card-view";
+import type { Control, ScreenControls } from "../ui/screen-controls";
+import {
+    flyCardToSlot,
+    MATCH_DURATION,
+    playMatch,
+} from "../gameplay/card-effects";
+import { CardView } from "../gameplay/card-view";
+import { color, label, picture, titleLine, uiNode } from "../ui/nodes";
 import { ClearCelebration } from "../gameplay/clear-celebration";
-import { ZooAudio, type VolumeChannel } from "../services/zoo-audio";
+import { placeMascots, showWelcome } from "../home/welcome-view";
+import { SettingsView } from "../settings/settings-view";
+import { ZooAudio } from "../services/zoo-audio";
 import {
     FULL_EXPOSURE,
     GROUPS,
     PROPS,
     Round,
+    type Card,
     type Group,
     type Level,
     type MainLayout,
@@ -48,7 +57,6 @@ const TABLE = {
     1: { width: 116, height: 127, y: 102 },
     2: { width: 88, height: 92, y: -17 },
 } as const;
-const MATCH_DURATION = 0.36;
 
 interface ShareCard {
     title: string;
@@ -64,7 +72,12 @@ declare const wx: {
     offShareAppMessage?: (handler: () => ShareCard) => void;
     showToast?: (options: { title: string; icon: "none" }) => void;
     openCustomerServiceConversation?: (options: { fail: () => void }) => void;
-    getWindowInfo?: () => { windowWidth: number; windowHeight: number };
+    getWindowInfo?: () => {
+        windowWidth: number;
+        windowHeight: number;
+        safeArea?: { top: number; bottom: number };
+    };
+    getMenuButtonBoundingClientRect?: () => { bottom: number };
     createFeedbackButton?: (options: {
         type: "text";
         text: string;
@@ -98,14 +111,6 @@ const PROP_UNAVAILABLE: Record<Prop, string> = {
     remove: "最高层的牌暂时凑不成槽内同款",
 };
 
-interface Control {
-    readonly graphic: Graphics;
-    readonly caption: Label;
-    readonly width: number;
-    readonly height: number;
-    readonly icon?: Sprite;
-}
-
 @ccclass("FlipZooStartScreen")
 export class FlipZooStartScreen extends Component {
     private art!: ZooArtwork;
@@ -114,13 +119,23 @@ export class FlipZooStartScreen extends Component {
     private playfield?: UITransform;
     private readonly pagePositions = new WeakMap<Node, number>();
     private round!: Round;
-    private board?: { node: Node; left: number; top: number };
-    private matchLayer?: Node;
-    private audio!: ZooAudio;
-    private readonly lastAudibleVolume: Record<VolumeChannel, number> = {
-        music: 30,
-        sfx: 70,
+    private board?: {
+        node: Node;
+        left: number;
+        top: number;
+        tileHeight: number;
     };
+    private matchLayer?: Node;
+    private animatingCards = false;
+    private audio!: ZooAudio;
+    private readonly controls: ScreenControls = {
+        button: (...args) => this.button(...args),
+        panel: (...args) => this.panel(...args),
+        heading: (...args) => this.heading(...args),
+        paintButton: (...args) => this.paintButton(...args),
+        place: (...args) => this.place(...args),
+    };
+    private settingsView!: SettingsView;
     private playMats!: Record<Level, Node>;
     private slotTray?: Node;
     private propTray!: Node;
@@ -140,6 +155,12 @@ export class FlipZooStartScreen extends Component {
     private failedBoardGroup?: Group;
     private loadingBoard = false;
     private stage!: Label;
+    private gameHeader!: {
+        stage: Node;
+        settings: Node;
+        goals: Node;
+        moves: Node;
+    };
     private progress!: Label;
     private steps!: Label;
     private stepsCaption!: Label;
@@ -218,7 +239,7 @@ export class FlipZooStartScreen extends Component {
         );
         this.stage = label(stage, "", 27);
         this.stage.isBold = true;
-        this.button(
+        const settings = this.button(
             "⚙",
             -306,
             594,
@@ -247,6 +268,7 @@ export class FlipZooStartScreen extends Component {
                 428,
                 152,
                 () => {
+                    if (this.animatingCards) return;
                     if (this.round.level === 1)
                         void this.startMainBoard(this.round.group);
                     else this.openRound(1, this.round.group);
@@ -297,16 +319,13 @@ export class FlipZooStartScreen extends Component {
         this.place(moves, 232, 511);
         this.stepsCaption = label(moves, "入槽次数", 19, "#244D39");
         this.stepsCaption.node.setPosition(0, 23);
-        this.steps = this.titleLine(moves, "", -16, 38, "#FFF9DD", "#375339");
-        this.button(
-            "重开",
-            WECHAT ? 283 : 285,
-            WECHAT ? 438 : 594,
-            110,
-            () => this.requestRestart(),
-            this.gameRoot,
-            60,
-        );
+        this.steps = titleLine(moves, "", -16, 38, "#FFF9DD", "#375339");
+        this.gameHeader = {
+            stage,
+            settings: settings.graphic.node,
+            goals,
+            moves,
+        };
         this.message = this.text("", WECHAT ? 443 : 382, 23, "#F4FFE5");
         const messageOutline = this.message.node.addComponent(LabelOutline);
         messageOutline.color = color("#17483F");
@@ -319,7 +338,7 @@ export class FlipZooStartScreen extends Component {
                 TABLE[1].y,
                 712,
                 525,
-                "#267C70",
+                "#267C7054",
                 "#70B49B",
             ),
             2: this.panel(
@@ -328,7 +347,7 @@ export class FlipZooStartScreen extends Component {
                 TABLE[2].y,
                 722,
                 WECHAT ? 846 : 724,
-                "#267C70",
+                "#267C7054",
                 "#70B49B",
             ),
         };
@@ -426,48 +445,22 @@ export class FlipZooStartScreen extends Component {
         }
     }
 
-    private requestRestart(): void {
-        if (this.overlay || this.loadingBoard) return;
-        if (this.round.status !== "playing") {
-            if (this.failedBoardGroup) this.restartRound();
-            return;
-        }
-        if (!this.round.hasProgress) {
+    private requestRestart(settings: Node): void {
+        if (this.overlay !== settings || this.loadingBoard) return;
+        if (this.failedBoardGroup || !this.round.hasProgress) {
+            this.closeOverlay();
             this.restartRound();
             return;
         }
         const dialog = this.openOverlay("ConfirmRestart");
-        this.panel(dialog, "RestartCard", 0, 616, 315, "#FFF9E0", "#859F73");
-        const title = label(dialog, "重开本关？", 42, "#56351C");
-        title.isBold = true;
-        title.node.setPosition(0, 91);
-        label(
+        this.settingsView.confirmRestart(
             dialog,
-            this.round.level === 1
-                ? "当前关卡进度将清空"
-                : "当前进度将清空，道具次数会重置",
-            25,
-            "#684824",
-        ).node.setPosition(0, 19);
-        const cancel = this.button(
-            "继续游戏",
-            -135,
-            -80,
-            236,
+            this.round.level,
             () => this.closeOverlay(),
-            dialog,
-        );
-        this.paintButton(cancel, true);
-        this.button(
-            "确认重开",
-            135,
-            -80,
-            236,
             () => {
                 this.closeOverlay();
                 this.restartRound();
             },
-            dialog,
         );
     }
 
@@ -476,35 +469,15 @@ export class FlipZooStartScreen extends Component {
             !fromWelcome &&
             (this.overlay ||
                 this.loadingBoard ||
-                this.round.status !== "playing")
+                this.animatingCards ||
+                (this.round.status !== "playing" && !this.failedBoardGroup))
         )
             return;
         const dialog = this.openOverlay("AudioSettings", false);
         this.gameRoot.active = false;
-        this.heading(dialog, "设置", 513, "#2FBBD0", "#147289", "small");
-        const settings = this.panel(
-            dialog,
-            "SettingsCard",
-            fromWelcome ? 195 : 140,
-            650,
-            fromWelcome ? 440 : 510,
-            "#FFF9E0",
-            "#859F73",
-        );
-        for (const [index, channel] of (["music", "sfx"] as const).entries()) {
-            this.createVolumeRow(
-                settings,
-                channel,
-                (fromWelcome ? 135 : 164) - index * 126,
-            );
-        }
-        const supportY = fromWelcome ? -154 : -119;
-        this.button(
-            "联系客服",
-            -150,
-            supportY,
-            263,
-            () => {
+        this.settingsView ??= new SettingsView(this.controls, this.audio);
+        this.feedbackControl = this.settingsView.show(dialog, fromWelcome, {
+            contact: () => {
                 if (!WECHAT || !wx.openCustomerServiceConversation) {
                     this.platformNotice("请在微信小游戏内联系客服");
                     return;
@@ -513,177 +486,29 @@ export class FlipZooStartScreen extends Component {
                     fail: () => this.platformNotice("暂时无法打开客服"),
                 });
             },
-            settings,
-            57,
-        );
-        this.feedbackControl = this.button(
-            "问题反馈",
-            150,
-            supportY,
-            263,
-            () =>
+            feedback: () =>
                 this.platformNotice(
                     WECHAT
                         ? "当前环境暂不支持问题反馈"
                         : "请在微信小游戏内提交反馈",
                 ),
-            settings,
-            57,
-        ).graphic.node;
-        this.syncFeedbackButton();
-        if (!fromWelcome) {
-            const abandon = this.button(
-                "放弃挑战",
-                0,
-                -201,
-                308,
-                () => this.confirmAbandon(),
-                settings,
-                57,
-            );
-            this.paintButton(abandon, false, true, "cream");
-        }
-        this.button(
-            "返回",
-            0,
-            fromWelcome ? -116 : -194,
-            385,
-            () => {
+            abandon: () => this.confirmAbandon(),
+            restart: () => this.requestRestart(dialog),
+            back: () => {
                 if (fromWelcome) this.showWelcome();
                 else this.closeOverlay();
             },
-            dialog,
-            88,
-        );
+        });
+        this.syncFeedbackButton();
     }
 
     private confirmAbandon(): void {
         const dialog = this.openOverlay("ConfirmAbandon");
-        this.panel(dialog, "AbandonCard", 0, 616, 315, "#FFF9E0", "#859F73");
-        const title = label(dialog, "放弃挑战？", 42, "#56351C");
-        title.isBold = true;
-        title.node.setPosition(0, 91);
-        label(dialog, "结束本局并返回首页", 25, "#684824").node.setPosition(
-            0,
-            19,
-        );
-        this.button(
-            "放弃本局",
-            -135,
-            -80,
-            236,
-            () => this.returnHome(),
+        this.settingsView.confirmAbandon(
             dialog,
-        );
-        const resume = this.button(
-            "继续游戏",
-            135,
-            -80,
-            236,
             () => this.closeOverlay(),
-            dialog,
+            () => this.returnHome(),
         );
-        this.paintButton(resume, true);
-    }
-
-    private createVolumeRow(
-        parent: Node,
-        channel: VolumeChannel,
-        y: number,
-    ): void {
-        const name = channel === "music" ? "背景音乐" : "音效";
-        this.titleLine(
-            parent,
-            channel === "music" ? "♫" : "◖))",
-            y + 32,
-            30,
-            "#52BFB3",
-            "#245D59",
-        ).node.setPosition(-247, y + 32);
-        const caption = label(parent, name, 27, "#343D30");
-        const captionTransform = caption.node.getComponent(UITransform)!;
-        captionTransform.setAnchorPoint(0, 0.5);
-        caption.node.setPosition(-205, y + 32);
-        const value = label(parent, "", 23, "#536946");
-        value.node.setPosition(72, y + 32);
-        if (channel === "music") {
-            const divider = uiNode(parent, "AudioDivider").addComponent(
-                Graphics,
-            );
-            divider.fillColor = color("#DAD6B7");
-            divider.rect(-256, y - 60, 512, 2);
-            divider.fill();
-        }
-        const toggle = uiNode(parent, `${name}开关`, 100, 52);
-        toggle.setPosition(203, y + 32);
-        const switchGraphic = toggle.addComponent(Graphics);
-        const width = 500;
-        const track = uiNode(parent, name, width + 40, 52);
-        track.setPosition(0, y - 15);
-        const graphic = track.addComponent(Graphics);
-        const draw = (volume: number) => {
-            value.string = volume === 0 ? "静音" : `${volume}%`;
-            const on = volume > 0;
-            switchGraphic.clear();
-            switchGraphic.fillColor = color(on ? "#4BBF76" : "#A7B7A7");
-            switchGraphic.strokeColor = color(on ? "#317D55" : "#748C7A");
-            switchGraphic.lineWidth = 3;
-            switchGraphic.roundRect(-46, -23, 92, 46, 23);
-            switchGraphic.fill();
-            switchGraphic.stroke();
-            switchGraphic.fillColor = Color.WHITE;
-            switchGraphic.circle(on ? 22 : -22, 0, 17);
-            switchGraphic.fill();
-            const fill = (width * volume) / 100;
-            graphic.clear();
-            graphic.fillColor = color("#D3E4BB");
-            graphic.roundRect(-width / 2, -9, width, 18, 9);
-            graphic.fill();
-            graphic.fillColor = color("#49B970");
-            if (fill >= 14) {
-                graphic.roundRect(-width / 2, -7, fill, 14, 7);
-                graphic.fill();
-            }
-            graphic.fillColor = color("#FFF1D2");
-            graphic.strokeColor = color("#39875A");
-            graphic.lineWidth = 3;
-            graphic.circle(fill - width / 2, 0, 15);
-            graphic.fill();
-            graphic.stroke();
-        };
-        const volumeAt = (event: EventTouch) => {
-            const point = event.getUILocation();
-            const { x } = track
-                .getComponent(UITransform)!
-                .convertToNodeSpaceAR(new Vec3(point.x, point.y));
-            return Math.max(
-                0,
-                Math.min(100, Math.round((x / width + 0.5) * 100)),
-            );
-        };
-        const setVolume = (volume: number) => {
-            if (volume > 0) this.lastAudibleVolume[channel] = volume;
-            this.audio.setVolume(channel, volume);
-            draw(this.audio.volume(channel));
-        };
-        toggle.on(Node.EventType.TOUCH_END, () => {
-            const volume = this.audio.volume(channel);
-            if (volume > 0) this.lastAudibleVolume[channel] = volume;
-            setVolume(volume > 0 ? 0 : this.lastAudibleVolume[channel]);
-        });
-        track.on(Node.EventType.TOUCH_START, (event: EventTouch) =>
-            draw(volumeAt(event)),
-        );
-        track.on(Node.EventType.TOUCH_MOVE, (event: EventTouch) =>
-            draw(volumeAt(event)),
-        );
-        track.on(Node.EventType.TOUCH_CANCEL, () =>
-            draw(this.audio.volume(channel)),
-        );
-        track.on(Node.EventType.TOUCH_END, (event: EventTouch) =>
-            setVolume(volumeAt(event)),
-        );
-        draw(this.audio.volume(channel));
     }
 
     private restartRound(): void {
@@ -697,7 +522,7 @@ export class FlipZooStartScreen extends Component {
     }
 
     private async startMainBoard(group: Group): Promise<void> {
-        if (this.overlay) return;
+        if (this.overlay || this.animatingCards) return;
         this.unschedule(this.advanceToMainBoard);
         const version = ++this.requestVersion;
         this.loadingBoard = true;
@@ -710,7 +535,7 @@ export class FlipZooStartScreen extends Component {
             if (this.isValid && version === this.requestVersion) {
                 this.loadingBoard = false;
                 this.failedBoardGroup = group;
-                this.message.string = "读取牌局失败，点击重开重试";
+                this.message.string = "读取牌局失败，请在设置中重开";
             }
             return;
         }
@@ -746,13 +571,8 @@ export class FlipZooStartScreen extends Component {
         const board = uiNode(this.gameRoot, "Board", width, height);
         this.place(board, 0, table.y);
         const mat = this.playMats[level].getComponent(UITransform)!;
-        const scale = Math.min(
-            1,
-            (mat.width - 20) / width,
-            (mat.height - 20) / height,
-        );
-        board.setScale(scale, scale, 1);
-        this.board = { node: board, left, top };
+        this.fitBoard(board, mat.width, mat.height);
+        this.board = { node: board, left, top, tileHeight: table.height };
         board.on(Node.EventType.TOUCH_END, this.onBoardTouch, this);
         this.cards = this.round.cards.map((card) => {
             const view = new CardView(
@@ -786,6 +606,7 @@ export class FlipZooStartScreen extends Component {
         this.message.string =
             level === 1 ? "点一张牌入槽，翻开上下左右" : "只可点没被压住的牌";
         this.message.color = color("#F4FFE5");
+        if (WECHAT) this.layoutWeChatGame(this.screenSize().height);
         this.refresh();
     }
 
@@ -795,8 +616,14 @@ export class FlipZooStartScreen extends Component {
     }
 
     private onBoardTouch(event: EventTouch): void {
-        if (!this.board || this.overlay || this.loadingBoard) return;
-        const { node, left, top } = this.board;
+        if (
+            !this.board ||
+            this.overlay ||
+            this.loadingBoard ||
+            this.animatingCards
+        )
+            return;
+        const { node, left, top, tileHeight } = this.board;
         const transform = node.getComponent(UITransform)!;
         const point = event.getUILocation();
         const local = transform.convertToNodeSpaceAR(
@@ -805,7 +632,7 @@ export class FlipZooStartScreen extends Component {
         const table = TABLE[this.round.level];
         const card = this.round.cardAt(
             left + (local.x + transform.width / 2) / table.width,
-            top + (transform.height / 2 - local.y) / table.height,
+            top + (transform.height / 2 - local.y) / tileHeight,
         );
         if (!card) return;
         const previous = [...this.round.slots];
@@ -817,106 +644,47 @@ export class FlipZooStartScreen extends Component {
             return;
         }
 
-        if (matched) {
-            const group = [...previous, card].flatMap((tile, index) =>
-                tile.kind === card.kind ? [index] : [],
-            );
-            this.playMatch(card.kind, group);
-        }
-        this.message.string = matched ? "三张同款，已消除！" : "找三张同款";
-        this.finishAction(matched > 0);
+        this.animatingCards = true;
+        this.flyCardToSlot(card, previous.length, () => {
+            this.animatingCards = false;
+            if (matched) {
+                const group = [...previous, card].flatMap((tile, index) =>
+                    tile.kind === card.kind ? [index] : [],
+                );
+                this.playMatch(card.kind, group);
+            }
+            this.message.string = matched ? "三张同款，已消除！" : "找三张同款";
+            this.finishAction(matched > 0);
+        });
+    }
+
+    private flyCardToSlot(
+        card: Card,
+        slotIndex: number,
+        onLanded: () => void,
+    ): void {
+        flyCardToSlot(
+            this.matchLayer!,
+            this.art,
+            this.cards[card.id].node,
+            this.slots[slotIndex].node,
+            card.kind,
+            TABLE[this.round.level],
+            onLanded,
+        );
     }
 
     private playMatch(kind: number, indices: readonly number[]): void {
         this.audio.playMatch();
-        const cue = this.titleLine(
+        playMatch(
             this.matchLayer!,
-            "三消！",
-            this.slotTray!.position.y + 105,
-            47,
-            "#FFE379",
-            "#85501F",
+            this.slotTray!,
+            this.slots,
+            this.art,
+            kind,
+            indices,
+            TABLE[this.round.level],
         );
-        const cueOpacity = cue.node.addComponent(UIOpacity);
-        tween(cueOpacity)
-            .delay(0.12)
-            .to(MATCH_DURATION - 0.12, { opacity: 0 })
-            .call(() => cue.node.destroy())
-            .start();
-        const { width, height } = TABLE[this.round.level];
-        for (const index of indices) {
-            const slot = this.slots[index].node.position;
-            const effect = uiNode(this.matchLayer!, "MatchFlash");
-            effect.setPosition(slot.x, this.slotTray!.position.y + slot.y);
-            const glow = effect.addComponent(Graphics);
-            glow.fillColor = new Color(255, 220, 115, 170);
-            glow.roundRect(
-                -width / 2 - 5,
-                -height / 2 - 5,
-                width + 10,
-                height + 10,
-                11,
-            );
-            glow.fill();
-            glow.strokeColor = color("#FFF4AA");
-            glow.lineWidth = 4;
-            glow.roundRect(
-                -width / 2 - 3,
-                -height / 2 - 3,
-                width + 6,
-                height + 6,
-                9,
-            );
-            glow.stroke();
-            glow.fillColor = color("#FFF6BF");
-            for (const [x, y] of [
-                [-width / 2, height / 2],
-                [width / 2, -height / 2],
-            ]) {
-                glow.moveTo(x, y + 13);
-                glow.lineTo(x + 4, y + 4);
-                glow.lineTo(x + 12, y);
-                glow.lineTo(x + 4, y - 4);
-                glow.lineTo(x, y - 13);
-                glow.lineTo(x - 4, y - 4);
-                glow.lineTo(x - 12, y);
-                glow.lineTo(x - 4, y + 4);
-                glow.close();
-            }
-            glow.fill();
-            const tile = new CardView(
-                effect,
-                "MatchedTile",
-                width,
-                height,
-                this.art,
-            );
-            tile.show(kind, FULL_EXPOSURE, true);
-            const opacity = effect.addComponent(UIOpacity);
-            tween(effect)
-                .to(
-                    0.08,
-                    { scale: new Vec3(1.12, 1.12, 1) },
-                    { easing: "quadOut" },
-                )
-                .to(
-                    MATCH_DURATION - 0.08,
-                    {
-                        scale: new Vec3(0.6, 0.6, 1),
-                        position: new Vec3(
-                            effect.position.x,
-                            effect.position.y + 24,
-                        ),
-                    },
-                    { easing: "quadIn" },
-                )
-                .call(() => effect.destroy())
-                .start();
-            tween(opacity)
-                .delay(0.08)
-                .to(MATCH_DURATION - 0.08, { opacity: 0 })
-                .start();
-        }
     }
 
     private finishAction(matched: boolean): void {
@@ -955,7 +723,8 @@ export class FlipZooStartScreen extends Component {
             index < this.round.slotCapacity ||
             this.round.status !== "playing" ||
             this.overlay ||
-            this.loadingBoard
+            this.loadingBoard ||
+            this.animatingCards
         )
             return;
         if (WECHAT) {
@@ -1038,73 +807,15 @@ export class FlipZooStartScreen extends Component {
     private showWelcome(): void {
         const welcome = this.openOverlay("Welcome", false);
         this.gameRoot.active = false;
-        this.button(
-            "⚙",
-            -300,
-            584,
-            84,
-            () => this.showSettings(true),
-            welcome,
-            84,
-        );
-        const title = this.art.title;
-        const { width, height } = title.originalSize;
-        const logo = picture(
-            welcome,
-            "FlipZooTitle",
-            title,
-            554,
-            (554 * height) / width,
-        );
-        this.place(logo.node, 0, 350);
-        this.animalGroup(welcome, -24, 604);
-
-        const play = this.button(
-            "▶  开始游戏",
-            0,
-            -282,
-            544,
-            () => {
+        showWelcome(welcome, this.art, this.controls, {
+            settings: () => this.showSettings(true),
+            play: () => {
                 this.closeOverlay();
                 this.audio.startMusic();
             },
-            welcome,
-            138,
-        );
-        play.caption.fontSize = 49;
-        play.caption.lineHeight = 62;
-        this.paintButton(play, true);
-        if (WECHAT) {
-            this.button(
-                "分享游戏",
-                -148,
-                -422,
-                264,
-                () => this.share(),
-                welcome,
-            );
-            this.button(
-                "排行榜",
-                148,
-                -422,
-                264,
-                () => this.showLeaderboard(),
-                welcome,
-            );
-        }
-    }
-
-    private animalGroup(parent: Node, y: number, width: number): void {
-        const frame = this.art.mascots;
-        const { height, width: sourceWidth } = frame.originalSize;
-        const animals = picture(
-            parent,
-            "ZooAnimals",
-            frame,
-            width,
-            (width * height) / sourceWidth,
-        );
-        this.place(animals.node, 0, y);
+            share: WECHAT ? () => this.share() : undefined,
+            leaderboard: WECHAT ? () => this.showLeaderboard() : undefined,
+        });
     }
 
     private celebrate(parent: Node, badge: Node, finale: boolean): void {
@@ -1142,7 +853,7 @@ export class FlipZooStartScreen extends Component {
                 [0, 0, 147],
                 [141, -26, 110],
             ]) {
-                const star = this.titleLine(
+                const star = titleLine(
                     stars,
                     "★",
                     y,
@@ -1208,7 +919,7 @@ export class FlipZooStartScreen extends Component {
             "#3E352A",
         ).node.setPosition(0, -116);
 
-        if (won) this.animalGroup(result, -150, 458);
+        if (won) placeMascots(result, this.art, this.controls.place, -150, 458);
         else {
             const panda = picture(
                 result,
@@ -1281,14 +992,10 @@ export class FlipZooStartScreen extends Component {
                 0,
             );
         else
-            this.titleLine(
-                row,
-                "↪",
+            titleLine(row, "↪", 0, 34, "#E8A846", "#8B5A2D").node.setPosition(
+                -230,
                 0,
-                34,
-                "#E8A846",
-                "#8B5A2D",
-            ).node.setPosition(-230, 0);
+            );
         label(row, title, 28, "#3E352A").node.setPosition(-132, 0);
         const amount = label(row, value, 31, "#3E352A");
         amount.isBold = true;
@@ -1443,6 +1150,7 @@ export class FlipZooStartScreen extends Component {
         if (
             this.overlay ||
             this.loadingBoard ||
+            this.animatingCards ||
             this.round.status !== "playing"
         )
             return;
@@ -1485,6 +1193,18 @@ export class FlipZooStartScreen extends Component {
             .start();
     }
 
+    private refreshSlots(kinds: readonly (number | undefined)[]): void {
+        this.slots.forEach((slot, index) => {
+            const kind = kinds[index];
+            const locked =
+                index >= this.round.slotCapacity && kind === undefined;
+            const adBadge = slot.node.getChildByName("RewardedAdBadge");
+            if (adBadge) adBadge.active = locked;
+            if (kind !== undefined) slot.show(kind, FULL_EXPOSURE, true);
+            else slot.showEmpty(locked ? "锁定" : undefined);
+        });
+    }
+
     private refresh(): void {
         const { round } = this;
         for (const card of round.cards) {
@@ -1496,14 +1216,7 @@ export class FlipZooStartScreen extends Component {
                 round.isSelectable(exposure),
             );
         }
-        this.slots.forEach((slot, index) => {
-            const card = round.slots[index];
-            const adBadge = slot.node.getChildByName("RewardedAdBadge");
-            if (adBadge) adBadge.active = index >= round.slotCapacity;
-            if (card) slot.show(card.kind, FULL_EXPOSURE, true);
-            else if (index < round.slotCapacity) slot.showEmpty();
-            else slot.showEmpty("锁定");
-        });
+        this.refreshSlots(round.slots.map((card) => card.kind));
         for (const [prop, { button, count }] of this.propButtons) {
             button.graphic.node.active = round.level === 2;
             const remaining = round.propUsesLeft(prop);
@@ -1589,7 +1302,107 @@ export class FlipZooStartScreen extends Component {
                 ?.getComponent(Graphics);
             if (graphic) this.drawBackdrop(graphic, width, height);
         }
+        if (WECHAT) this.layoutWeChatGame(height);
         this.syncFeedbackButton();
+    }
+
+    private fitBoard(board: Node, width: number, height: number): void {
+        const bounds = board.getComponent(UITransform)!;
+        const scale = Math.min(
+            1,
+            (width - 20) / bounds.width,
+            (height - 20) / bounds.height,
+        );
+        board.setScale(scale, scale, 1);
+    }
+
+    private layoutWeChatGame(height: number): void {
+        if (!this.board || !this.slotTray) return;
+        const window = wx.getWindowInfo?.();
+        const safeArea = window?.safeArea;
+        const scale = window?.windowHeight ? height / window.windowHeight : 1;
+        const menu = wx.getMenuButtonBoundingClientRect?.();
+        const topInset =
+            Math.max(safeArea?.top ?? 0, menu?.bottom || 64) * scale;
+        const bottomInset =
+            window && safeArea
+                ? Math.max(0, window.windowHeight - safeArea.bottom) * scale
+                : 24;
+        const top = height / 2 - topInset - 4;
+        const { stage, settings, goals, moves } = this.gameHeader;
+        const stageHeight = stage.getComponent(UITransform)!.height;
+        const stageTop = safeArea?.top
+            ? height / 2 - safeArea.top * scale - 1
+            : top;
+        const stageY = stageTop - stageHeight / 2;
+        stage.setPosition(0, stageY);
+        settings.setPosition(settings.position.x, stageY);
+        const headerHeight = Math.max(
+            stageHeight,
+            settings.getComponent(UITransform)!.height,
+        );
+        const statsTop = Math.min(top, stageY - headerHeight / 2) - 8;
+        const statsHeight = goals.getComponent(UITransform)!.height;
+        for (const node of [goals, moves]) {
+            node.setPosition(node.position.x, statsTop - statsHeight / 2);
+        }
+        const messageY = statsTop - statsHeight - 22;
+        this.message.node.setPosition(0, messageY);
+
+        const tutorial = this.round.level === 1;
+        const bottom = -height / 2 + bottomInset + (tutorial ? 12 : 2);
+        const footer = tutorial ? this.tutorialRibbon : this.propTray;
+        const footerHeight = footer.getComponent(UITransform)!.height;
+        const trayHeight = this.slotTray.getComponent(UITransform)!.height;
+        const mat = this.playMats[this.round.level];
+        const matBounds = mat.getComponent(UITransform)!;
+        const boardTop = messageY - 24;
+        const footerAndTrayHeight = footerHeight + 14 + trayHeight;
+        const availableBoardHeight = Math.max(
+            40,
+            boardTop - bottom - footerAndTrayHeight - 18,
+        );
+        const boardHeight = tutorial
+            ? Math.min(matBounds.height, availableBoardHeight)
+            : availableBoardHeight;
+        const stackBottom = bottom + (availableBoardHeight - boardHeight) / 2;
+        footer.setPosition(0, stackBottom + footerHeight / 2);
+        const trayTop = stackBottom + footerAndTrayHeight;
+        this.slotTray.setPosition(0, trayTop - trayHeight / 2);
+        const boardBottom = trayTop + 18;
+        const center = boardBottom + boardHeight / 2;
+        mat.setPosition(0, center);
+        mat.setScale(1, boardHeight / matBounds.height, 1);
+        this.board.node.setPosition(0, center);
+        if (!tutorial) this.resizeMainTiles(matBounds.width, boardHeight);
+        this.fitBoard(this.board.node, matBounds.width, boardHeight);
+    }
+
+    private resizeMainTiles(width: number, height: number): void {
+        const board = this.board!;
+        const bounds = board.node.getComponent(UITransform)!;
+        const rows = bounds.height / board.tileHeight;
+        const widthScale = Math.min(1, (width - 20) / bounds.width);
+        const tileHeight = Math.max(
+            TABLE[2].height,
+            Math.min(TABLE[2].height * 1.24, (height - 20) / rows / widthScale),
+        );
+        if (Math.abs(tileHeight - board.tileHeight) < 0.01) return;
+        board.tileHeight = tileHeight;
+        bounds.setContentSize(bounds.width, rows * tileHeight);
+        for (const card of this.round.cards) {
+            const view = this.cards[card.id];
+            view.setHeight(tileHeight);
+            view.node.setPosition(
+                view.node.position.x,
+                bounds.height / 2 - (card.top - board.top + 0.5) * tileHeight,
+            );
+            const exposure = this.round.isOnBoard(card)
+                ? this.round.exposure(card)
+                : 0;
+            const kind = this.round.isFaceUp(card, exposure) ? card.kind : null;
+            view.show(kind, exposure, this.round.isSelectable(exposure));
+        }
     }
 
     private pageScale(height: number): number {
@@ -1622,23 +1435,6 @@ export class FlipZooStartScreen extends Component {
         graphic.clear();
         graphic.rect(-width / 2, -height / 2, width, height);
         graphic.fill();
-    }
-
-    private titleLine(
-        parent: Node,
-        text: string,
-        y: number,
-        size: number,
-        fill: string,
-        border: string,
-    ): Label {
-        const caption = label(parent, text, size, fill);
-        caption.isBold = true;
-        caption.node.setPosition(0, y);
-        const outline = caption.node.addComponent(LabelOutline);
-        outline.color = color(border);
-        outline.width = Math.max(2, Math.round(size / 16));
-        return caption;
     }
 
     private heading(
@@ -1687,7 +1483,7 @@ export class FlipZooStartScreen extends Component {
             graphic.fill();
             graphic.stroke();
         }
-        this.titleLine(
+        titleLine(
             sign,
             text,
             0,
