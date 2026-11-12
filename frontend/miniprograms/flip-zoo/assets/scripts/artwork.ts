@@ -3,7 +3,10 @@ import type { Prop } from "./round";
 
 export interface ZooArtwork {
     readonly garden: SpriteFrame;
+    readonly playfield: SpriteFrame;
     readonly title: SpriteFrame;
+    readonly mascots: SpriteFrame;
+    readonly sadPanda: SpriteFrame;
     readonly animals: readonly SpriteFrame[];
     readonly paw: SpriteFrame;
     readonly props: Readonly<Record<Prop, SpriteFrame>>;
@@ -43,20 +46,35 @@ function slice(
 }
 
 export async function loadZooArtwork(): Promise<ZooArtwork> {
-    const [garden, title, animals, symbols, props] = await Promise.all([
+    const [
+        garden,
+        playfield,
+        title,
+        mascots,
+        sadPanda,
+        animals,
+        symbols,
+        props,
+    ] = await Promise.all([
         loadTexture("zoo-garden"),
+        loadTexture("zoo-playfield"),
         loadTexture("zoo-title"),
+        loadTexture("zoo-mascots"),
+        loadTexture("zoo-sad-panda"),
         loadTexture("animal-portraits"),
         loadTexture("zoo-symbols"),
         loadTexture("zoo-props"),
     ]);
     const symbolsFrames = slice(symbols, 3, 2);
-    const [undo, peek, remove, shuffle] = slice(props, 2, 2);
+    const [undo, peek, remove] = slice(props, 2, 2);
     return {
         garden: slice(garden, 1, 1)[0],
+        playfield: slice(playfield, 1, 1)[0],
         title: slice(title, 1, 1)[0],
+        mascots: slice(mascots, 1, 1)[0],
+        sadPanda: slice(sadPanda, 1, 1)[0],
         animals: slice(animals, 4, 4),
         paw: symbolsFrames[0],
-        props: { undo, peek, remove, shuffle },
+        props: { undo, peek, remove },
     };
 }

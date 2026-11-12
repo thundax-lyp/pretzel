@@ -1,5 +1,5 @@
 export const GROUPS = ["A", "B", "C"] as const;
-export const PROPS = ["undo", "peek", "remove", "shuffle"] as const;
+export const PROPS = ["undo", "peek", "remove"] as const;
 export const INITIAL_SLOTS = 5;
 export const SLOT_LIMIT = 7;
 export const FULL_EXPOSURE = 0b1111;
@@ -404,7 +404,7 @@ export class Round {
     private readonly onBoard: Set<number>;
     private readonly revealed = new Set<number>();
     private readonly usedProps = new Set<Prop>();
-    private board: readonly Card[];
+    private readonly board: readonly Card[];
     private slotted: Card[] = [];
     private capacity: number;
     private lastTaken: Card | null = null;
@@ -567,9 +567,6 @@ export class Round {
                 if (this.remaining === 0) this.status = "won";
                 break;
             }
-            case "shuffle":
-                if (!this.shuffleBoard()) return false;
-                break;
         }
         this.usedProps.add(prop);
         return true;
@@ -667,87 +664,6 @@ export class Round {
         const remaining = this.cards.filter((card) => this.isOnBoard(card));
         const topLayer = Math.max(...remaining.map((card) => card.layer));
         return remaining.filter((card) => card.layer === topLayer);
-    }
-
-    private shuffleBoard(): boolean {
-        // Reserved kinds have exactly three copies in the original deal.
-        const dealtCounts = new Array<number>(16).fill(0);
-        for (const card of this.cards) dealtCounts[card.kind] += 1;
-        const movable = this.cards.filter(
-            (card) => this.isOnBoard(card) && dealtCounts[card.kind] > 3,
-        );
-        if (new Set(movable.map((card) => card.kind)).size < 2) return false;
-
-        for (let attempt = 0; attempt < 6; attempt += 1) {
-            const shuffled = [...movable];
-            for (let index = shuffled.length - 1; index > 0; index -= 1) {
-                const picked = Math.floor(this.random() * (index + 1));
-                [shuffled[index], shuffled[picked]] = [
-                    shuffled[picked],
-                    shuffled[index],
-                ];
-            }
-            if (
-                movable.every(
-                    (card, index) => card.kind === shuffled[index].kind,
-                )
-            )
-                continue;
-            const kinds = this.cards.map((card) => card.kind);
-            movable.forEach((card, index) => {
-                kinds[card.id] = shuffled[index].kind;
-            });
-            const proof = new Round(2, "B", kinds, this.random, this.layout);
-            proof.capacity = this.capacity;
-            proof.slotted = [...this.slotted];
-            for (const card of proof.cards) {
-                if (!this.isOnBoard(card)) proof.onBoard.delete(card.id);
-            }
-            if (!proof.replayClear()) continue;
-
-            const previouslyRevealed = new Set(this.revealed);
-            movable.forEach((card, index) => {
-                this.revealed.delete(card.id);
-                if (previouslyRevealed.has(shuffled[index].id))
-                    this.revealed.add(card.id);
-            });
-            this.board = proof.cards;
-            return true;
-        }
-        return false;
-    }
-
-    // Accept a shuffle only if actual take() calls can clear the resulting
-    // state with its current slot limit, no unlocks and no extra props.
-    private replayClear(): boolean {
-        while (this.status === "playing") {
-            const available = this.cards.filter(
-                (card) =>
-                    this.isOnBoard(card) &&
-                    this.isSelectable(this.exposure(card)),
-            );
-            if (available.length === 0) return false;
-            const held = new Array<number>(16).fill(0);
-            const shown = new Array<number>(16).fill(0);
-            for (const card of this.slotted) held[card.kind] += 1;
-            for (const card of available) shown[card.kind] += 1;
-            let best = available[0];
-            let bestScore = -1;
-            for (const card of available) {
-                const inSlot = held[card.kind];
-                const free = shown[card.kind];
-                let score = free;
-                if (inSlot === 2) score = 100;
-                else if (inSlot + free >= 3) score = 60 + inSlot;
-                else if (inSlot === 1 || free === 2) score = 30 + inSlot;
-                if (score > bestScore) {
-                    best = card;
-                    bestScore = score;
-                }
-            }
-            if (this.take(best.id) === null) return false;
-        }
-        return this.status === "won";
     }
 
     private findRemovableGroup(): { kind: number; cards: Card[] } | undefined {
