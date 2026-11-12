@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { MAIN_BOARD_POOL } from "../assets/scripts/main-board-pool.ts";
-import { createBoardApi } from "../assets/scripts/board-api.ts";
+import { MAIN_BOARD_POOL } from "../assets/scripts/services/main-board-pool.ts";
+import { createBoardApi } from "../assets/scripts/services/board-api.ts";
 import {
     MAIN_LAYOUTS,
     Round,
     generateMainBoard,
     isBoardKinds,
-} from "../assets/scripts/round.ts";
+} from "../assets/scripts/gameplay/round.ts";
 import { buildBoardKinds } from "../scripts/difficulty.mjs";
 
 function usePreviewOrigin(context) {
@@ -223,8 +223,8 @@ test("each peak shape fits the table and clears across all four key-group counts
                 const revealed = dark.filter((card) =>
                     propRound.isFaceUp(card),
                 );
-                assert.equal(revealed.length, Math.min(3, eligible.length));
-                assert.ok(revealed.every((card) => eligible.includes(card)));
+                assert.equal(revealed.length, Math.max(3, eligible.length));
+                assert.ok(eligible.every((card) => revealed.includes(card)));
             }
             const byKind = Map.groupBy(round.cards, (card) => card.kind);
             const keys = [...byKind.values()].filter(

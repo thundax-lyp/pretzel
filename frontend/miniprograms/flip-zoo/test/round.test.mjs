@@ -5,7 +5,7 @@ import {
     GROUPS,
     Round,
     isBoardKinds,
-} from "../assets/scripts/round.ts";
+} from "../assets/scripts/gameplay/round.ts";
 import {
     DEFAULT_DIFFICULTY,
     buildBoardKinds,
@@ -322,20 +322,23 @@ test("undo preserves tile count and can only be used once", () => {
     assert.equal(round.use("undo"), false);
 });
 
-test("peek reveals three eligible dark cards and permits immediate takes", () => {
+test("peek reveals all uncovered dark cards and permits immediate takes", () => {
     const round = new Round(2, "C", undefined, () => 0);
     const previouslyVisible = new Set(
         round.cards.filter((card) => round.isFaceUp(card)),
     );
+    const expected = round.cards.filter(
+        (card) =>
+            !previouslyVisible.has(card) &&
+            round.isSelectable(round.exposure(card)),
+    );
+    assert.ok(expected.length > 3);
     assert.equal(round.use("peek"), true);
-    assert.equal(round.cards.filter((card) => round.isFaceUp(card)).length, 9);
     assert.deepEqual(
-        round.cards
-            .filter(
-                (card) => round.isFaceUp(card) && !previouslyVisible.has(card),
-            )
-            .map((card) => card.id),
-        [126, 127, 128],
+        round.cards.filter(
+            (card) => round.isFaceUp(card) && !previouslyVisible.has(card),
+        ),
+        expected,
     );
     assert.equal(round.take(0), null);
     assert.equal(round.take(126), 0);
@@ -346,10 +349,10 @@ test("peek reveals three eligible dark cards and permits immediate takes", () =>
 test("peek includes uncovered lower layers while the summit remains", () => {
     const round = new Round(2, "C", undefined, () => 0, "pyramid");
     const dark = round.cards.filter((card) => !round.isFaceUp(card));
-    const expected = dark
-        .filter((card) => round.isSelectable(round.exposure(card)))
-        .slice(0, 3);
-    assert.equal(expected.length, 3);
+    const expected = dark.filter((card) =>
+        round.isSelectable(round.exposure(card)),
+    );
+    assert.ok(expected.length > 3);
     assert.ok(expected.some((card) => card.layer < 5));
     assert.ok(dark.some((card) => card.layer === 5));
     assert.ok(dark.some((card) => !round.isSelectable(round.exposure(card))));
@@ -360,49 +363,85 @@ test("peek includes uncovered lower layers while the summit remains", () => {
     );
 });
 
-test("peek preserves its use when all uncovered cards are already face up", () => {
+test("peek fills from the highest covered layers when exposed cards are already face up", () => {
     const round = new Round(2, "B", undefined, () => 0, "pyramid");
-    assert.equal(round.use("peek"), false);
-    assert.equal(round.propUsesLeft("peek"), 1);
+    const hidden = round.cards.filter((card) => !round.isFaceUp(card));
+    const expected = hidden
+        .slice()
+        .sort((a, b) => b.layer - a.layer)
+        .slice(0, 3);
+    assert.equal(round.use("peek"), true);
+    assert.equal(hidden.filter((card) => round.isFaceUp(card)).length, 3);
+    for (const card of expected) {
+        assert.equal(round.isFaceUp(card), true);
+        assert.equal(round.take(card.id), null);
+    }
+    assert.equal(round.propUsesLeft("peek"), 0);
 });
 
-test("remove completes a slotted pair before an earlier singleton", () => {
+test("clear slots completes every group in first-entry order", () => {
     const round = new Round(2, "A");
     assert.equal(round.use("remove"), false);
     assert.equal(round.take(126), 0);
     assert.equal(round.take(128), 0);
     assert.equal(round.take(131), 0);
-    assert.equal(round.use("remove"), true);
+    const groups = round.clearSlots();
     assert.deepEqual(
-        round.slots.map((card) => card.id),
-        [126],
+        groups.map(({ kind, heldCount }) => [kind, heldCount]),
+        [
+            [round.cards[126].kind, 1],
+            [round.cards[128].kind, 2],
+        ],
+    );
+    assert.deepEqual(round.slots, []);
+    assert.ok(
+        groups.every(({ boardCards }) =>
+            boardCards.every((card) => !round.isOnBoard(card)),
+        ),
     );
     assert.equal(round.isOnBoard(round.cards[132]), false);
-    assert.equal(round.remaining, 186);
+    assert.equal(round.remaining, 183);
     assert.equal(round.moves, 3);
     assert.equal(round.firstMatchAt, "prop");
     assert.equal(round.use("remove"), false);
 });
 
-test("remove falls back to the first singleton with two matches in the top layer", () => {
+test("clear slots preserves the board and use when any group cannot be completed", () => {
     const round = new Round(
         2,
         "A",
         buildBoardKinds({ keyGroups: 3, overlapGroups: 1 }),
     );
+    assert.equal(round.take(128), 0);
     assert.equal(round.take(173), 0);
     const blocked = [0, 110].map((id) => round.cards[id]);
     assert.ok(
         blocked.every((card) => !round.isSelectable(round.exposure(card))),
     );
     assert.equal(round.use("remove"), false);
-    assert.equal(round.take(128), 0);
-    assert.equal(round.use("remove"), true);
+    assert.equal(round.propUsesLeft("remove"), 1);
+    assert.equal(round.remaining, 189);
     assert.ok(blocked.every((card) => round.isOnBoard(card)));
-    assert.equal(round.isOnBoard(round.cards[131]), false);
-    assert.equal(round.isOnBoard(round.cards[132]), false);
+    assert.equal(round.isOnBoard(round.cards[131]), true);
+    assert.equal(round.isOnBoard(round.cards[132]), true);
     assert.deepEqual(
         round.slots.map((card) => card.id),
-        [173],
+        [128, 173],
     );
+});
+
+test("remove searches lower layers for a complete group", () => {
+    const kinds = buildBoardKinds({ keyGroups: 3, overlapGroups: 1 });
+    const movedKind = kinds[110];
+    kinds[110] = kinds[1];
+    kinds[1] = movedKind;
+    const round = new Round(2, "A", kinds);
+    assert.equal(round.take(173), 0);
+
+    assert.equal(round.use("remove"), true);
+    assert.deepEqual(round.slots, []);
+    assert.equal(round.isOnBoard(round.cards[0]), false);
+    assert.equal(round.isOnBoard(round.cards[1]), false);
+    assert.equal(round.isOnBoard(round.cards[188]), true);
+    assert.equal(round.propUsesLeft("remove"), 0);
 });

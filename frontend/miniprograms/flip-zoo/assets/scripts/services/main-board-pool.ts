@@ -1,4 +1,4 @@
-import type { MainLayout } from "./round.ts";
+import type { MainLayout } from "../gameplay/round.ts";
 
 export const MAIN_BOARD_POOL: Record<
     MainLayout,
