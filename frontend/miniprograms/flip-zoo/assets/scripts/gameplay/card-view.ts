@@ -7,7 +7,7 @@ import {
     UITransform,
     type SpriteFrame,
 } from "cc";
-import type { ZooArtwork } from "./artwork";
+import type { ZooArtwork } from "../services/artwork";
 import { FULL_EXPOSURE } from "./round";
 
 export function color(hex: string): Color {

@@ -20,11 +20,11 @@ import {
     type SpriteFrame,
 } from "cc";
 import { WECHAT } from "cc/env";
-import { loadZooArtwork, type ZooArtwork } from "./artwork";
-import { createBoardApi, type MainBoardDeal } from "./board-api";
-import { CardView, color, label, picture, uiNode } from "./card-view";
-import { ClearCelebration } from "./clear-celebration";
-import { ZooAudio, type VolumeChannel } from "./zoo-audio";
+import { loadZooArtwork, type ZooArtwork } from "../services/artwork";
+import { createBoardApi, type MainBoardDeal } from "../services/board-api";
+import { CardView, color, label, picture, uiNode } from "../gameplay/card-view";
+import { ClearCelebration } from "../gameplay/clear-celebration";
+import { ZooAudio, type VolumeChannel } from "../services/zoo-audio";
 import {
     FULL_EXPOSURE,
     GROUPS,
@@ -34,7 +34,7 @@ import {
     type Level,
     type MainLayout,
     type Prop,
-} from "./round";
+} from "../gameplay/round";
 
 const { ccclass } = _decorator;
 

@@ -6,7 +6,7 @@ import ts from "typescript";
 
 const { outputText } = ts.transpileModule(
     readFileSync(
-        new URL("../assets/scripts/start-screen.ts", import.meta.url),
+        new URL("../assets/scripts/scene/start-screen.ts", import.meta.url),
         "utf8",
     ),
     {
@@ -38,7 +38,7 @@ test("opening the share picker does not mutate the round", () => {
             _decorator: { ccclass: () => (target) => target },
         },
         "cc/env": { WECHAT: true },
-        "./board-api": { createBoardApi() {} },
+        "../services/board-api": { createBoardApi() {} },
     };
     const exports = {};
     compileFunction(outputText, ["exports", "require", "wx", "GameGlobal"])(

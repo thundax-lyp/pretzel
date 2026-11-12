@@ -5,7 +5,7 @@ import {
     GROUPS,
     Round,
     isBoardKinds,
-} from "../assets/scripts/round.ts";
+} from "../assets/scripts/gameplay/round.ts";
 import {
     DEFAULT_DIFFICULTY,
     buildBoardKinds,

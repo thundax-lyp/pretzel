@@ -1,4 +1,4 @@
-import { DEFAULT_BOARD_KINDS } from "../assets/scripts/round.ts";
+import { DEFAULT_BOARD_KINDS } from "../assets/scripts/gameplay/round.ts";
 
 export const DEFAULT_DIFFICULTY = { keyGroups: 1, overlapGroups: 0 };
 

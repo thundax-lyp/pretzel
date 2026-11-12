@@ -4,7 +4,7 @@ import {
     generateMainBoard,
     isBoardKinds,
     type MainLayout,
-} from "./round.ts";
+} from "../gameplay/round.ts";
 
 export interface MainBoardDeal {
     readonly kinds: readonly number[];

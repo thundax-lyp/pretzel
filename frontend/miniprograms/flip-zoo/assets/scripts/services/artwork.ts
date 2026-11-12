@@ -1,5 +1,5 @@
 import { Rect, Size, SpriteFrame, Texture2D, resources } from "cc";
-import type { Prop } from "./round";
+import type { Prop } from "../gameplay/round";
 
 export interface ZooArtwork {
     readonly garden: SpriteFrame;

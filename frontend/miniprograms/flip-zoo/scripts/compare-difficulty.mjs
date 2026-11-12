@@ -1,4 +1,4 @@
-import { GROUPS, Round, SLOT_LIMIT } from "../assets/scripts/round.ts";
+import { GROUPS, Round, SLOT_LIMIT } from "../assets/scripts/gameplay/round.ts";
 import { DEFAULT_DIFFICULTY, buildBoardKinds } from "./difficulty.mjs";
 
 const samples = 60;
