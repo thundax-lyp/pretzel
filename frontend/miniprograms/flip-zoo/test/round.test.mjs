@@ -379,43 +379,69 @@ test("peek fills from the highest covered layers when exposed cards are already 
     assert.equal(round.propUsesLeft("peek"), 0);
 });
 
-test("remove completes a slotted pair before an earlier singleton", () => {
+test("clear slots completes every group in first-entry order", () => {
     const round = new Round(2, "A");
     assert.equal(round.use("remove"), false);
     assert.equal(round.take(126), 0);
     assert.equal(round.take(128), 0);
     assert.equal(round.take(131), 0);
-    assert.equal(round.use("remove"), true);
+    const groups = round.clearSlots();
     assert.deepEqual(
-        round.slots.map((card) => card.id),
-        [126],
+        groups.map(({ kind, heldCount }) => [kind, heldCount]),
+        [
+            [round.cards[126].kind, 1],
+            [round.cards[128].kind, 2],
+        ],
+    );
+    assert.deepEqual(round.slots, []);
+    assert.ok(
+        groups.every(({ boardCards }) =>
+            boardCards.every((card) => !round.isOnBoard(card)),
+        ),
     );
     assert.equal(round.isOnBoard(round.cards[132]), false);
-    assert.equal(round.remaining, 186);
+    assert.equal(round.remaining, 183);
     assert.equal(round.moves, 3);
     assert.equal(round.firstMatchAt, "prop");
     assert.equal(round.use("remove"), false);
 });
 
-test("remove falls back to the first singleton with two matches in the top layer", () => {
+test("clear slots preserves the board and use when any group cannot be completed", () => {
     const round = new Round(
         2,
         "A",
         buildBoardKinds({ keyGroups: 3, overlapGroups: 1 }),
     );
+    assert.equal(round.take(128), 0);
     assert.equal(round.take(173), 0);
     const blocked = [0, 110].map((id) => round.cards[id]);
     assert.ok(
         blocked.every((card) => !round.isSelectable(round.exposure(card))),
     );
     assert.equal(round.use("remove"), false);
-    assert.equal(round.take(128), 0);
-    assert.equal(round.use("remove"), true);
+    assert.equal(round.propUsesLeft("remove"), 1);
+    assert.equal(round.remaining, 189);
     assert.ok(blocked.every((card) => round.isOnBoard(card)));
-    assert.equal(round.isOnBoard(round.cards[131]), false);
-    assert.equal(round.isOnBoard(round.cards[132]), false);
+    assert.equal(round.isOnBoard(round.cards[131]), true);
+    assert.equal(round.isOnBoard(round.cards[132]), true);
     assert.deepEqual(
         round.slots.map((card) => card.id),
-        [173],
+        [128, 173],
     );
+});
+
+test("remove searches lower layers for a complete group", () => {
+    const kinds = buildBoardKinds({ keyGroups: 3, overlapGroups: 1 });
+    const movedKind = kinds[110];
+    kinds[110] = kinds[1];
+    kinds[1] = movedKind;
+    const round = new Round(2, "A", kinds);
+    assert.equal(round.take(173), 0);
+
+    assert.equal(round.use("remove"), true);
+    assert.deepEqual(round.slots, []);
+    assert.equal(round.isOnBoard(round.cards[0]), false);
+    assert.equal(round.isOnBoard(round.cards[1]), false);
+    assert.equal(round.isOnBoard(round.cards[188]), true);
+    assert.equal(round.propUsesLeft("remove"), 0);
 });

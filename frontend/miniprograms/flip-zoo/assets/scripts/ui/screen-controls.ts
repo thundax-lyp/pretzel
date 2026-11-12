@@ -5,7 +5,7 @@ export interface Control {
     readonly caption: Label;
     readonly width: number;
     readonly height: number;
-    readonly icon?: Sprite;
+    readonly icon?: Sprite | Graphics;
 }
 
 export interface ScreenControls {

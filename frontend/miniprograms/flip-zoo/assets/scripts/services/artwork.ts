@@ -9,7 +9,7 @@ export interface ZooArtwork {
     readonly sadPanda: SpriteFrame;
     readonly animals: readonly SpriteFrame[];
     readonly paw: SpriteFrame;
-    readonly props: Readonly<Record<Prop, SpriteFrame>>;
+    readonly props: Readonly<Record<Exclude<Prop, "remove">, SpriteFrame>>;
 }
 
 function loadTexture(name: string): Promise<Texture2D> {
@@ -66,7 +66,7 @@ export async function loadZooArtwork(): Promise<ZooArtwork> {
         loadTexture("zoo-props"),
     ]);
     const symbolsFrames = slice(symbols, 3, 2);
-    const [undo, peek, remove] = slice(props, 2, 2);
+    const [undo, peek] = slice(props, 2, 2);
     return {
         garden: slice(garden, 1, 1)[0],
         playfield: slice(playfield, 1, 1)[0],
@@ -75,6 +75,6 @@ export async function loadZooArtwork(): Promise<ZooArtwork> {
         sadPanda: slice(sadPanda, 1, 1)[0],
         animals: slice(animals, 4, 4),
         paw: symbolsFrames[0],
-        props: { undo, peek, remove },
+        props: { undo, peek },
     };
 }

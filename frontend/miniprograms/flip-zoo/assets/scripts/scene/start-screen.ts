@@ -8,6 +8,7 @@ import {
     LabelOutline,
     Node,
     ResolutionPolicy,
+    Sprite,
     SubContextView,
     UIOpacity,
     UITransform,
@@ -43,6 +44,7 @@ import {
     type Level,
     type MainLayout,
     type Prop,
+    type SlotClearGroup,
 } from "../gameplay/round";
 
 const { ccclass } = _decorator;
@@ -98,17 +100,17 @@ declare const wx: {
 const PROP_LABELS: Record<Prop, string> = {
     undo: "撤回",
     peek: "翻牌",
-    remove: "移除",
+    remove: "清槽",
 };
 const PROP_MESSAGES: Record<Prop, string> = {
     undo: "上一张已回原位，仍保持亮面",
     peek: "已翻开暗牌",
-    remove: "已用最高层的同款补齐并消除一组",
+    remove: "已补齐同款，卡槽已清空",
 };
 const PROP_UNAVAILABLE: Record<Prop, string> = {
     undo: "当前没有可以撤回的牌",
     peek: "牌桌上没有可翻开的暗牌",
-    remove: "最高层的牌暂时凑不成槽内同款",
+    remove: "还有牌组无法补齐",
 };
 
 @ccclass("FlipZooStartScreen")
@@ -381,7 +383,7 @@ export class FlipZooStartScreen extends Component {
                 () => this.onPropTouch(prop),
                 this.propTray,
                 94,
-                this.art.props[prop],
+                prop === "remove" ? "clearSlots" : this.art.props[prop],
             );
             const badge = uiNode(button.graphic.node, "RemainingUses");
             badge.setPosition(propWidth / 2 - 19, -27);
@@ -1158,22 +1160,26 @@ export class FlipZooStartScreen extends Component {
             this.message.string = "这个道具本局已用完";
             return;
         }
-        const previous = [...this.round.slots];
-        if (!this.round.use(prop)) {
-            this.message.string =
-                prop === "remove" && !previous.length
-                    ? "先把同款目标牌放入卡槽"
-                    : PROP_UNAVAILABLE[prop];
-            return;
-        }
         if (prop === "remove") {
-            const indices = previous.flatMap((card, index) =>
-                this.round.slots.includes(card) ? [] : [index],
-            );
-            this.playMatch(previous[indices[0]].kind, indices);
+            const hasCards = this.round.slots.length > 0;
+            const groups = this.round.clearSlots();
+            if (!groups) {
+                this.message.string = hasCards
+                    ? PROP_UNAVAILABLE.remove
+                    : "卡槽是空的";
+                return;
+            }
+            this.animatingCards = true;
+            this.message.string = "正在补齐槽内同款…";
+            this.playSlotClear(groups, 0);
+        } else {
+            if (!this.round.use(prop)) {
+                this.message.string = PROP_UNAVAILABLE[prop];
+                return;
+            }
+            this.message.string = PROP_MESSAGES[prop];
+            this.finishAction(false);
         }
-        this.message.string = PROP_MESSAGES[prop];
-        this.finishAction(prop === "remove");
         const { button } = this.propButtons.get(prop)!;
         const flash = uiNode(button.graphic.node, "PropFlash");
         const graphic = flash.addComponent(Graphics);
@@ -1191,6 +1197,52 @@ export class FlipZooStartScreen extends Component {
             .to(0.45, { opacity: 0 })
             .call(() => flash.destroy())
             .start();
+    }
+
+    private playSlotClear(
+        groups: readonly SlotClearGroup[],
+        index: number,
+    ): void {
+        const group = groups[index];
+        if (!group) {
+            this.animatingCards = false;
+            this.message.string = PROP_MESSAGES.remove;
+            this.finishAction(false);
+            return;
+        }
+
+        const kinds: (number | undefined)[] = Array.from(
+            { length: 3 },
+            (_, slot) => (slot < group.heldCount ? group.kind : undefined),
+        );
+        for (const waiting of groups.slice(index + 1)) {
+            for (let held = 0; held < waiting.heldCount; held += 1) {
+                kinds.push(waiting.kind);
+            }
+        }
+        this.refreshSlots(kinds);
+        let landed = 0;
+        const flyNext = () => {
+            const card = group.boardCards[landed];
+            if (card) {
+                const slot = group.heldCount + landed;
+                this.flyCardToSlot(card, slot, () => {
+                    kinds[slot] = group.kind;
+                    this.refreshSlots(kinds);
+                    landed += 1;
+                    flyNext();
+                });
+                return;
+            }
+            this.playMatch(group.kind, [0, 1, 2]);
+            kinds.fill(undefined, 0, 3);
+            this.refreshSlots(kinds);
+            this.scheduleOnce(
+                () => this.playSlotClear(groups, index + 1),
+                MATCH_DURATION,
+            );
+        };
+        flyNext();
     }
 
     private refreshSlots(kinds: readonly (number | undefined)[]): void {
@@ -1520,6 +1572,36 @@ export class FlipZooStartScreen extends Component {
         return node;
     }
 
+    private drawClearSlotsIcon(parent: Node): Graphics {
+        const icon = uiNode(parent, "ClearSlotsIcon", 71, 71).addComponent(
+            Graphics,
+        );
+        icon.lineWidth = 3;
+        icon.strokeColor = color("#80511F");
+        icon.fillColor = color("#F3AD3C");
+        icon.roundRect(-27, -19, 54, 18, 5);
+        icon.fill();
+        icon.stroke();
+        icon.fillColor = color("#FFF0B3");
+        for (const x of [-21, -7, 7]) {
+            icon.roundRect(x, -14, 12, 8, 2);
+        }
+        icon.fill();
+        icon.fillColor = color("#FFE177");
+        icon.moveTo(-6, 22);
+        icon.lineTo(6, 22);
+        icon.lineTo(6, 13);
+        icon.lineTo(15, 13);
+        icon.lineTo(0, 1);
+        icon.lineTo(-15, 13);
+        icon.lineTo(-6, 13);
+        icon.close();
+        icon.fill();
+        icon.stroke();
+        icon.node.addComponent(UIOpacity);
+        return icon;
+    }
+
     private button(
         text: string,
         x: number,
@@ -1528,7 +1610,7 @@ export class FlipZooStartScreen extends Component {
         action: () => void,
         parent = this.gameRoot,
         height = 66,
-        frame?: SpriteFrame,
+        frame?: SpriteFrame | "clearSlots",
     ): Control {
         const node = uiNode(parent, text || "Other-Level", width, height);
         this.place(node, x, y);
@@ -1538,7 +1620,12 @@ export class FlipZooStartScreen extends Component {
             caption: label(node, text, height >= 80 && !frame ? 35 : 26),
             width,
             height,
-            icon: frame ? picture(node, "PropIcon", frame, 86) : undefined,
+            icon:
+                frame === "clearSlots"
+                    ? this.drawClearSlotsIcon(node)
+                    : frame
+                      ? picture(node, "PropIcon", frame, 86)
+                      : undefined,
         };
         if (text === "⚙") {
             button.caption.fontSize = 61;
@@ -1598,7 +1685,9 @@ export class FlipZooStartScreen extends Component {
         graphic.fill();
         caption.color = color(text);
         caption.node.getComponent(LabelOutline)!.color = color(border);
-        if (icon)
+        if (icon instanceof Sprite)
             icon.color = enabled ? Color.WHITE : new Color(200, 179, 172, 215);
+        else if (icon)
+            icon.getComponent(UIOpacity)!.opacity = enabled ? 255 : 170;
     }
 }

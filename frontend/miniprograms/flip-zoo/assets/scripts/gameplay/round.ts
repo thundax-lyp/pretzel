@@ -18,6 +18,12 @@ export interface Card {
     readonly top: number;
 }
 
+export interface SlotClearGroup {
+    readonly kind: number;
+    readonly heldCount: number;
+    readonly boardCards: readonly Card[];
+}
+
 const TUTORIAL = [["338838", "838338", "383883", "838833"]];
 
 // Each string is a row of card types. Layers are stored bottom to top.
@@ -525,6 +531,7 @@ export class Round {
     }
 
     use(prop: Prop): boolean {
+        if (prop === "remove") return this.clearSlots() !== undefined;
         if (!this.canUse(prop)) return false;
         switch (prop) {
             case "undo": {
@@ -563,20 +570,6 @@ export class Round {
                     covered.splice(covered.indexOf(card), 1);
                 }
                 for (const card of uncovered) this.revealed.add(card.id);
-                break;
-            }
-            case "remove": {
-                const group = this.findRemovableGroup();
-                if (!group) return false;
-                for (const card of group.cards) this.onBoard.delete(card.id);
-                this.slotted = this.slotted.filter(
-                    (card) => card.kind !== group.kind,
-                );
-                if (this.lastTaken?.kind === group.kind) {
-                    this.lastTaken = null;
-                }
-                this.firstMatchAt ??= "prop";
-                if (this.remaining === 0) this.status = "won";
                 break;
             }
         }
@@ -676,28 +669,43 @@ export class Round {
         return matching === 3 ? 3 : 0;
     }
 
-    private topCards(): Card[] {
-        const remaining = this.cards.filter((card) => this.isOnBoard(card));
-        const topLayer = Math.max(...remaining.map((card) => card.layer));
-        return remaining.filter((card) => card.layer === topLayer);
-    }
+    clearSlots(): readonly SlotClearGroup[] | undefined {
+        if (!this.canUse("remove")) return undefined;
 
-    private findRemovableGroup(): { kind: number; cards: Card[] } | undefined {
-        const top = this.topCards();
-        let best: { kind: number; cards: Card[] } | undefined;
-        let bestHeld = 0;
+        const layers: Card[][] = [];
+        for (const card of this.cards) {
+            if (!this.isOnBoard(card)) continue;
+            (layers[card.layer] ??= []).push(card);
+        }
+        const groups: SlotClearGroup[] = [];
         for (const { kind } of this.slotted) {
-            const held = this.slotted.filter(
+            if (groups.some((group) => group.kind === kind)) continue;
+            const heldCount = this.slotted.filter(
                 (card) => card.kind === kind,
             ).length;
-            if (held <= bestHeld) continue;
-            const needed = 3 - held;
-            const cards = top.filter((card) => card.kind === kind);
-            if (cards.length >= needed) {
-                best = { kind, cards: cards.slice(0, needed) };
-                bestHeld = held;
+            const needed = 3 - heldCount;
+            let boardCards: Card[] | undefined;
+            for (let layer = layers.length - 1; layer >= 0; layer -= 1) {
+                const matches = layers[layer]?.filter(
+                    (card) => card.kind === kind,
+                );
+                if (matches && matches.length >= needed) {
+                    boardCards = matches.slice(0, needed);
+                    break;
+                }
             }
+            if (!boardCards) return undefined;
+            groups.push({ kind, heldCount, boardCards });
         }
-        return best;
+
+        for (const group of groups) {
+            for (const card of group.boardCards) this.onBoard.delete(card.id);
+        }
+        this.slotted = [];
+        this.lastTaken = null;
+        this.usedProps.add("remove");
+        this.firstMatchAt ??= "prop";
+        if (this.remaining === 0) this.status = "won";
+        return groups;
     }
 }
