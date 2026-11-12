@@ -168,7 +168,7 @@ export class GameClient extends Component {
             if (!source.playing) source.play();
             return;
         }
-        resources.load("audio/meadow", AudioClip, (error, clip) => {
+        resources.load("audio/background-music", AudioClip, (error, clip) => {
             if (
                 error ||
                 !source.isValid ||
@@ -1362,11 +1362,11 @@ export class GameClient extends Component {
             }
             await this.state!.submit(action);
             const after = this.state!.snapshot;
-            if (after.status === "WON") this.sound("you-win");
-            else if (after.status === "LOST") this.sound("defeat");
-            else if (action.type === "ENTER_LEVEL_2") this.sound("ready-go");
+            if (after.status === "WON") this.sound("level-clear");
+            else if (after.status === "LOST") this.sound("level-fail");
+            else if (action.type === "ENTER_LEVEL_2") this.sound("level-start");
             else if (after.questionIndex > before.questionIndex)
-                this.sound("match-pop");
+                this.sound("tile-match");
             if (this.state!.snapshot.status === "ABANDONED") await this.home();
             else {
                 this.showGame();
