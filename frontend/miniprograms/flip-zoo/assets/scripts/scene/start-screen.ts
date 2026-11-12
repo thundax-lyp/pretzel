@@ -27,6 +27,7 @@ import {
     flyCardToSlot,
     MATCH_DURATION,
     playMatch,
+    slideSlotCard,
 } from "../gameplay/card-effects";
 import { CardView } from "../gameplay/card-view";
 import { color, label, picture, titleLine, uiNode } from "../ui/nodes";
@@ -637,7 +638,8 @@ export class FlipZooStartScreen extends Component {
             top + (transform.height / 2 - local.y) / tileHeight,
         );
         if (!card) return;
-        const previous = [...this.round.slots];
+        const insertionIndex = this.round.slotInsertionIndex(card.kind);
+        const previous = this.round.slots.map((tile) => tile.kind);
         const matched = this.round.take(card.id);
         if (matched === null) {
             if (this.round.status === "playing") {
@@ -647,13 +649,25 @@ export class FlipZooStartScreen extends Component {
         }
 
         this.animatingCards = true;
-        this.flyCardToSlot(card, previous.length, () => {
+        for (let index = insertionIndex; index < previous.length; index += 1) {
+            slideSlotCard(
+                this.slotTray!,
+                this.art,
+                this.slots[index].node,
+                this.slots[index + 1].node,
+                previous[index],
+                TABLE[this.round.level],
+            );
+        }
+        this.refreshSlots(previous.slice(0, insertionIndex));
+        this.flyCardToSlot(card, insertionIndex, () => {
             this.animatingCards = false;
             if (matched) {
-                const group = [...previous, card].flatMap((tile, index) =>
-                    tile.kind === card.kind ? [index] : [],
-                );
-                this.playMatch(card.kind, group);
+                this.playMatch(card.kind, [
+                    insertionIndex - 2,
+                    insertionIndex - 1,
+                    insertionIndex,
+                ]);
             }
             this.message.string = matched ? "三张同款，已消除！" : "找三张同款";
             this.finishAction(matched > 0);

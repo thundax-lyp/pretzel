@@ -462,6 +462,13 @@ export class Round {
         return this.slotted;
     }
 
+    slotInsertionIndex(kind: number): number {
+        for (let index = this.slotted.length - 1; index >= 0; index -= 1) {
+            if (this.slotted[index].kind === kind) return index + 1;
+        }
+        return this.slotted.length;
+    }
+
     get cards(): readonly Card[] {
         return this.board;
     }
@@ -536,7 +543,7 @@ export class Round {
         switch (prop) {
             case "undo": {
                 const card = this.lastTaken!;
-                this.slotted.pop();
+                this.slotted.splice(this.slotted.indexOf(card), 1);
                 this.onBoard.add(card.id);
                 this.revealed.add(card.id);
                 this.lastTaken = null;
@@ -653,7 +660,7 @@ export class Round {
             }
         }
         this.moves += 1;
-        this.slotted.push(card);
+        this.slotted.splice(this.slotInsertionIndex(card.kind), 0, card);
         this.lastTaken = matching < 3 ? card : null;
         if (matching === 3) {
             this.slotted = this.slotted.filter(
