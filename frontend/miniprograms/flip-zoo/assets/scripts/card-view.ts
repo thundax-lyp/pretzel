@@ -122,9 +122,9 @@ export class CardView {
         const edge = 6;
         body.clear();
         body.lineWidth = 2;
-        body.strokeColor = color(selectable ? "#577631" : "#696D48");
+        body.strokeColor = color(selectable ? "#49763F" : "#49674D");
 
-        body.fillColor = color(selectable ? "#9EBC5E" : "#828860");
+        body.fillColor = color(selectable ? "#83B55A" : "#678662");
         body.roundRect(x, y, width - 4, height - 4, 7);
         body.fill();
         body.stroke();
@@ -132,15 +132,20 @@ export class CardView {
         body.fillColor = color(
             faceDown
                 ? selectable
-                    ? "#CDDE9D"
-                    : "#9DA77A"
+                    ? "#D6EDAA"
+                    : "#9FB48A"
                 : selectable
-                  ? "#FFF4D4"
-                  : "#D3CEAB",
+                  ? "#FFF7D9"
+                  : "#CFD2AB",
         );
         body.roundRect(x, y + edge, width - 4, height - 4 - edge, 7);
         body.fill();
         body.stroke();
+        if (selectable) {
+            body.fillColor = new Color(255, 255, 255, 145);
+            body.roundRect(x + 8, y + height - 11, width - 20, 3, 1.5);
+            body.fill();
+        }
     }
 
     showEmpty(lockedLabel = ""): void {
@@ -156,11 +161,11 @@ export class CardView {
         this.mark.string = lockedLabel;
         this.mark.fontSize = 21;
         this.mark.lineHeight = 26;
-        this.mark.color = color("#6E613A");
+        this.mark.color = color("#476648");
         this.mark.node.setPosition(0, 0);
         this.body.clear();
-        this.body.fillColor = color(locked ? "#CAB78C" : "#F4E2AE");
-        this.body.strokeColor = color(locked ? "#BCAB76" : "#D3B76C");
+        this.body.fillColor = color(locked ? "#AEBC95" : "#F3F6D5");
+        this.body.strokeColor = color(locked ? "#809A70" : "#96AA76");
         this.body.lineWidth = 2;
         this.body.roundRect(
             -this.width / 2,

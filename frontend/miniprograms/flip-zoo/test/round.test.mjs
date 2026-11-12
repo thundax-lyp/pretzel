@@ -322,7 +322,7 @@ test("undo preserves tile count and can only be used once", () => {
     assert.equal(round.use("undo"), false);
 });
 
-test("peek samples three dark cards from the top layer and permits immediate takes", () => {
+test("peek reveals three eligible dark cards and permits immediate takes", () => {
     const round = new Round(2, "C", undefined, () => 0);
     const previouslyVisible = new Set(
         round.cards.filter((card) => round.isFaceUp(card)),
@@ -343,26 +343,27 @@ test("peek samples three dark cards from the top layer and permits immediate tak
     assert.equal(round.use("peek"), false);
 });
 
-test("peek goes down a layer when all cards above it are gone", () => {
-    const round = new Round(2, "A", undefined, () => 0);
-    round.unlockNextSlot();
-    round.unlockNextSlot();
-    while (
-        round.cards.some((card) => card.layer === 2 && round.isOnBoard(card))
-    ) {
-        assert.equal(round.status, "playing");
-        takeWithFullInformation(round, true);
-    }
-    const dark = round.cards.filter(
-        (card) => round.isOnBoard(card) && !round.isFaceUp(card),
-    );
-    const expected = dark.filter((card) => card.layer === 1).slice(0, 3);
-    assert.ok(expected.length > 0);
+test("peek includes uncovered lower layers while the summit remains", () => {
+    const round = new Round(2, "C", undefined, () => 0, "pyramid");
+    const dark = round.cards.filter((card) => !round.isFaceUp(card));
+    const expected = dark
+        .filter((card) => round.isSelectable(round.exposure(card)))
+        .slice(0, 3);
+    assert.equal(expected.length, 3);
+    assert.ok(expected.some((card) => card.layer < 5));
+    assert.ok(dark.some((card) => card.layer === 5));
+    assert.ok(dark.some((card) => !round.isSelectable(round.exposure(card))));
     assert.equal(round.use("peek"), true);
     assert.deepEqual(
         dark.filter((card) => round.isFaceUp(card)),
         expected,
     );
+});
+
+test("peek preserves its use when all uncovered cards are already face up", () => {
+    const round = new Round(2, "B", undefined, () => 0, "pyramid");
+    assert.equal(round.use("peek"), false);
+    assert.equal(round.propUsesLeft("peek"), 1);
 });
 
 test("remove completes a slotted pair before an earlier singleton", () => {
@@ -404,83 +405,4 @@ test("remove falls back to the first singleton with two matches in the top layer
         round.slots.map((card) => card.id),
         [173],
     );
-});
-
-test("shuffle brings a blocked match into play and clears without moving reserved tiles", () => {
-    let seed = 10;
-    const random = () => {
-        seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-        return seed / 2 ** 32;
-    };
-    const round = new Round(
-        2,
-        "C",
-        buildBoardKinds({ keyGroups: 3, overlapGroups: 1 }),
-        random,
-    );
-    const taken = [145, 154, 155, 184, 188, 127, 128];
-    assert.deepEqual(
-        taken.map((id) => round.take(id)),
-        [0, 0, 3, 0, 0, 0, 0],
-    );
-    const before = round.cards;
-    const slots = [...round.slots];
-    assert.equal(slots.length, 4);
-    assert.equal(slots[0].kind, slots[1].kind);
-    const hasPlayableMatch = () =>
-        round.cards.some(
-            (card) =>
-                card.kind === slots[0].kind &&
-                round.isOnBoard(card) &&
-                round.isSelectable(round.exposure(card)),
-        );
-    assert.equal(hasPlayableMatch(), false);
-    const topKinds = (cards) =>
-        cards
-            .filter((card) => card.layer === 2 && round.isOnBoard(card))
-            .map((card) => card.kind)
-            .sort();
-    const visibleKinds = () =>
-        round.cards
-            .filter((card) => round.isOnBoard(card) && round.isFaceUp(card))
-            .map((card) => card.kind)
-            .sort();
-    const shown = visibleKinds();
-    assert.equal(round.use("shuffle"), true);
-    assert.equal(round.moves, taken.length);
-    assert.deepEqual(round.slots, slots);
-    assert.equal(hasPlayableMatch(), true);
-    assert.deepEqual(visibleKinds(), shown);
-    assert.deepEqual(
-        round.cards.map((card) => card.kind).sort(),
-        before.map((card) => card.kind).sort(),
-    );
-    assert.notDeepEqual(topKinds(round.cards), topKinds(before));
-    for (const card of round.cards) {
-        const previous = before[card.id];
-        assert.deepEqual(
-            [card.layer, card.left, card.top],
-            [previous.layer, previous.left, previous.top],
-        );
-        const wasTaken = taken.includes(card.id);
-        assert.equal(round.isOnBoard(card), !wasTaken);
-        if ([2, 13, 15].includes(previous.kind) || wasTaken) {
-            assert.equal(card.kind, previous.kind);
-        }
-    }
-    assert.equal(round.use("shuffle"), false);
-    while (round.status === "playing") takeWithFullInformation(round);
-    assert.equal(round.status, "won");
-});
-
-test("a shuffle with no legal continuation preserves the board and the use", () => {
-    const round = new Round(2, "A", undefined, () => 0);
-    for (const id of [126, 127, 128, 130]) assert.equal(round.take(id), 0);
-    const before = round.cards;
-    assert.equal(round.use("shuffle"), false);
-    assert.equal(round.cards, before);
-    assert.equal(round.status, "playing");
-    assert.equal(round.moves, 4);
-    assert.equal(round.slots.length, 4);
-    assert.equal(round.canUse("shuffle"), true);
 });

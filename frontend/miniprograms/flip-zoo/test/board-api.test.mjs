@@ -213,8 +213,18 @@ test("each peak shape fits the table and clears across all four key-group counts
                     );
                 }
                 const propRound = new Round(2, "C", kinds, random, layout);
+                const dark = propRound.cards.filter(
+                    (card) => !propRound.isFaceUp(card),
+                );
+                const eligible = dark.filter((card) =>
+                    propRound.isSelectable(propRound.exposure(card)),
+                );
                 assert.equal(propRound.use("peek"), true);
-                assert.ok(layers[5].every((card) => propRound.isFaceUp(card)));
+                const revealed = dark.filter((card) =>
+                    propRound.isFaceUp(card),
+                );
+                assert.equal(revealed.length, Math.min(3, eligible.length));
+                assert.ok(revealed.every((card) => eligible.includes(card)));
             }
             const byKind = Map.groupBy(round.cards, (card) => card.kind);
             const keys = [...byKind.values()].filter(

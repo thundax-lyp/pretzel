@@ -77,11 +77,7 @@ function play(group, scenario, seed, boardKinds) {
                 ads += 1;
                 continue;
             }
-            if (
-                round.use("remove") ||
-                round.use("shuffle") ||
-                round.use("undo")
-            ) {
+            if (round.use("remove") || round.use("undo")) {
                 props += 1;
                 continue;
             }

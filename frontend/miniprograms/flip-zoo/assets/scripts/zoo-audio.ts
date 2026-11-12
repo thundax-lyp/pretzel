@@ -1,5 +1,6 @@
 import {
     _decorator,
+    assetManager,
     AudioClip,
     AudioSource,
     Component,
@@ -19,6 +20,7 @@ export class ZooAudio extends Component {
     private effects!: AudioSource;
     private matchClip?: AudioClip;
     private started = false;
+    private loadingMusic = false;
     private foreground = true;
 
     onLoad(): void {
@@ -29,12 +31,7 @@ export class ZooAudio extends Component {
         this.effects.playOnAwake = false;
         game.on(Game.EVENT_HIDE, this.onHide, this);
         game.on(Game.EVENT_SHOW, this.onShow, this);
-        resources.load("audio/meadow", AudioClip, (error, clip) => {
-            if (error || !this.isValid) return;
-            this.music.clip = clip;
-            this.syncMusic();
-        });
-        resources.load("audio/match-pop", AudioClip, (error, clip) => {
+        resources.load("audio/tile-match", AudioClip, (error, clip) => {
             if (!error && this.isValid) this.matchClip = clip;
         });
     }
@@ -74,9 +71,27 @@ export class ZooAudio extends Component {
         const volume = this.volume("music") / 100;
         this.music.volume = volume;
         if (!volume || !this.foreground) this.music.pause();
-        else if (this.started && this.music.clip && !this.music.playing) {
-            this.music.play();
+        else if (this.started) {
+            if (!this.music.clip) this.loadMusic();
+            else if (!this.music.playing) this.music.play();
         }
+    }
+
+    private loadMusic(): void {
+        if (this.loadingMusic) return;
+        this.loadingMusic = true;
+        assetManager.loadBundle("music", (bundleError, bundle) => {
+            if (bundleError || !this.isValid) {
+                this.loadingMusic = false;
+                return;
+            }
+            bundle.load("background-music", AudioClip, (error, clip) => {
+                this.loadingMusic = false;
+                if (error || !this.isValid) return;
+                this.music.clip = clip;
+                this.syncMusic();
+            });
+        });
     }
 
     private onHide(): void {
