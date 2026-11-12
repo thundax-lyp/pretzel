@@ -536,21 +536,33 @@ export class Round {
                 break;
             }
             case "peek": {
-                const hidden = this.cards.filter((card) => {
-                    if (!this.isOnBoard(card)) return false;
+                const uncovered: Card[] = [];
+                const covered: Card[] = [];
+                for (const card of this.cards) {
+                    if (!this.isOnBoard(card)) continue;
                     const exposure = this.exposure(card);
-                    return (
-                        this.isSelectable(exposure) &&
-                        !this.isFaceUp(card, exposure)
+                    if (this.isFaceUp(card, exposure)) continue;
+                    (this.isSelectable(exposure) ? uncovered : covered).push(
+                        card,
                     );
-                });
-                if (hidden.length === 0) return false;
-                const count = Math.min(3, hidden.length);
-                for (let index = 0; index < count; index += 1) {
-                    const picked = Math.floor(this.random() * hidden.length);
-                    const [card] = hidden.splice(picked, 1);
-                    this.revealed.add(card.id);
                 }
+                if (uncovered.length === 0 && covered.length === 0)
+                    return false;
+                while (uncovered.length < 3 && covered.length > 0) {
+                    const layer = Math.max(
+                        ...covered.map((card) => card.layer),
+                    );
+                    const candidates = covered.filter(
+                        (card) => card.layer === layer,
+                    );
+                    const card =
+                        candidates[
+                            Math.floor(this.random() * candidates.length)
+                        ];
+                    uncovered.push(card);
+                    covered.splice(covered.indexOf(card), 1);
+                }
+                for (const card of uncovered) this.revealed.add(card.id);
                 break;
             }
             case "remove": {
@@ -597,9 +609,12 @@ export class Round {
     }
 
     isFaceUp(card: Card, exposure = this.exposure(card)): boolean {
-        return this.level === 2 && this.group === "B"
-            ? this.isSelectable(exposure)
-            : this.revealed.has(card.id);
+        return (
+            this.revealed.has(card.id) ||
+            (this.level === 2 &&
+                this.group === "B" &&
+                this.isSelectable(exposure))
+        );
     }
 
     cardAt(x: number, y: number): Card | undefined {
@@ -634,6 +649,7 @@ export class Round {
         this.onBoard.delete(id);
         for (const neighbor of this.cards) {
             if (
+                this.group !== "B" &&
                 this.isOnBoard(neighbor) &&
                 neighbor.layer === card.layer &&
                 Math.abs(neighbor.x - card.x) +

@@ -223,8 +223,8 @@ test("each peak shape fits the table and clears across all four key-group counts
                 const revealed = dark.filter((card) =>
                     propRound.isFaceUp(card),
                 );
-                assert.equal(revealed.length, Math.min(3, eligible.length));
-                assert.ok(revealed.every((card) => eligible.includes(card)));
+                assert.equal(revealed.length, Math.max(3, eligible.length));
+                assert.ok(eligible.every((card) => revealed.includes(card)));
             }
             const byKind = Map.groupBy(round.cards, (card) => card.kind);
             const keys = [...byKind.values()].filter(

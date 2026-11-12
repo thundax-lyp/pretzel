@@ -97,17 +97,17 @@ declare const wx: {
 
 const PROP_LABELS: Record<Prop, string> = {
     undo: "撤回",
-    peek: "透视",
+    peek: "翻牌",
     remove: "移除",
 };
 const PROP_MESSAGES: Record<Prop, string> = {
     undo: "上一张已回原位，仍保持亮面",
-    peek: "已翻开未被覆盖的暗牌",
+    peek: "已翻开暗牌",
     remove: "已用最高层的同款补齐并消除一组",
 };
 const PROP_UNAVAILABLE: Record<Prop, string> = {
     undo: "当前没有可以撤回的牌",
-    peek: "没有未被覆盖的暗牌",
+    peek: "牌桌上没有可翻开的暗牌",
     remove: "最高层的牌暂时凑不成槽内同款",
 };
 
