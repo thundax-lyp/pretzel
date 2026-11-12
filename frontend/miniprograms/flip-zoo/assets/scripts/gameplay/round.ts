@@ -649,7 +649,7 @@ export class Round {
         this.onBoard.delete(id);
         for (const neighbor of this.cards) {
             if (
-                this.group !== "B" &&
+                (this.level === 1 || this.group !== "B") &&
                 this.isOnBoard(neighbor) &&
                 neighbor.layer === card.layer &&
                 Math.abs(neighbor.x - card.x) +

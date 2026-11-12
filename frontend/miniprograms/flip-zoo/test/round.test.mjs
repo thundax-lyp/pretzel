@@ -37,6 +37,15 @@ test("the tutorial has 24 flat tiles, 12 per type, and clears with five slots", 
     assert.equal(round.remaining, 0);
 });
 
+test("returning to the tutorial from group B preserves neighbor reveals", () => {
+    const round = new Round(1, "B");
+    assert.equal(round.isFaceUp(round.cards[1]), false);
+    assert.equal(round.take(0), 0);
+    assert.equal(round.isFaceUp(round.cards[1]), true);
+    assert.equal(round.isFaceUp(round.cards[6]), true);
+    assert.equal(round.isFaceUp(round.cards[7]), false);
+});
+
 test("restart protection includes takes, successful props and slot unlocks", () => {
     const tutorial = new Round(1, "C");
     assert.equal(tutorial.hasProgress, false);
