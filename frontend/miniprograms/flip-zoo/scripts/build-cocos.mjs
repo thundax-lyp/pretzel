@@ -16,16 +16,16 @@ if (
         "Choose web-mobile or wechatgame [--debug] [--test for WeChat]",
     );
 }
-const testAppId = "wx6ac3f5090a6b99c5";
-const appid = testBuild ? testAppId : process.env.FLIP_ZOO_WECHAT_GAME_APP_ID;
-if (
-    wechat &&
-    !testBuild &&
-    (!/^wx[0-9a-f]{16}$/.test(appid ?? "") || appid === testAppId)
-) {
-    throw new Error(
-        "Set FLIP_ZOO_WECHAT_GAME_APP_ID to the game's AppID or pass --test for a test package",
-    );
+const testAppId = process.env.FLIP_ZOO_WECHAT_TEST_APP_ID;
+const appIdVariable = testBuild
+    ? "FLIP_ZOO_WECHAT_TEST_APP_ID"
+    : "FLIP_ZOO_WECHAT_GAME_APP_ID";
+const appid = process.env[appIdVariable];
+if (wechat && !/^wx[0-9a-f]{16}$/.test(appid ?? "")) {
+    throw new Error(`Set ${appIdVariable} to an authorized WeChat game AppID`);
+}
+if (wechat && !testBuild && appid === testAppId) {
+    throw new Error("Use the game's AppID for a release build");
 }
 const outputName = testBuild ? "wechatgame-test" : platform;
 const creator =
@@ -105,6 +105,29 @@ try {
                     fs.readFileSync(entry, "utf8"),
             );
         }
+        const gameConfigPath = path.join(output, "game.json");
+        const gameConfig = JSON.parse(fs.readFileSync(gameConfigPath, "utf8"));
+        // The Cocos WeChat adapter resolves bundles listed in settings.assets.subpackages from this directory.
+        const musicRoot = "subpackages/music";
+        fs.mkdirSync(path.join(output, "subpackages"), { recursive: true });
+        fs.renameSync(
+            path.join(output, "assets/music"),
+            path.join(output, musicRoot),
+        );
+        fs.renameSync(
+            path.join(output, musicRoot, "index.js"),
+            path.join(output, musicRoot, "game.js"),
+        );
+        gameConfig.subpackages ??= [];
+        gameConfig.subpackages.push({ name: "music", root: musicRoot });
+        const settingsPath = path.join(output, "src/settings.json");
+        const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
+        settings.assets.subpackages.push("music");
+        fs.writeFileSync(settingsPath, JSON.stringify(settings));
+        fs.writeFileSync(
+            gameConfigPath,
+            JSON.stringify(gameConfig, null, 4) + "\n",
+        );
         const firstScreenPath = path.join(output, "first-screen.js");
         let firstScreen = fs.readFileSync(firstScreenPath, "utf8");
         const artPath = (filename) => {
@@ -148,6 +171,40 @@ try {
             );
         }
         fs.writeFileSync(firstScreenPath, firstScreen);
+
+        const subpackageRoots = (gameConfig.subpackages ?? []).map(({ root }) =>
+            path.resolve(output, root),
+        );
+        const files = fs
+            .readdirSync(output, { recursive: true, withFileTypes: true })
+            .filter((entry) => entry.isFile());
+        let mainBytes = 0;
+        let totalBytes = 0;
+        for (const file of files) {
+            const filename = path.join(file.parentPath, file.name);
+            const size = fs.statSync(filename).size;
+            totalBytes += size;
+            if (
+                !subpackageRoots.some(
+                    (root) =>
+                        filename.startsWith(root + path.sep) ||
+                        filename === root,
+                )
+            ) {
+                mainBytes += size;
+            }
+        }
+        for (const [name, size, limit] of [
+            ["main package", mainBytes, 4_000_000],
+            ["total package", totalBytes, 30_000_000],
+        ]) {
+            if (size > limit) {
+                throw new Error(
+                    `WeChat ${name} is ${size} bytes, exceeding the ${limit}-byte limit`,
+                );
+            }
+            console.log(`WeChat ${name} size: ${size} / ${limit} bytes`);
+        }
     }
     console.log("Cocos build output:", output);
 } finally {
