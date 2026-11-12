@@ -9,6 +9,7 @@ import {
     Node,
     ResolutionPolicy,
     Sprite,
+    SubContextView,
     UIOpacity,
     UITransform,
     Vec3,
@@ -49,18 +50,36 @@ const TABLE = {
 } as const;
 const MATCH_DURATION = 0.36;
 
-interface RewardedAd {
-    load(): Promise<void>;
-    show(): Promise<void>;
-    onClose(listener: (result?: { isEnded?: boolean }) => void): void;
-    offClose(listener: (result?: { isEnded?: boolean }) => void): void;
-    onError(listener: () => void): void;
-    offError(listener: () => void): void;
+interface ShareCard {
+    title: string;
+    imageUrlId?: string;
+    imageUrl?: string;
 }
 
-declare const GameGlobal: { flipZooRewardedAdUnitId?: string };
+declare const GameGlobal: { flipZooShareCards?: ShareCard[] };
 declare const wx: {
-    createRewardedVideoAd?: (options: { adUnitId: string }) => RewardedAd;
+    shareAppMessage?: (card: ShareCard) => void;
+    showShareMenu?: (options: { menus: string[] }) => void;
+    onShareAppMessage?: (handler: () => ShareCard) => void;
+    offShareAppMessage?: (handler: () => ShareCard) => void;
+    showToast?: (options: { title: string; icon: "none" }) => void;
+    openCustomerServiceConversation?: (options: { fail: () => void }) => void;
+    getWindowInfo?: () => { windowWidth: number; windowHeight: number };
+    createFeedbackButton?: (options: {
+        type: "text";
+        text: string;
+        style: {
+            left: number;
+            top: number;
+            width: number;
+            height: number;
+            backgroundColor: string;
+            color: string;
+        };
+    }) => { show(): void; destroy(): void };
+    getOpenDataContext?: () => {
+        postMessage(data: { action: "show-week" | "record-win" }): void;
+    };
 };
 
 const PROP_LABELS: Record<Prop, string> = {
@@ -113,8 +132,9 @@ export class FlipZooStartScreen extends Component {
         { button: Control; count: Label }
     >();
     private overlay?: Node;
-    private rewardedAd?: RewardedAd;
-    private adPending = false;
+    private feedbackControl?: Node;
+    private feedbackButton?: { destroy(): void };
+    private readonly shareFromMenu = () => this.shareCard(false);
     private readonly boardApi = createBoardApi(WECHAT);
     private requestVersion = 0;
     private failedBoardGroup?: Group;
@@ -165,11 +185,17 @@ export class FlipZooStartScreen extends Component {
         this.gameRoot = uiNode(this.node, "Game", 750, 1334);
         this.createGame();
         this.showWelcome();
+        if (WECHAT) {
+            wx.onShareAppMessage?.(this.shareFromMenu);
+            wx.showShareMenu?.({ menus: ["shareAppMessage"] });
+        }
         this.resizeBackdrops();
         view.on("canvas-resize", this.resizeBackdrops, this);
     }
 
     onDestroy(): void {
+        this.feedbackButton?.destroy();
+        if (WECHAT) wx.offShareAppMessage?.(this.shareFromMenu);
         view.off("canvas-resize", this.resizeBackdrops, this);
     }
 
@@ -459,9 +485,9 @@ export class FlipZooStartScreen extends Component {
         const settings = this.panel(
             dialog,
             "SettingsCard",
-            fromWelcome ? 254 : 153,
+            fromWelcome ? 195 : 140,
             650,
-            fromWelcome ? 322 : 445,
+            fromWelcome ? 440 : 510,
             "#FFF9E0",
             "#859F73",
         );
@@ -469,14 +495,47 @@ export class FlipZooStartScreen extends Component {
             this.createVolumeRow(
                 settings,
                 channel,
-                (fromWelcome ? 84 : 146) - index * 126,
+                (fromWelcome ? 135 : 164) - index * 126,
             );
         }
+        const supportY = fromWelcome ? -154 : -119;
+        this.button(
+            "联系客服",
+            -150,
+            supportY,
+            263,
+            () => {
+                if (!WECHAT || !wx.openCustomerServiceConversation) {
+                    this.platformNotice("请在微信小游戏内联系客服");
+                    return;
+                }
+                wx.openCustomerServiceConversation({
+                    fail: () => this.platformNotice("暂时无法打开客服"),
+                });
+            },
+            settings,
+            57,
+        );
+        this.feedbackControl = this.button(
+            "问题反馈",
+            150,
+            supportY,
+            263,
+            () =>
+                this.platformNotice(
+                    WECHAT
+                        ? "当前环境暂不支持问题反馈"
+                        : "请在微信小游戏内提交反馈",
+                ),
+            settings,
+            57,
+        ).graphic.node;
+        this.syncFeedbackButton();
         if (!fromWelcome) {
             const abandon = this.button(
                 "放弃挑战",
                 0,
-                -147,
+                -201,
                 308,
                 () => this.confirmAbandon(),
                 settings,
@@ -487,7 +546,7 @@ export class FlipZooStartScreen extends Component {
         this.button(
             "返回",
             0,
-            fromWelcome ? -79 : -150,
+            fromWelcome ? -116 : -194,
             385,
             () => {
                 if (fromWelcome) this.showWelcome();
@@ -881,7 +940,10 @@ export class FlipZooStartScreen extends Component {
                 () => {
                     if (this.round !== won) return;
                     if (won.level === 1) this.showTutorialClear();
-                    else this.showResult(true);
+                    else {
+                        if (WECHAT) this.postRankMessage("record-win");
+                        this.showResult(true);
+                    }
                 },
                 matched ? MATCH_DURATION : 0,
             );
@@ -948,44 +1010,6 @@ export class FlipZooStartScreen extends Component {
         );
     }
 
-    private async playRewardedAd(): Promise<boolean> {
-        const adUnitId = GameGlobal.flipZooRewardedAdUnitId;
-        if (!adUnitId || !wx.createRewardedVideoAd) {
-            throw new Error("Rewarded ad unavailable");
-        }
-        const ad = (this.rewardedAd ??= wx.createRewardedVideoAd({ adUnitId }));
-        return new Promise((resolve, reject) => {
-            let displayed = false;
-            const cleanup = () => {
-                ad.offClose(onClose);
-                ad.offError(onError);
-            };
-            const onClose = (result?: { isEnded?: boolean }) => {
-                cleanup();
-                resolve(result?.isEnded === true);
-            };
-            const fail = () => {
-                cleanup();
-                reject(new Error("Rewarded ad unavailable"));
-            };
-            const onError = () => {
-                // Before display, show/load promise failures drive recovery.
-                if (displayed) fail();
-            };
-            ad.onClose(onClose);
-            ad.onError(onError);
-            void Promise.resolve()
-                .then(() => ad.show())
-                .catch(async () => {
-                    await ad.load();
-                    await ad.show();
-                })
-                .then(() => {
-                    displayed = true;
-                }, fail);
-        });
-    }
-
     private openOverlay(name: string, shade = true): Node {
         this.closeOverlay();
         const overlay = uiNode(this.node, name, 750, 1334);
@@ -996,6 +1020,9 @@ export class FlipZooStartScreen extends Component {
     }
 
     private closeOverlay(): void {
+        this.feedbackButton?.destroy();
+        this.feedbackButton = undefined;
+        this.feedbackControl = undefined;
         if (!this.overlay) return;
         this.overlay.removeFromParent();
         this.overlay.destroy();
@@ -1047,6 +1074,24 @@ export class FlipZooStartScreen extends Component {
         play.caption.fontSize = 49;
         play.caption.lineHeight = 62;
         this.paintButton(play, true);
+        if (WECHAT) {
+            this.button(
+                "分享游戏",
+                -148,
+                -422,
+                264,
+                () => this.share(),
+                welcome,
+            );
+            this.button(
+                "排行榜",
+                148,
+                -422,
+                264,
+                () => this.showLeaderboard(),
+                welcome,
+            );
+        }
     }
 
     private animalGroup(parent: Node, y: number, width: number): void {
@@ -1088,7 +1133,7 @@ export class FlipZooStartScreen extends Component {
         const result = this.openOverlay("RoundResult", false);
         this.gameRoot.active = false;
         this.fillScreen(result, won ? "#1B8C656B" : "#182E62B8");
-        const canRevive = this.round.canRevive;
+        const canRevive = !WECHAT && this.round.canRevive;
         if (won) {
             const stars = uiNode(result, "VictoryStars");
             this.place(stars, 0, 489);
@@ -1179,7 +1224,7 @@ export class FlipZooStartScreen extends Component {
                 0,
                 -285,
                 394,
-                () => void this.requestRevive(result),
+                () => this.requestRevive(result),
                 result,
                 80,
             );
@@ -1192,7 +1237,6 @@ export class FlipZooStartScreen extends Component {
             canRevive ? -405 : -373,
             454,
             () => {
-                if (this.adPending) return;
                 this.closeOverlay();
                 this.restartRound();
             },
@@ -1205,13 +1249,23 @@ export class FlipZooStartScreen extends Component {
             canRevive ? -514 : -494,
             454,
             () => {
-                if (this.adPending) return;
                 this.returnHome();
             },
             result,
             83,
         );
         this.paintButton(home, false, true, "green");
+        if (WECHAT) {
+            this.button(
+                "分享游戏",
+                0,
+                -594,
+                300,
+                () => this.share(won),
+                result,
+                60,
+            );
+        }
     }
 
     private resultRow(
@@ -1241,44 +1295,133 @@ export class FlipZooStartScreen extends Component {
         amount.node.setPosition(167, 0);
     }
 
-    private async requestRevive(result: Node): Promise<void> {
+    private requestRevive(result: Node): void {
         const round = this.round;
-        if (this.overlay !== result || this.adPending || !round.canRevive)
-            return;
-        const revive = () => {
-            if (this.round !== round || !round.revive()) return;
-            this.closeOverlay();
-            this.message.string = `已解锁第 ${round.slotCapacity} 格 · 继续本局`;
-            this.finishAction(false);
-        };
-        if (!WECHAT) {
-            this.showMockAd("看完解锁 1 格，继续本局", revive, () =>
-                this.showResult(false),
-            );
+        if (WECHAT || this.overlay !== result || !round.canRevive) return;
+        this.showMockAd(
+            "看完解锁 1 格，继续本局",
+            () => {
+                if (this.round !== round || !round.revive()) return;
+                this.message.string = `已解锁第 ${round.slotCapacity} 格 · 继续本局`;
+                this.finishAction(false);
+            },
+            () => this.showResult(false),
+        );
+    }
+
+    private shareCard(won: boolean): ShareCard {
+        const cards = GameGlobal.flipZooShareCards;
+        return cards?.[won ? 1 : 0] ?? { title: "翻翻动物园" };
+    }
+
+    private share(won = false): void {
+        if (!WECHAT || !wx.shareAppMessage) {
+            this.platformNotice("当前环境无法调起微信分享");
             return;
         }
-        this.adPending = true;
-        try {
-            const completed = await this.playRewardedAd();
-            if (
-                this.overlay !== result ||
-                this.round !== round ||
-                !this.isValid
-            )
-                return;
-            if (completed) revive();
-            else this.showResult(false, "完整观看广告后才能复活");
-        } catch {
-            if (
-                this.overlay === result &&
-                this.round === round &&
-                this.isValid
-            ) {
-                this.showResult(false, "广告暂不可用，可以稍后重试");
-            }
-        } finally {
-            this.adPending = false;
+        wx.shareAppMessage(this.shareCard(won));
+    }
+
+    private platformNotice(message: string): void {
+        if (WECHAT) wx.showToast?.({ title: message, icon: "none" });
+        else if (this.overlay) {
+            this.overlay.getChildByName("PlatformNotice")?.destroy();
+            const notice = label(this.overlay, message, 24, "#56351C");
+            notice.node.name = "PlatformNotice";
+            this.place(notice.node, 0, -294);
         }
+    }
+
+    private syncFeedbackButton(): void {
+        this.feedbackButton?.destroy();
+        this.feedbackButton = undefined;
+        if (!WECHAT || !this.feedbackControl || !wx.createFeedbackButton)
+            return;
+        const window = wx.getWindowInfo?.();
+        if (!window) return;
+        const rect = this.feedbackControl
+            .getComponent(UITransform)!
+            .getBoundingBoxToWorld();
+        const visible = view.getVisibleSize();
+        const scaleX = window.windowWidth / visible.width;
+        const scaleY = window.windowHeight / visible.height;
+        const button = wx.createFeedbackButton({
+            type: "text",
+            text: "",
+            style: {
+                left: rect.x * scaleX,
+                top: window.windowHeight - (rect.y + rect.height) * scaleY,
+                width: rect.width * scaleX,
+                height: rect.height * scaleY,
+                backgroundColor: "rgba(0,0,0,0)",
+                color: "#FFFFFF",
+            },
+        });
+        button?.show();
+        this.feedbackButton = button;
+    }
+
+    private postRankMessage(action: "show-week" | "record-win"): boolean {
+        const context = wx.getOpenDataContext?.();
+        if (!context) return false;
+        context.postMessage({ action });
+        return true;
+    }
+
+    private showLeaderboard(total = false): void {
+        const overlay = this.openOverlay("Leaderboard", false);
+        this.gameRoot.active = false;
+        this.heading(overlay, "排行榜", 480, "#2FBBD0", "#147289", "small");
+        const card = this.panel(
+            overlay,
+            "LeaderboardCard",
+            25,
+            650,
+            710,
+            "#FFF9E0",
+            "#859F73",
+        );
+        this.paintButton(
+            this.button(
+                "好友周榜",
+                -144,
+                274,
+                252,
+                () => this.showLeaderboard(),
+                card,
+            ),
+            !total,
+        );
+        this.paintButton(
+            this.button(
+                "总榜",
+                144,
+                274,
+                252,
+                () => this.showLeaderboard(true),
+                card,
+            ),
+            total,
+        );
+        if (total) {
+            label(card, "总榜暂未开放", 34, "#56351C");
+        } else if (WECHAT && wx.getOpenDataContext?.()) {
+            const list = uiNode(card, "WeeklyLeaderboard", 580, 525);
+            list.setPosition(0, -42);
+            list.addComponent(SubContextView).fps = 12;
+            this.postRankMessage("show-week");
+        } else {
+            label(card, "请在微信小游戏内查看好友周榜", 27, "#56351C");
+        }
+        this.button(
+            "返回首页",
+            0,
+            -440,
+            350,
+            () => this.showWelcome(),
+            overlay,
+            80,
+        );
     }
 
     private addAdBadge(parent: Node, width: number, height: number): void {
@@ -1446,6 +1589,7 @@ export class FlipZooStartScreen extends Component {
                 ?.getComponent(Graphics);
             if (graphic) this.drawBackdrop(graphic, width, height);
         }
+        this.syncFeedbackButton();
     }
 
     private pageScale(height: number): number {

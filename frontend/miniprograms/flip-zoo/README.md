@@ -32,6 +32,10 @@ npm run preview
 python3 scripts/with-env.py --env-file .env -- npm --prefix frontend/miniprograms/flip-zoo run build:wechat -- --test
 ```
 
+首页、微信菜单和结算页可以转发。通过私有环境的 `FLIP_ZOO_SHARE_DEFAULT_*` 和 `FLIP_ZOO_SHARE_VICTORY_*` 配置普通卡片和通关卡片。审核图片的 ID 与 URL 必须成对提供。设置页可以打开微信客服和原生问题反馈。
+
+第二关胜利后，开放数据域读取并更新本周的微信托管数据 `mgrank`。好友周榜按北京时间周一切换，读取同玩好友的本周成绩。总榜需要服务端确认胜局并提供累计排名，当前入口显示未开放。
+
 两个微信构建都从教学关开始，每次进入或重开第二关，都从本轮尚未发过的固定牌局中随机抽取。12 副发完后开启下一轮，首副避开上一轮最后一副。完全退出小游戏后，抽取记录重置。金字塔、双峰、三峰各有 4 副，分别有 2、3、4、5 组命门。三种形态均为六层，双峰和三峰支持错位外挑的峰尖。A/B/C 对照、难度后台和模拟广告由 Web Demo 提供。
 
 第二关统一通过 `BoardApi.loadMainBoard()` 读牌。微信首发由 `LocalBoardAdapter` 从固定牌库抽取牌序，每副牌局都有一条仅用七格、无需道具的清盘路径。Creator 直接预览使用本地生成的三层牌序；本地 Web Demo 由 `HttpBoardAdapter` 请求现有的 `GET /api/board`，响应仍是按牌 ID 排列的动物编号数组。第二版微信小游戏接入服务器时，在 `createBoardApi` 选择实现相同接口的联网适配器，场景和关卡规则继续使用同一接口。

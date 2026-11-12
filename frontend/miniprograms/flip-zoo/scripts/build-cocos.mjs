@@ -97,14 +97,24 @@ try {
         }
     }
     if (wechat) {
-        const adUnitId = process.env.FLIP_ZOO_WECHAT_REWARDED_AD_UNIT_ID;
-        if (adUnitId) {
-            fs.writeFileSync(
-                entry,
-                `GameGlobal.flipZooRewardedAdUnitId = ${JSON.stringify(adUnitId)};\n` +
-                    fs.readFileSync(entry, "utf8"),
-            );
-        }
+        const shareCards = ["DEFAULT", "VICTORY"].map((kind) => {
+            const title = process.env[`FLIP_ZOO_SHARE_${kind}_TITLE`]?.trim();
+            const imageUrlId =
+                process.env[`FLIP_ZOO_SHARE_${kind}_IMAGE_ID`]?.trim();
+            const imageUrl =
+                process.env[`FLIP_ZOO_SHARE_${kind}_IMAGE_URL`]?.trim();
+            if (Boolean(imageUrlId) !== Boolean(imageUrl)) {
+                throw new Error(
+                    `Set both the image ID and URL for the ${kind.toLowerCase()} share card`,
+                );
+            }
+            return { title: title || "翻翻动物园", imageUrlId, imageUrl };
+        });
+        fs.writeFileSync(
+            entry,
+            `GameGlobal.flipZooShareCards = ${JSON.stringify(shareCards)};\n` +
+                fs.readFileSync(entry, "utf8"),
+        );
         const gameConfigPath = path.join(output, "game.json");
         const gameConfig = JSON.parse(fs.readFileSync(gameConfigPath, "utf8"));
         // The Cocos WeChat adapter resolves bundles listed in settings.assets.subpackages from this directory.
@@ -124,6 +134,14 @@ try {
         const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
         settings.assets.subpackages.push("music");
         fs.writeFileSync(settingsPath, JSON.stringify(settings));
+        gameConfig.openDataContext = "open-data";
+        fs.cpSync(
+            path.join(project, "open-data"),
+            path.join(output, "open-data"),
+            {
+                recursive: true,
+            },
+        );
         fs.writeFileSync(
             gameConfigPath,
             JSON.stringify(gameConfig, null, 4) + "\n",
