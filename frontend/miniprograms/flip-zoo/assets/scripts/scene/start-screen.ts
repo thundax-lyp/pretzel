@@ -60,7 +60,7 @@ const GROUP_LABELS: Record<Group, string> = {
 };
 
 const TABLE = {
-    1: { width: 116, height: 127, y: 102 },
+    1: { width: 134, height: 169, y: 124 },
     2: { width: 88, height: 92, y: -17 },
 } as const;
 
@@ -339,21 +339,14 @@ export class FlipZooStartScreen extends Component {
         messageOutline.width = 2;
         if (WECHAT) this.place(this.message.node, -55, 443);
         this.playMats = {
-            1: this.panel(
-                this.gameRoot,
-                "TutorialMat",
-                TABLE[1].y,
-                712,
-                525,
-                "#18586970",
-                "#72B9A4",
-            ),
+            1: uiNode(this.gameRoot, "TutorialMat", 712, 539),
             2: uiNode(this.gameRoot, "PlayMat", 722, WECHAT ? 846 : 724),
         };
+        this.place(this.playMats[1], 0, TABLE[1].y);
         this.tutorialRibbon = this.panel(
             this.gameRoot,
             "TutorialRibbon",
-            -378,
+            -417,
             524,
             53,
             "#1E5F52",
@@ -410,11 +403,11 @@ export class FlipZooStartScreen extends Component {
         const { width, height } = TABLE[level];
         const slotPitch = width + (level === 2 && WECHAT ? 7 : 5);
         const tutorial = level === 1;
-        const trayHeight = tutorial ? 175 : height + 36;
+        const trayHeight = tutorial ? height + 54 : height + 36;
         const tray = this.panel(
             this.gameRoot,
             "SlotTray",
-            tutorial ? -250 : -478,
+            tutorial ? -266 : -478,
             722,
             trayHeight,
             "#E6F1BF",
@@ -422,7 +415,10 @@ export class FlipZooStartScreen extends Component {
         );
         this.slotTray = tray;
         this.slotWarning = label(tray, "下一张必须三消", 20, "#703F1D").node;
-        this.slotWarning.setPosition(0, tutorial ? 71 : trayHeight / 2 - 4);
+        this.slotWarning.setPosition(
+            0,
+            tutorial ? height / 2 + 13 : trayHeight / 2 - 4,
+        );
         for (let index = 0; index < slotLimit; index += 1) {
             const slot = new CardView(
                 tray,

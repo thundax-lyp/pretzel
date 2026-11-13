@@ -24,7 +24,7 @@ export interface SlotClearGroup {
     readonly boardCards: readonly Card[];
 }
 
-const TUTORIAL = [["338838", "838338", "383883", "838833"]];
+const TUTORIAL = [["3388", "8383", "3838"]];
 
 // Each string is a row of card types. Layers are stored bottom to top.
 const MAIN_BOARD = [
