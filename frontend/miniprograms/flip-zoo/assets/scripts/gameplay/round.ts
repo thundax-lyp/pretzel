@@ -2,6 +2,7 @@ export const GROUPS = ["A", "B", "C"] as const;
 export const PROPS = ["undo", "peek", "remove"] as const;
 export const INITIAL_SLOTS = 5;
 export const SLOT_LIMIT = 7;
+export const ANIMAL_KIND_COUNT = 20;
 export const FULL_EXPOSURE = 0b1111;
 
 export type Group = (typeof GROUPS)[number];
@@ -35,31 +36,31 @@ const MAIN_BOARD = [
         "e52261a",
         "619d11d",
         "d7eee55",
-        "6696449",
-        "444aaa7",
-        "7a4aaaa",
+        "669644g",
+        "444ahh7",
+        "7h4aaaa",
     ],
     [
-        "0777a68",
-        "4c6ac14",
-        "a3d1104",
-        "c933d0d",
-        "4c0c07e",
-        "7760096",
-        "6399833",
+        "i7j7h68",
+        "4c6hc14",
+        "h3d11i4",
+        "cg33did",
+        "4cic0je",
+        "jj6ii96",
+        "63g9833",
         "288544b",
         "559ee5f",
     ],
     [
         "db3b233",
-        "db7922b",
-        "77dbe0b",
+        "dbj922b",
+        "j7dbe0b",
         "8c881cc",
         "005beec",
         "cc8116b",
-        "bd559f9",
-        "9d928d9",
-        "99022c0",
+        "bd55gf9",
+        "gd928d9",
+        "9g022c0",
     ],
 ];
 
@@ -70,7 +71,7 @@ function buildDeck(layers: string[][]): readonly Card[] {
             for (let x = 0; x < row.length; x += 1) {
                 cards.push({
                     id: cards.length,
-                    kind: Number.parseInt(row[x], 16),
+                    kind: Number.parseInt(row[x], ANIMAL_KIND_COUNT),
                     layer,
                     x,
                     y,
@@ -89,12 +90,14 @@ const MAIN_DECK = buildDeck(MAIN_BOARD);
 export const MAIN_LAYOUTS = ["pyramid", "double-peak", "triple-peak"] as const;
 export type MainLayout = (typeof MAIN_LAYOUTS)[number];
 
-type Footprint = readonly [
+export type Footprint = readonly [
     left: number,
     top: number,
     width: number,
     height: number,
 ];
+
+export type BoardLayout = MainLayout | readonly (readonly Footprint[])[];
 
 const PEAKS: Record<MainLayout, readonly (readonly Footprint[])[]> = {
     pyramid: [
@@ -144,9 +147,9 @@ const PEAKS: Record<MainLayout, readonly (readonly Footprint[])[]> = {
     ],
 };
 
-function buildPeakDeck(layout: MainLayout): Card[] {
+function buildPeakDeck(layers: readonly (readonly Footprint[])[]): Card[] {
     const cards: Card[] = [];
-    PEAKS[layout].forEach((footprints, layer) => {
+    layers.forEach((footprints, layer) => {
         for (const [left, top, width, height] of footprints) {
             for (let row = 0; row < height; row += 1) {
                 for (let column = 0; column < width; column += 1) {
@@ -169,9 +172,9 @@ function buildPeakDeck(layout: MainLayout): Card[] {
 }
 
 const PEAK_DECKS = {
-    pyramid: buildPeakDeck("pyramid"),
-    "double-peak": buildPeakDeck("double-peak"),
-    "triple-peak": buildPeakDeck("triple-peak"),
+    pyramid: buildPeakDeck(PEAKS["pyramid"]),
+    "double-peak": buildPeakDeck(PEAKS["double-peak"]),
+    "triple-peak": buildPeakDeck(PEAKS["triple-peak"]),
 };
 
 export const DEFAULT_BOARD_KINDS: readonly number[] = MAIN_DECK.map(
@@ -212,7 +215,11 @@ export function generateMainBoard(
         if (score <= bestScore || !verifiesPeakDeal(layout, deal)) continue;
         bestDeal = deal;
         bestScore = score;
-        if (score === (PEAKS[layout].length - 2) * (16 - keyGroupCount)) break;
+        if (
+            score ===
+            (PEAKS[layout].length - 2) * (ANIMAL_KIND_COUNT - keyGroupCount)
+        )
+            break;
     }
     if (bestDeal) return bestDeal;
     throw new Error(`Cannot deal ${layout} with ${keyGroupCount} key groups`);
@@ -226,7 +233,7 @@ function dealMainBoard(
     previous?: readonly number[],
     layout?: MainLayout,
 ): { kinds: number[]; clearOrder: number[] } {
-    const counts = new Array<number>(16).fill(0);
+    const counts = new Array<number>(ANIMAL_KIND_COUNT).fill(0);
     for (const kind of DEFAULT_BOARD_KINDS) counts[kind] += 1;
     const reservedKinds = [counts.indexOf(3)];
     const eligible = counts.flatMap((count, kind) => (count > 3 ? [kind] : []));
@@ -344,7 +351,7 @@ function peakDiversityScore(
     layout: MainLayout,
     kinds: readonly number[],
 ): number {
-    const counts = new Array<number>(16).fill(0);
+    const counts = new Array<number>(ANIMAL_KIND_COUNT).fill(0);
     for (const kind of kinds) counts[kind] += 1;
     const layers = PEAKS[layout].map(() => new Set<number>());
     for (const card of PEAK_DECKS[layout]) {
@@ -367,7 +374,7 @@ function verifiesPeakDeal(
     deal: { kinds: number[]; clearOrder: number[] },
 ): boolean {
     const round = new Round(2, "C", deal.kinds, Math.random, layout);
-    const counts = new Array<number>(16).fill(0);
+    const counts = new Array<number>(ANIMAL_KIND_COUNT).fill(0);
     for (const kind of deal.kinds) counts[kind] += 1;
     const ordinary = (card: Card) => counts[card.kind] > 3;
 
@@ -391,7 +398,7 @@ function verifiesPeakDeal(
 export function isBoardKinds(value: unknown): value is number[] {
     if (!Array.isArray(value) || value.length !== MAIN_DECK.length)
         return false;
-    const counts = new Array<number>(16).fill(0);
+    const counts = new Array<number>(ANIMAL_KIND_COUNT).fill(0);
     for (const kind of value) {
         if (!Number.isInteger(kind) || kind < 0 || kind >= counts.length)
             return false;
@@ -403,7 +410,7 @@ export function isBoardKinds(value: unknown): value is number[] {
 export class Round {
     readonly level: Level;
     readonly group: Group;
-    readonly layout?: MainLayout;
+    readonly layout?: BoardLayout;
     status: "playing" | "won" | "lost" = "playing";
     moves = 0;
     firstMatchAt: number | "prop" | null = null;
@@ -423,7 +430,7 @@ export class Round {
         group: Group,
         boardKinds?: readonly number[],
         random = Math.random,
-        layout?: MainLayout,
+        layout?: BoardLayout,
         requirePropClaim = false,
     ) {
         this.requirePropClaim = requirePropClaim;
@@ -432,7 +439,12 @@ export class Round {
         this.layout = layout;
         this.capacity = this.initialCapacity;
         this.random = random;
-        const mainDeck = layout ? PEAK_DECKS[layout] : MAIN_DECK;
+        const mainDeck =
+            typeof layout === "string"
+                ? PEAK_DECKS[layout]
+                : layout
+                  ? buildPeakDeck(layout)
+                  : MAIN_DECK;
         this.board =
             level === 1
                 ? TUTORIAL_DECK

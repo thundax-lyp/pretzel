@@ -46,7 +46,7 @@ import {
     type Card,
     type Group,
     type Level,
-    type MainLayout,
+    type BoardLayout,
     type Prop,
     type SlotClearGroup,
 } from "../gameplay/round";
@@ -615,7 +615,7 @@ export class FlipZooStartScreen extends Component {
         level: Level,
         group: Group,
         boardKinds?: readonly number[],
-        layout?: MainLayout,
+        layout?: BoardLayout,
     ): void {
         this.requestVersion += 1;
         this.failedBoardGroup = undefined;

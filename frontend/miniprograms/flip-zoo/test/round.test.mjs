@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+    ANIMAL_KIND_COUNT,
     DEFAULT_BOARD_KINDS,
     GROUPS,
     Round,
@@ -69,7 +70,10 @@ test("restart protection includes takes, successful props and slot unlocks", () 
 test("A/B/C use the same board and expose only their assigned opening tiles", () => {
     const rounds = GROUPS.map((group) => new Round(2, group));
     assert.equal(rounds[0].cards.length, 189);
-    assert.equal(new Set(rounds[0].cards.map((card) => card.kind)).size, 16);
+    assert.equal(
+        new Set(rounds[0].cards.map((card) => card.kind)).size,
+        ANIMAL_KIND_COUNT,
+    );
     for (const layer of [0, 1, 2]) {
         assert.equal(
             rounds[0].cards.filter((card) => card.layer === layer).length,
@@ -200,7 +204,7 @@ test("all nine settings reserve exactly three copies per key kind and the reques
             return [...groups.entries()].sort(([a], [b]) => a - b);
         };
         const kinds = byKind(round.cards);
-        assert.equal(kinds.length, 16);
+        assert.equal(kinds.length, ANIMAL_KIND_COUNT);
         assert.ok(kinds.every(([, cards]) => cards.length % 3 === 0));
         assert.deepEqual(
             kinds.map(([kind, cards]) => [kind, cards.length]),
