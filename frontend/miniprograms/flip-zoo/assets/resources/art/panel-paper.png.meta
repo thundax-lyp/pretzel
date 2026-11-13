@@ -2,13 +2,13 @@
     "ver": "1.0.27",
     "importer": "image",
     "imported": true,
-    "uuid": "aca40420-2bdb-491e-bc8e-11762c6a54c6",
-    "files": [".jpg", ".json"],
+    "uuid": "b3a57296-2215-4e6c-9111-25de6046b065",
+    "files": [".json", ".png"],
     "subMetas": {
         "6c48a": {
             "importer": "texture",
-            "uuid": "aca40420-2bdb-491e-bc8e-11762c6a54c6@6c48a",
-            "displayName": "zoo-playfield",
+            "uuid": "b3a57296-2215-4e6c-9111-25de6046b065@6c48a",
+            "displayName": "panel-paper",
             "id": "6c48a",
             "name": "texture",
             "userData": {
@@ -19,7 +19,7 @@
                 "mipfilter": "none",
                 "anisotropy": 0,
                 "isUuid": true,
-                "imageUuidOrDatabaseUri": "aca40420-2bdb-491e-bc8e-11762c6a54c6",
+                "imageUuidOrDatabaseUri": "b3a57296-2215-4e6c-9111-25de6046b065",
                 "visible": false
             },
             "ver": "1.0.22",
@@ -31,7 +31,7 @@
     "userData": {
         "type": "texture",
         "fixAlphaTransparencyArtifacts": false,
-        "hasAlpha": false,
-        "redirect": "aca40420-2bdb-491e-bc8e-11762c6a54c6@6c48a"
+        "hasAlpha": true,
+        "redirect": "b3a57296-2215-4e6c-9111-25de6046b065@6c48a"
     }
 }

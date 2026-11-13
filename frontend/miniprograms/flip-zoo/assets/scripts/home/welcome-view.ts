@@ -1,13 +1,14 @@
 import type { Node } from "cc";
 import type { ZooArtwork } from "../services/artwork";
-import { picture } from "../ui/nodes";
+import { picture, titleLine } from "../ui/nodes";
 import type { ScreenControls } from "../ui/screen-controls";
 
 interface WelcomeActions {
     settings(): void;
     play(): void;
-    share?: () => void;
-    leaderboard?: () => void;
+    home(): void;
+    share(): void;
+    leaderboard(): void;
 }
 
 export function showWelcome(
@@ -16,38 +17,65 @@ export function showWelcome(
     controls: ScreenControls,
     actions: WelcomeActions,
 ): void {
-    controls.button("⚙", -300, 584, 84, actions.settings, welcome, 84);
+    controls.button("☰ 菜单", -295, 584, 110, actions.settings, welcome, 80);
     const title = art.title;
-    const { width, height } = title.originalSize;
     const logo = picture(
         welcome,
         "FlipZooTitle",
         title,
-        554,
-        (554 * height) / width,
+        550,
+        (550 * title.originalSize.height) / title.originalSize.width,
     );
-    controls.place(logo.node, 0, 350);
-    placeMascots(welcome, art, controls.place, -24, 604);
+    controls.place(logo.node, 0, 347);
+    placeMascots(welcome, art, controls.place, 15, 530);
 
     const play = controls.button(
         "▶  开始游戏",
         0,
         -282,
-        544,
+        468,
         actions.play,
         welcome,
-        138,
+        130,
     );
     play.caption.fontSize = 49;
     play.caption.lineHeight = 62;
     controls.paintButton(play, true);
-    if (actions.share && actions.leaderboard) {
-        controls.button("分享游戏", -148, -422, 264, actions.share, welcome);
-        controls.button("排行榜", 148, -422, 264, actions.leaderboard, welcome);
-    }
+    const links = [
+        ["家园", "⌂", actions.home],
+        ["排行榜", "★", actions.leaderboard],
+        ["分享", "↗", actions.share],
+    ] as const;
+    links.forEach(([name, symbol, action], index) => {
+        const button = controls.button(
+            name,
+            (index - 1) * 165,
+            -459,
+            128,
+            action,
+            welcome,
+            115,
+        );
+        button.caption.fontSize = 24;
+        button.caption.node.setPosition(0, -31);
+        const disabled = name === "家园";
+        if (disabled) {
+            controls.paintButton(button, false, false);
+            button.graphic.node.pauseSystemEvents(true);
+        }
+        const icon = titleLine(
+            button.graphic.node,
+            symbol,
+            16,
+            58,
+            disabled ? "#E0E7E7" : "#FFF1BD",
+            disabled ? "#526D75" : "#174E76",
+        );
+        icon.lineHeight = 64;
+    });
 }
 
-export function placeMascots(
+function placeMascots(
     parent: Node,
     art: ZooArtwork,
     place: ScreenControls["place"],

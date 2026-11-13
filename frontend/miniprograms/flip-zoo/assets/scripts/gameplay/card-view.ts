@@ -113,7 +113,7 @@ export class CardView {
         this.lastAppearance = appearance;
         this.portrait.node.active = !locked;
         this.portrait.spriteFrame = this.art.paw;
-        this.portrait.color = new Color(255, 255, 255, 72);
+        this.portrait.color = color("#88985667");
         this.portraitSize.setContentSize(30, 30);
         this.portrait.node.setPosition(0, 0);
         this.mark.string = lockedLabel;
