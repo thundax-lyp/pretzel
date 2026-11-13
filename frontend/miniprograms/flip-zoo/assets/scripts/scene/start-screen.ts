@@ -246,7 +246,7 @@ export class FlipZooStartScreen extends Component {
         this.stage = label(stage, "", 27);
         this.stage.isBold = true;
         const settings = this.button(
-            "☰",
+            "Settings",
             -306,
             594,
             76,
@@ -254,7 +254,9 @@ export class FlipZooStartScreen extends Component {
             this.gameRoot,
             72,
         );
-        this.paintButton(settings, false, true, "green");
+        settings.caption.node.active = false;
+        this.paintButton(settings, false, true, "green", 36);
+        drawButtonIcon(settings.graphic.node, "menu", 0, 0, 49, "#FFFFFF");
         if (!WECHAT) {
             GROUPS.forEach((group, index) => {
                 const button = this.button(
@@ -1951,10 +1953,6 @@ export class FlipZooStartScreen extends Component {
                       ? picture(node, "PropIcon", frame, 86)
                       : undefined,
         };
-        if (text === "☰") {
-            button.caption.fontSize = 61;
-            button.caption.lineHeight = 68;
-        }
         if (button.icon) {
             button.icon.node.getComponent(UITransform)!.setContentSize(71, 71);
             button.icon.node.setPosition(0, 13);
@@ -1973,6 +1971,7 @@ export class FlipZooStartScreen extends Component {
         active: boolean,
         enabled = true,
         tone: "blue" | "green" | "cream" | "red" | "purple" = "blue",
+        cornerRadius?: number,
     ): void {
         const { graphic, caption, width, height, icon } = button;
         const palette = !enabled
@@ -1989,13 +1988,13 @@ export class FlipZooStartScreen extends Component {
                     cream: ["#FFF1C8", "#A9905D", "#4D3B2B"],
                 }[tone];
         const [fill, border, text] = palette;
-        const radius = !caption.node.active
-            ? 29
-            : caption.string === "☰"
-              ? Math.min(width, height) / 2
-              : height >= 80 && width >= 300
-                ? 37
-                : 18;
+        const radius =
+            cornerRadius ??
+            (!caption.node.active
+                ? 29
+                : height >= 80 && width >= 300
+                  ? 37
+                  : 18);
         graphic.clear();
         graphic.fillColor = color(border);
         graphic.roundRect(-width / 2, -height / 2 - 6, width, height, radius);
