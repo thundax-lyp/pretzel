@@ -97,6 +97,9 @@ try {
         }
     }
     if (wechat) {
+        fs.cpSync(path.join(project, "share"), path.join(output, "share"), {
+            recursive: true,
+        });
         const shareCards = ["DEFAULT", "VICTORY"].map((kind) => {
             const title = process.env[`FLIP_ZOO_SHARE_${kind}_TITLE`]?.trim();
             const imageUrlId =
@@ -108,7 +111,18 @@ try {
                     `Set both the image ID and URL for the ${kind.toLowerCase()} share card`,
                 );
             }
-            return { title: title || "翻翻动物园", imageUrlId, imageUrl };
+            const victory = kind === "VICTORY";
+            return {
+                title:
+                    title ||
+                    (victory
+                        ? "我通关了！来挑战两只眼睛几条腿"
+                        : "两只眼睛几条腿 · 一起来找同款"),
+                imageUrlId,
+                imageUrl:
+                    imageUrl ||
+                    (victory ? "share/victory.jpg" : "share/default.jpg"),
+            };
         });
         fs.writeFileSync(
             entry,
