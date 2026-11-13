@@ -1,6 +1,7 @@
 import type { Node } from "cc";
 import type { ZooArtwork } from "../services/artwork";
-import { picture, titleLine } from "../ui/nodes";
+import { drawButtonIcon } from "../ui/button-icon";
+import { picture } from "../ui/nodes";
 import type { ScreenControls } from "../ui/screen-controls";
 
 interface WelcomeActions {
@@ -17,7 +18,19 @@ export function showWelcome(
     controls: ScreenControls,
     actions: WelcomeActions,
 ): void {
-    controls.button("☰ 菜单", -295, 584, 110, actions.settings, welcome, 80);
+    const menu = controls.button(
+        "菜单",
+        -297,
+        584,
+        100,
+        actions.settings,
+        welcome,
+        96,
+    );
+    menu.caption.fontSize = 23;
+    menu.caption.node.setPosition(0, -25);
+    drawButtonIcon(menu.graphic.node, "menu", 0, 15, 43, "#FFFFFF");
+
     const title = art.title;
     const logo = picture(
         welcome,
@@ -32,29 +45,29 @@ export function showWelcome(
     const play = controls.button(
         "▶  开始游戏",
         0,
-        -282,
-        468,
+        -332,
+        456,
         actions.play,
         welcome,
-        130,
+        124,
     );
     play.caption.fontSize = 49;
     play.caption.lineHeight = 62;
     controls.paintButton(play, true);
     const links = [
-        ["家园", "⌂", actions.home],
-        ["排行榜", "★", actions.leaderboard],
-        ["分享", "↗", actions.share],
+        ["家园", "home", actions.home],
+        ["排行榜", "trophy", actions.leaderboard],
+        ["分享", "share", actions.share],
     ] as const;
     links.forEach(([name, symbol, action], index) => {
         const button = controls.button(
             name,
-            (index - 1) * 165,
-            -459,
-            128,
+            (index - 1) * 168,
+            -527,
+            120,
             action,
             welcome,
-            115,
+            124,
         );
         button.caption.fontSize = 24;
         button.caption.node.setPosition(0, -31);
@@ -63,15 +76,14 @@ export function showWelcome(
             controls.paintButton(button, false, false);
             button.graphic.node.pauseSystemEvents(true);
         }
-        const icon = titleLine(
+        drawButtonIcon(
             button.graphic.node,
             symbol,
-            16,
-            58,
-            disabled ? "#E0E7E7" : "#FFF1BD",
-            disabled ? "#526D75" : "#174E76",
+            0,
+            17,
+            55,
+            disabled ? "#E0E7E7" : symbol === "trophy" ? "#FFC84F" : "#FFFFFF",
         );
-        icon.lineHeight = 64;
     });
 }
 

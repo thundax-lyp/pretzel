@@ -1,6 +1,14 @@
-import { Graphics, Node, UITransform, Vec3, type EventTouch } from "cc";
+import {
+    Graphics,
+    LabelOutline,
+    Node,
+    UITransform,
+    Vec3,
+    type EventTouch,
+} from "cc";
 import type { Level } from "../gameplay/round";
 import type { ZooAudio, VolumeChannel } from "../services/zoo-audio";
+import { drawButtonIcon } from "../ui/button-icon";
 import { color, label, uiNode } from "../ui/nodes";
 import type { ScreenControls } from "../ui/screen-controls";
 
@@ -20,7 +28,7 @@ export class SettingsView {
     ) {}
 
     show(dialog: Node, fromWelcome: boolean, actions: SettingsActions): Node {
-        const height = fromWelcome ? 525 : 660;
+        const height = fromWelcome ? 560 : 680;
         const settings = this.controls.panel(
             dialog,
             "SettingsCard",
@@ -40,7 +48,7 @@ export class SettingsView {
         );
         const close = this.controls.button(
             "×",
-            273,
+            277,
             height / 2,
             65,
             actions.back,
@@ -60,7 +68,7 @@ export class SettingsView {
         const feedback = this.controls.button(
             "问题反馈",
             0,
-            height / 2 - 274,
+            height / 2 - 262,
             320,
             actions.feedback,
             settings,
@@ -68,18 +76,29 @@ export class SettingsView {
         const contact = this.controls.button(
             "联系客服",
             0,
-            height / 2 - 354,
+            height / 2 - 359,
             320,
             actions.contact,
             settings,
         );
         this.controls.paintButton(feedback, false, true, "cream");
         this.controls.paintButton(contact, false, true, "cream");
+        feedback.caption.node.setPosition(18, 0);
+        contact.caption.node.setPosition(18, 0);
+        drawButtonIcon(
+            feedback.graphic.node,
+            "feedback",
+            -105,
+            0,
+            39,
+            "#258BD2",
+        );
+        drawButtonIcon(contact.graphic.node, "support", -105, 0, 39, "#258BD2");
         if (!fromWelcome) {
             const abandon = this.controls.button(
                 "放弃挑战",
                 0,
-                -105,
+                -112,
                 320,
                 actions.abandon,
                 settings,
@@ -93,18 +112,30 @@ export class SettingsView {
                 settings,
             );
             this.controls.paintButton(abandon, false, true, "cream");
+            abandon.caption.node.setPosition(18, 0);
+            drawButtonIcon(
+                abandon.graphic.node,
+                "abandon",
+                -105,
+                0,
+                37,
+                "#C65933",
+            );
             this.controls.paintButton(restart, false, true, "cream");
         }
         const privacy = this.controls.button(
             "儿童隐私保护声明及监护人须知",
             0,
-            -height / 2 + 55,
-            512,
+            -height / 2 + 47,
+            455,
             actions.privacy,
             settings,
             50,
         );
-        this.controls.paintButton(privacy, false, true, "cream");
+        privacy.graphic.clear();
+        privacy.caption.fontSize = 22;
+        privacy.caption.color = color("#684824");
+        privacy.caption.node.getComponent(LabelOutline)!.width = 0;
         const feedbackControl = feedback.graphic.node;
         return feedbackControl;
     }
@@ -170,20 +201,22 @@ export class SettingsView {
         );
         const abandon = this.controls.button(
             "是的",
-            -135,
-            -80,
-            236,
+            -136,
+            -65,
+            212,
             onAbandon,
             dialog,
+            88,
         );
         this.controls.paintButton(abandon, false, true, "red");
         const resume = this.controls.button(
             "不是",
-            135,
-            -80,
-            236,
+            136,
+            -65,
+            212,
             onCancel,
             dialog,
+            88,
         );
         this.controls.paintButton(resume, false, true, "green");
     }

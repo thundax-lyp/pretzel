@@ -32,7 +32,7 @@ npm run preview
 python3 scripts/with-env.py --env-file .env -- npm --prefix frontend/miniprograms/flip-zoo run build:wechat -- --test
 ```
 
-首页、微信菜单和结算页可以转发。第二关每种道具开局未领取，成功调用微信分享后领取一次，用完后本局不能再领。Web Demo 提供模拟分享。通过私有环境的 `FLIP_ZOO_SHARE_DEFAULT_*` 和 `FLIP_ZOO_SHARE_VICTORY_*` 配置普通卡片和通关卡片。审核图片的 ID 与 URL 必须成对提供。设置页可以打开微信客服和原生问题反馈。
+首页和失败结算页可以直接转发。胜利结算时可从微信菜单转发通关卡片。第二关每种道具开局未领取，成功调用微信分享后领取一次，用完后本局不能再领。Web Demo 提供模拟分享。通过私有环境的 `FLIP_ZOO_SHARE_DEFAULT_*` 和 `FLIP_ZOO_SHARE_VICTORY_*` 配置普通卡片和通关卡片。审核图片的 ID 与 URL 必须成对提供。设置页可以打开微信客服和原生问题反馈。
 
 第二关胜利后，开放数据域读取并更新本周的微信托管数据 `mgrank`。好友周榜按北京时间周一切换，读取同玩好友的本周成绩。胜负结算都展示好友周榜前三。历史榜与家园兑换暂未开放。
 

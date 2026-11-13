@@ -53,6 +53,12 @@ test("opening the share picker does not mutate the round", () => {
     screen.share(true);
     assert.deepEqual(calls, cards);
     assert.deepEqual(screen.round, { status: "lost", slotCapacity: 7 });
+    screen.overlay = { name: "RoundResult" };
+    assert.equal(screen.shareFromMenu(), cards[0]);
+    screen.round = Object.freeze({ status: "won", slotCapacity: 7 });
+    assert.equal(screen.shareFromMenu(), cards[1]);
+    screen.overlay = { name: "Leaderboard" };
+    assert.equal(screen.shareFromMenu(), cards[0]);
 });
 
 test("claiming a prop requires a successful share invocation and only grants once", () => {
@@ -76,6 +82,7 @@ test("claiming a prop requires a successful share invocation and only grants onc
         "cc/env": { WECHAT: true },
         "../services/board-api": { createBoardApi() {} },
     };
+    imports["../ui/button-icon"] = { drawButtonIcon() {} };
     imports["../ui/nodes"] = {
         label: () => ({
             node: { getComponent: () => ({ setContentSize() {} }) },
@@ -115,11 +122,11 @@ test("claiming a prop requires a successful share invocation and only grants onc
     const actions = new Map();
     screen.button = (name, _x, _y, _width, action) => {
         actions.set(name, action);
-        return {};
+        return { caption: { node: { setPosition() {} } }, graphic: {} };
     };
 
     screen.showPropClaim("peek");
-    actions.get("关闭")();
+    actions.get("×  关闭")();
     actions.get("分享")();
     assert.equal(shareCalls, 0);
 

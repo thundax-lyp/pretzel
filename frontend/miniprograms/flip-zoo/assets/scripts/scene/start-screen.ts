@@ -21,6 +21,7 @@ import {
     type EventTouch,
     type SpriteFrame,
 } from "cc";
+import { drawButtonIcon } from "../ui/button-icon";
 import { WECHAT } from "cc/env";
 import { loadZooArtwork, type ZooArtwork } from "../services/artwork";
 import { createBoardApi, type MainBoardDeal } from "../services/board-api";
@@ -157,7 +158,10 @@ export class FlipZooStartScreen extends Component {
     private welcome?: Node;
     private feedbackControl?: Node;
     private feedbackButton?: { destroy(): void };
-    private readonly shareFromMenu = () => this.shareCard(false);
+    private readonly shareFromMenu = () =>
+        this.shareCard(
+            this.overlay?.name === "RoundResult" && this.round.status === "won",
+        );
     private readonly boardApi = createBoardApi(WECHAT);
     private requestVersion = 0;
     private failedBoardGroup?: Group;
@@ -219,14 +223,14 @@ export class FlipZooStartScreen extends Component {
             wx.onShareAppMessage?.(this.shareFromMenu);
             wx.showShareMenu?.({ menus: ["shareAppMessage"] });
         }
-        this.resizeBackdrops();
-        view.on("canvas-resize", this.resizeBackdrops, this);
+        this.resizeLayout();
+        view.on("canvas-resize", this.resizeLayout, this);
     }
 
     onDestroy(): void {
         this.feedbackButton?.destroy();
         if (WECHAT) wx.offShareAppMessage?.(this.shareFromMenu);
-        view.off("canvas-resize", this.resizeBackdrops, this);
+        view.off("canvas-resize", this.resizeLayout, this);
     }
 
     private createGame(): void {
@@ -344,15 +348,7 @@ export class FlipZooStartScreen extends Component {
                 "#18586970",
                 "#72B9A4",
             ),
-            2: this.panel(
-                this.gameRoot,
-                "PlayMat",
-                TABLE[2].y,
-                722,
-                WECHAT ? 846 : 724,
-                "#18586970",
-                "#72B9A4",
-            ),
+            2: uiNode(this.gameRoot, "PlayMat", 722, WECHAT ? 846 : 724),
         };
         this.tutorialRibbon = this.panel(
             this.gameRoot,
@@ -365,7 +361,7 @@ export class FlipZooStartScreen extends Component {
         );
         label(this.tutorialRibbon, "卡槽里凑齐三张同款就会消除", 24, "#FFF2D6");
         const propWidth = WECHAT ? 116 : 136;
-        const propGap = WECHAT ? 65 : 12;
+        const propGap = WECHAT ? 67 : 12;
         this.propTray = uiNode(
             this.gameRoot,
             "PropBar",
@@ -414,18 +410,19 @@ export class FlipZooStartScreen extends Component {
         const { width, height } = TABLE[level];
         const slotPitch = width + (level === 2 && WECHAT ? 7 : 5);
         const tutorial = level === 1;
+        const trayHeight = tutorial ? 175 : height + 36;
         const tray = this.panel(
             this.gameRoot,
             "SlotTray",
             tutorial ? -250 : -478,
             722,
-            tutorial ? 175 : 104,
+            trayHeight,
             "#E6F1BF",
             "#5A8653",
         );
         this.slotTray = tray;
         this.slotWarning = label(tray, "下一张必须三消", 20, "#703F1D").node;
-        this.slotWarning.setPosition(0, tutorial ? 71 : 48);
+        this.slotWarning.setPosition(0, tutorial ? 71 : trayHeight / 2 - 4);
         for (let index = 0; index < slotLimit; index += 1) {
             const slot = new CardView(
                 tray,
@@ -437,10 +434,7 @@ export class FlipZooStartScreen extends Component {
             const extra = index >= initialCapacity;
             const column = index - (slotLimit - 1) / 2;
             const offset = initialCapacity === slotLimit ? 0 : extra ? 10 : -6;
-            slot.node.setPosition(
-                column * slotPitch + offset,
-                tutorial ? -9 : -5,
-            );
+            slot.node.setPosition(column * slotPitch + offset, 0);
             if (extra) {
                 if (!WECHAT) this.addAdBadge(slot.node, width, height);
                 slot.node.on(Node.EventType.TOUCH_END, () =>
@@ -529,15 +523,15 @@ export class FlipZooStartScreen extends Component {
         ).node.setPosition(-20, 340);
         const close = this.button(
             "×",
-            292,
-            377,
-            58,
+            274,
+            398,
+            66,
             () => {
                 this.closeOverlay();
                 this.showSettings(fromWelcome);
             },
             card,
-            58,
+            66,
         );
         this.paintButton(close, false, true, "cream");
 
@@ -677,7 +671,6 @@ export class FlipZooStartScreen extends Component {
         }
         this.matchLayer = uiNode(this.gameRoot, "MatchEffects");
         this.playMats[1].active = level === 1;
-        this.playMats[2].active = level === 2;
         for (const [key, button] of this.groupButtons) {
             this.paintButton(button, level === 2 && group === key);
         }
@@ -883,14 +876,13 @@ export class FlipZooStartScreen extends Component {
         );
     }
 
-    private openOverlay(name: string, shade = true): Node {
+    private openOverlay(name: string): Node {
         this.closeOverlay();
         const overlay = uiNode(this.node, name, 750, 1334);
         this.overlay = overlay;
         const { width, height } = this.screenSize();
         overlay.getComponent(UITransform)!.setContentSize(width, height);
         overlay.addComponent(BlockInputEvents);
-        if (shade) this.fillScreen(overlay, "#182710AC");
         return overlay;
     }
 
@@ -954,8 +946,8 @@ export class FlipZooStartScreen extends Component {
         ).node.setPosition(0, 208);
         const close = this.button(
             "×",
-            267,
-            307,
+            254,
+            314,
             60,
             () => this.showWelcome(),
             card,
@@ -1015,10 +1007,10 @@ export class FlipZooStartScreen extends Component {
                 "兑换",
                 178,
                 0,
-                103,
+                94,
                 () => undefined,
                 row,
-                55,
+                65,
             );
             this.paintButton(exchange, false, false);
         });
@@ -1048,9 +1040,8 @@ export class FlipZooStartScreen extends Component {
     }
 
     private showResult(won: boolean, feedback?: string): void {
-        const result = this.openOverlay("RoundResult", false);
+        const result = this.openOverlay("RoundResult");
         this.gameRoot.active = false;
-        this.fillScreen(result, "#142B31A8");
         const canRevive = !WECHAT && this.round.canRevive;
         const illustration = won ? this.art.winPanda : this.art.sadPanda;
         const panda = picture(
@@ -1084,9 +1075,9 @@ export class FlipZooStartScreen extends Component {
         this.showWeekRanking(summary, true);
         const viewAll = this.button(
             "查看全部排行 ›",
-            123,
-            -139,
-            305,
+            178,
+            -145,
+            216,
             () =>
                 this.showLeaderboard(false, () =>
                     this.showResult(won, feedback),
@@ -1094,14 +1085,17 @@ export class FlipZooStartScreen extends Component {
             summary,
             54,
         );
-        this.paintButton(viewAll, false, true, "cream");
+        viewAll.graphic.clear();
+        viewAll.caption.fontSize = 23;
+        viewAll.caption.color = color("#56351C");
+        viewAll.caption.node.getComponent(LabelOutline)!.width = 0;
 
         if (!won || feedback) {
             label(
                 result,
                 feedback ?? "卡槽已满",
                 26,
-                "#FFF1D4",
+                "#56351C",
             ).node.setPosition(0, -205);
         }
         if (canRevive) {
@@ -1117,42 +1111,56 @@ export class FlipZooStartScreen extends Component {
             this.paintButton(revive, true);
             this.addAdBadge(revive.graphic.node, revive.width, revive.height);
         }
-        const y = canRevive ? -411 : -330;
+        const y = canRevive ? -470 : won ? -505 : -424;
         const home = this.button(
-            "⌂ 首页",
-            -233,
+            "首页",
+            -224,
             y,
-            145,
+            138,
             () => this.returnHome(),
             result,
-            82,
+            100,
         );
         this.paintButton(home, false, true, "cream");
-        if (WECHAT) {
+        home.caption.node.active = false;
+        drawButtonIcon(home.graphic.node, "home", 0, 0, 49, "#805025");
+        if (WECHAT && !won) {
             const share = this.button(
                 "分享",
                 0,
                 y,
-                145,
-                () => this.share(won),
+                138,
+                () => this.share(),
                 result,
-                82,
+                100,
             );
             this.paintButton(share, false, true, "cream");
+            share.caption.node.active = false;
+            drawButtonIcon(share.graphic.node, "share", 0, 0, 46, "#805025");
         }
         const retry = this.button(
             won ? "再次挑战" : "继续挑战",
-            212,
+            won ? 176 : 213,
             y,
-            192,
+            won ? 263 : 164,
             () => {
                 this.closeOverlay();
                 this.restartRound();
             },
             result,
-            82,
+            100,
         );
         this.paintButton(retry, false, true, won ? "cream" : "green");
+        retry.caption.fontSize = 26;
+        retry.caption.node.setPosition(won ? 25 : 0, won ? 0 : -17);
+        drawButtonIcon(
+            retry.graphic.node,
+            "retry",
+            won ? -84 : 0,
+            won ? 0 : 15,
+            won ? 42 : 30,
+            won ? "#805025" : "#FFFFFF",
+        );
     }
 
     private requestRevive(result: Node): void {
@@ -1263,11 +1271,11 @@ export class FlipZooStartScreen extends Component {
                     this.postRankMessage("scroll-week", rows);
                 });
             }
-            this.button(
+            const refresh = this.button(
                 "刷新",
-                0,
-                preview ? -150 : -288,
-                125,
+                preview ? -230 : 233,
+                preview ? -145 : -381,
+                98,
                 () =>
                     this.postRankMessage(
                         preview ? "show-preview" : "show-week",
@@ -1275,6 +1283,10 @@ export class FlipZooStartScreen extends Component {
                 parent,
                 48,
             );
+            refresh.graphic.clear();
+            refresh.caption.fontSize = 23;
+            refresh.caption.color = color("#56351C");
+            refresh.caption.node.getComponent(LabelOutline)!.width = 0;
             this.postRankMessage(preview ? "show-preview" : "show-week");
         } else {
             label(list, "请在微信小游戏内查看好友周榜", 27, "#56351C");
@@ -1299,25 +1311,27 @@ export class FlipZooStartScreen extends Component {
         this.heading(card, "好友排行榜", 418, "#A66532", "#63381D", "small");
         const week = this.button(
             "本周榜",
-            -143,
-            330,
-            263,
+            -117,
+            333,
+            226,
             () => this.showLeaderboard(false, back),
             card,
+            58,
         );
         const previous = this.button(
             "历史榜",
-            143,
-            330,
-            263,
+            117,
+            333,
+            226,
             () => this.showLeaderboard(true, back),
             card,
+            58,
         );
         this.paintButton(week, !history, true, "cream");
         this.paintButton(previous, history, true, "cream");
         if (history) label(card, "历史榜暂未开放", 32, "#56351C");
         else this.showWeekRanking(card);
-        const close = this.button("◀ 返回", 0, -360, 244, back, card, 72);
+        const close = this.button("◀ 返回", 0, -381, 244, back, card, 72);
         this.paintButton(close, true);
     }
 
@@ -1344,13 +1358,13 @@ export class FlipZooStartScreen extends Component {
             {
                 undo: ["#66BFF6", "#307FBF", 510],
                 peek: ["#FFC84F", "#B57122", 475],
-                remove: ["#F0AB54", "#648C47", 570],
+                remove: ["#F0AB54", "#648C47", 680],
             } as const
         )[prop];
         const card = this.panel(
             dialog,
             "PropClaimCard",
-            0,
+            prop === "remove" ? -55 : -18,
             600,
             height,
             "#FFF9E5",
@@ -1384,9 +1398,9 @@ export class FlipZooStartScreen extends Component {
         rules.node.getComponent(UITransform)!.setContentSize(480, 0);
         const share = this.button(
             WECHAT ? "分享" : "模拟分享",
-            -131,
-            -height / 2 + 79,
-            220,
+            -133,
+            -height / 2 + 61,
+            232,
             () => {
                 if (
                     this.overlay !== dialog ||
@@ -1400,17 +1414,26 @@ export class FlipZooStartScreen extends Component {
                 this.refresh();
             },
             card,
-            76,
+            84,
         );
         this.paintButton(share, false, true, "green");
+        share.caption.node.setPosition(22, 0);
+        drawButtonIcon(
+            share.graphic.node,
+            "share",
+            WECHAT ? -52 : -76,
+            0,
+            30,
+            "#FFFFFF",
+        );
         this.button(
-            "关闭",
-            131,
-            -height / 2 + 79,
-            220,
+            "×  关闭",
+            133,
+            -height / 2 + 61,
+            232,
             () => this.closeOverlay(),
             card,
-            76,
+            84,
         );
     }
 
@@ -1601,7 +1624,7 @@ export class FlipZooStartScreen extends Component {
         view.setDesignResolutionSize(750, 1334, policy);
     }
 
-    private resizeBackdrops(): void {
+    private resizeLayout(): void {
         this.fitViewport();
         const { width, height } = this.screenSize();
         if (this.garden) {
@@ -1627,10 +1650,6 @@ export class FlipZooStartScreen extends Component {
             }
             if (root === this.overlay)
                 root.getComponent(UITransform)!.setContentSize(width, height);
-            const graphic = root
-                .getChildByName("Backdrop")
-                ?.getComponent(Graphics);
-            if (graphic) this.drawBackdrop(graphic, width, height);
         }
         if (WECHAT) this.layoutWeChatGame(height);
         this.syncFeedbackButton();
@@ -1768,23 +1787,6 @@ export class FlipZooStartScreen extends Component {
             x,
             page ? y * this.pageScale(this.screenSize().height) : y,
         );
-    }
-
-    private fillScreen(parent: Node, fill: string): void {
-        const graphic = uiNode(parent, "Backdrop").addComponent(Graphics);
-        graphic.fillColor = color(fill);
-        const { width, height } = this.screenSize();
-        this.drawBackdrop(graphic, width, height);
-    }
-
-    private drawBackdrop(
-        graphic: Graphics,
-        width: number,
-        height: number,
-    ): void {
-        graphic.clear();
-        graphic.rect(-width / 2, -height / 2, width, height);
-        graphic.fill();
     }
 
     private heading(
