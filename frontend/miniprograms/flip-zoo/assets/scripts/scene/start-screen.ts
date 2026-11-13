@@ -807,15 +807,15 @@ export class FlipZooStartScreen extends Component {
         if (this.round.status === "lost") {
             this.showResult(false);
         } else if (this.round.status === "won") {
+            if (this.round.level === 2) {
+                if (WECHAT) this.postRankMessage("record-win");
+                this.showResult(true);
+                return;
+            }
             const won = this.round;
             this.scheduleOnce(
                 () => {
-                    if (this.round !== won) return;
-                    if (won.level === 1) this.showTutorialClear();
-                    else {
-                        if (WECHAT) this.postRankMessage("record-win");
-                        this.showResult(true);
-                    }
+                    if (this.round === won) this.showTutorialClear();
                 },
                 matched ? MATCH_DURATION : 0,
             );
