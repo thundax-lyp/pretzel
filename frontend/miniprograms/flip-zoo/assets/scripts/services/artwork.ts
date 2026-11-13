@@ -1,3 +1,4 @@
+import { ANIMAL_KIND_COUNT } from "../gameplay/round.ts";
 import { Rect, Size, SpriteFrame, Texture2D, resources } from "cc";
 
 export interface ZooArtwork {
@@ -79,7 +80,7 @@ export async function loadZooArtwork(): Promise<ZooArtwork> {
         mascots: slice(mascots, 1, 1)[0],
         winPanda: slice(winPanda, 1, 1)[0],
         sadPanda: slice(sadPanda, 1, 1)[0],
-        animals: slice(animals, 4, 4),
+        animals: slice(animals, 4, 5).slice(0, ANIMAL_KIND_COUNT),
         paw: symbolsFrames[0],
         homeAnimals: slice(homeAnimals, 3, 1),
         undo,

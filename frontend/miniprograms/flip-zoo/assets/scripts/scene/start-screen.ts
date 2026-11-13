@@ -46,7 +46,7 @@ import {
     type Card,
     type Group,
     type Level,
-    type MainLayout,
+    type BoardLayout,
     type Prop,
     type SlotClearGroup,
 } from "../gameplay/round";
@@ -60,7 +60,7 @@ const GROUP_LABELS: Record<Group, string> = {
 };
 
 const TABLE = {
-    1: { width: 116, height: 127, y: 102 },
+    1: { width: 134, height: 169, y: 124 },
     2: { width: 88, height: 92, y: -17 },
 } as const;
 
@@ -246,7 +246,7 @@ export class FlipZooStartScreen extends Component {
         this.stage = label(stage, "", 27);
         this.stage.isBold = true;
         const settings = this.button(
-            "☰",
+            "Settings",
             -306,
             594,
             76,
@@ -254,7 +254,9 @@ export class FlipZooStartScreen extends Component {
             this.gameRoot,
             72,
         );
-        this.paintButton(settings, false, true, "green");
+        settings.caption.node.active = false;
+        this.paintButton(settings, false, true, "green", 36);
+        drawButtonIcon(settings.graphic.node, "menu", 0, 0, 49, "#FFFFFF");
         if (!WECHAT) {
             GROUPS.forEach((group, index) => {
                 const button = this.button(
@@ -339,21 +341,14 @@ export class FlipZooStartScreen extends Component {
         messageOutline.width = 2;
         if (WECHAT) this.place(this.message.node, -55, 443);
         this.playMats = {
-            1: this.panel(
-                this.gameRoot,
-                "TutorialMat",
-                TABLE[1].y,
-                712,
-                525,
-                "#18586970",
-                "#72B9A4",
-            ),
+            1: uiNode(this.gameRoot, "TutorialMat", 712, 539),
             2: uiNode(this.gameRoot, "PlayMat", 722, WECHAT ? 846 : 724),
         };
+        this.place(this.playMats[1], 0, TABLE[1].y);
         this.tutorialRibbon = this.panel(
             this.gameRoot,
             "TutorialRibbon",
-            -378,
+            -417,
             524,
             53,
             "#1E5F52",
@@ -410,11 +405,11 @@ export class FlipZooStartScreen extends Component {
         const { width, height } = TABLE[level];
         const slotPitch = width + (level === 2 && WECHAT ? 7 : 5);
         const tutorial = level === 1;
-        const trayHeight = tutorial ? 175 : height + 36;
+        const trayHeight = tutorial ? height + 54 : height + 36;
         const tray = this.panel(
             this.gameRoot,
             "SlotTray",
-            tutorial ? -250 : -478,
+            tutorial ? -266 : -478,
             722,
             trayHeight,
             "#E6F1BF",
@@ -422,7 +417,10 @@ export class FlipZooStartScreen extends Component {
         );
         this.slotTray = tray;
         this.slotWarning = label(tray, "下一张必须三消", 20, "#703F1D").node;
-        this.slotWarning.setPosition(0, tutorial ? 71 : trayHeight / 2 - 4);
+        this.slotWarning.setPosition(
+            0,
+            tutorial ? height / 2 + 13 : trayHeight / 2 - 4,
+        );
         for (let index = 0; index < slotLimit; index += 1) {
             const slot = new CardView(
                 tray,
@@ -617,7 +615,7 @@ export class FlipZooStartScreen extends Component {
         level: Level,
         group: Group,
         boardKinds?: readonly number[],
-        layout?: MainLayout,
+        layout?: BoardLayout,
     ): void {
         this.requestVersion += 1;
         this.failedBoardGroup = undefined;
@@ -1955,10 +1953,6 @@ export class FlipZooStartScreen extends Component {
                       ? picture(node, "PropIcon", frame, 86)
                       : undefined,
         };
-        if (text === "☰") {
-            button.caption.fontSize = 61;
-            button.caption.lineHeight = 68;
-        }
         if (button.icon) {
             button.icon.node.getComponent(UITransform)!.setContentSize(71, 71);
             button.icon.node.setPosition(0, 13);
@@ -1977,6 +1971,7 @@ export class FlipZooStartScreen extends Component {
         active: boolean,
         enabled = true,
         tone: "blue" | "green" | "cream" | "red" | "purple" = "blue",
+        cornerRadius?: number,
     ): void {
         const { graphic, caption, width, height, icon } = button;
         const palette = !enabled
@@ -1993,13 +1988,13 @@ export class FlipZooStartScreen extends Component {
                     cream: ["#FFF1C8", "#A9905D", "#4D3B2B"],
                 }[tone];
         const [fill, border, text] = palette;
-        const radius = !caption.node.active
-            ? 29
-            : caption.string === "☰"
-              ? Math.min(width, height) / 2
-              : height >= 80 && width >= 300
-                ? 37
-                : 18;
+        const radius =
+            cornerRadius ??
+            (!caption.node.active
+                ? 29
+                : height >= 80 && width >= 300
+                  ? 37
+                  : 18);
         graphic.clear();
         graphic.fillColor = color(border);
         graphic.roundRect(-width / 2, -height / 2 - 6, width, height, radius);

@@ -65,64 +65,28 @@ export class SettingsView {
             );
         }
 
-        const feedback = this.controls.button(
-            "问题反馈",
-            0,
-            height / 2 - 262,
-            320,
-            actions.feedback,
-            settings,
-        );
-        const contact = this.controls.button(
-            "联系客服",
-            0,
-            height / 2 - 359,
-            320,
-            actions.contact,
-            settings,
-        );
-        this.controls.paintButton(feedback, false, true, "cream");
-        this.controls.paintButton(contact, false, true, "cream");
-        feedback.caption.node.setPosition(18, 0);
-        contact.caption.node.setPosition(18, 0);
-        drawButtonIcon(
-            feedback.graphic.node,
-            "feedback",
-            -105,
-            0,
-            39,
-            "#258BD2",
-        );
-        drawButtonIcon(contact.graphic.node, "support", -105, 0, 39, "#258BD2");
-        if (!fromWelcome) {
-            const abandon = this.controls.button(
-                "放弃挑战",
-                0,
-                -112,
-                320,
-                actions.abandon,
-                settings,
-            );
-            const restart = this.controls.button(
-                "重玩本关",
-                0,
-                -184,
-                320,
-                actions.restart,
-                settings,
-            );
-            this.controls.paintButton(abandon, false, true, "cream");
-            abandon.caption.node.setPosition(18, 0);
-            drawButtonIcon(
-                abandon.graphic.node,
-                "abandon",
-                -105,
-                0,
-                37,
-                "#C65933",
-            );
-            this.controls.paintButton(restart, false, true, "cream");
-        }
+        const rows = [
+            ["问题反馈", "feedback", "#258BD2", actions.feedback],
+            ["联系客服", "support", "#258BD2", actions.contact],
+            ["放弃挑战", "abandon", "#C65933", actions.abandon],
+            ["重玩本关", "retry", "#258BD2", actions.restart],
+        ] as const;
+        const buttons = rows
+            .slice(0, fromWelcome ? 2 : rows.length)
+            .map(([title, icon, fill, action], index) => {
+                const button = this.controls.button(
+                    title,
+                    0,
+                    height / 2 - 262 - index * 86,
+                    320,
+                    action,
+                    settings,
+                );
+                this.controls.paintButton(button, false, true, "cream");
+                button.caption.node.setPosition(18, 0);
+                drawButtonIcon(button.graphic.node, icon, -105, 0, 39, fill);
+                return button;
+            });
         const privacy = this.controls.button(
             "儿童隐私保护声明及监护人须知",
             0,
@@ -136,8 +100,7 @@ export class SettingsView {
         privacy.caption.fontSize = 22;
         privacy.caption.color = color("#684824");
         privacy.caption.node.getComponent(LabelOutline)!.width = 0;
-        const feedbackControl = feedback.graphic.node;
-        return feedbackControl;
+        return buttons[0].graphic.node;
     }
 
     confirmRestart(

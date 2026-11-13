@@ -1,28 +1,23 @@
 import { MAIN_BOARD_POOL } from "./main-board-pool.ts";
 import {
-    MAIN_LAYOUTS,
     generateMainBoard,
     isBoardKinds,
-    type MainLayout,
+    type BoardLayout,
 } from "../gameplay/round.ts";
 
 export interface MainBoardDeal {
     readonly kinds: readonly number[];
-    readonly layout?: MainLayout;
+    readonly layout?: BoardLayout;
 }
 
 export interface BoardApi {
     loadMainBoard(): Promise<MainBoardDeal>;
 }
 
-const FIXED_BOARDS = MAIN_LAYOUTS.flatMap((layout) =>
-    MAIN_BOARD_POOL[layout].map((kinds) => ({ layout, kinds })),
-);
-
 export class LocalBoardAdapter implements BoardApi {
     private previous?: readonly number[];
-    private remaining = FIXED_BOARDS.slice();
-    private lastDeal?: (typeof FIXED_BOARDS)[number];
+    private remaining = MAIN_BOARD_POOL.slice();
+    private lastDeal?: (typeof MAIN_BOARD_POOL)[number];
     private readonly fixed: boolean;
 
     constructor(fixed: boolean) {
@@ -40,7 +35,9 @@ export class LocalBoardAdapter implements BoardApi {
         const deferred =
             this.remaining.length === 0 ? this.lastDeal : undefined;
         if (deferred) {
-            this.remaining = FIXED_BOARDS.filter((board) => board !== deferred);
+            this.remaining = MAIN_BOARD_POOL.filter(
+                (board) => board !== deferred,
+            );
         }
         const index = Math.floor(Math.random() * this.remaining.length);
         const [deal] = this.remaining.splice(index, 1);

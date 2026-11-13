@@ -3,11 +3,13 @@ import { test } from "node:test";
 import { MAIN_BOARD_POOL } from "../assets/scripts/services/main-board-pool.ts";
 import { createBoardApi } from "../assets/scripts/services/board-api.ts";
 import {
+    ANIMAL_KIND_COUNT,
     MAIN_LAYOUTS,
     Round,
     generateMainBoard,
     isBoardKinds,
 } from "../assets/scripts/gameplay/round.ts";
+import clearOrders from "./fixed-board-clear-orders.json" with { type: "json" };
 import { buildBoardKinds } from "../scripts/difficulty.mjs";
 
 function usePreviewOrigin(context) {
@@ -28,51 +30,36 @@ test("WeChat draws each saved board without contacting the preview server", asyn
     const api = createBoardApi(true);
     const boards = new Set();
 
-    for (const [index, layout] of MAIN_LAYOUTS.entries()) {
-        const saved = MAIN_BOARD_POOL[layout];
-        assert.equal(saved.length, 4);
-        for (const [variant, expected] of saved.entries()) {
-            draw = 0;
-            const deal = await api.loadMainBoard();
-            const { kinds } = deal;
-            assert.equal(deal.layout, layout);
-            assert.deepEqual(kinds, expected);
-            assert.ok(isBoardKinds(kinds));
-            boards.add(kinds.join(","));
-
-            // Reconstruct the reference clear order without shipping it in the game.
-            let state = (index + 1) * 100 + variant;
-            let first = true;
-            const random = () => {
-                if (first) {
-                    first = false;
-                    return (variant + 0.5) / 4;
-                }
-                state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
-                return state / 2 ** 32;
-            };
-            const proof = generateMainBoard(random, undefined, layout);
-            assert.deepEqual(kinds, proof.kinds);
-            const round = new Round(2, "C", kinds, random, layout);
-            for (const id of proof.clearOrder) {
-                assert.notEqual(round.take(id), null);
-            }
-            assert.equal(round.status, "won");
-            assert.equal(round.firstMatchAt, 3);
-            assert.equal(round.slotCapacity, 7);
+    for (const [index, expected] of MAIN_BOARD_POOL.entries()) {
+        draw = 0;
+        const deal = await api.loadMainBoard();
+        assert.deepEqual(deal, expected);
+        const { kinds, layout } = deal;
+        boards.add(kinds.join(","));
+        const counts = Map.groupBy(kinds, (kind) => kind);
+        assert.ok(counts.size >= 10 && counts.size <= ANIMAL_KIND_COUNT);
+        assert.ok(
+            [...counts.values()].every((cards) => cards.length % 3 === 0),
+        );
+        const round = new Round(2, "C", kinds, undefined, layout);
+        for (const id of clearOrders[index]) {
+            assert.notEqual(round.take(id), null, expected.name);
         }
+        assert.equal(round.status, "won", expected.name);
+        assert.equal(round.firstMatchAt, 3);
+        assert.equal(round.slotCapacity, 7);
     }
     const last = [...boards].at(-1);
     const nextCycle = new Set();
     draw = 0.999;
-    for (let i = 0; i < 12; i += 1) {
+    for (let i = 0; i < MAIN_BOARD_POOL.length; i += 1) {
         const { kinds } = await api.loadMainBoard();
         const key = kinds.join(",");
         if (i === 0) assert.notEqual(key, last);
         nextCycle.add(key);
     }
     assert.deepEqual(nextCycle, boards);
-    assert.equal(boards.size, 12);
+    assert.equal(boards.size, 20);
     assert.equal(fetch.mock.callCount(), 0);
 });
 
@@ -81,7 +68,7 @@ test("generated deals clear with five slots using the actual Round rules", () =>
         kinds.reduce((counts, kind) => {
             counts[kind] += 1;
             return counts;
-        }, Array(16).fill(0));
+        }, Array(ANIMAL_KIND_COUNT).fill(0));
     for (let seed = 1; seed <= 60; seed += 1) {
         const count = 2 + (seed % 4);
         let state = seed;
@@ -127,7 +114,10 @@ test("generated deals clear with five slots using the actual Round rules", () =>
 
 test("peak layouts open seven slots and cannot expand after a full tray", () => {
     for (const layout of MAIN_LAYOUTS) {
-        const kinds = MAIN_BOARD_POOL[layout][0].map((_, id) => id % 16);
+        const kinds = Array.from(
+            { length: 189 },
+            (_, id) => id % ANIMAL_KIND_COUNT,
+        );
         const round = new Round(2, "C", kinds, Math.random, layout);
         const byKind = new Map();
         for (const card of round.cards) {
@@ -230,7 +220,7 @@ test("each peak shape fits the table and clears across all four key-group counts
             const keys = [...byKind.values()].filter(
                 (cards) => cards.length === 3,
             );
-            assert.equal(byKind.size, 16);
+            assert.equal(byKind.size, ANIMAL_KIND_COUNT);
             assert.equal(keys.length, count);
             for (const cards of keys) {
                 assert.deepEqual(

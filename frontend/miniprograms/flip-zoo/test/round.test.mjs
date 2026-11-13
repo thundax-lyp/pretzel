@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+    ANIMAL_KIND_COUNT,
     DEFAULT_BOARD_KINDS,
     GROUPS,
     Round,
@@ -19,12 +20,12 @@ const difficulties = [1, 2, 3].flatMap((keyGroups) =>
     })),
 );
 
-test("the tutorial has 24 flat tiles, 12 per type, and clears with five slots", () => {
+test("the tutorial has 12 flat tiles, 6 per type, and clears with five slots", () => {
     const round = new Round(1, "A");
     assert.equal(round.unlockNextSlot(), false);
     assert.equal(round.slotCapacity, 5);
     assert.equal(round.hasProgress, false);
-    assert.equal(round.remaining, 24);
+    assert.equal(round.remaining, 12);
     const counts = new Map();
     for (const card of round.cards) {
         assert.equal(card.layer, 0);
@@ -32,7 +33,7 @@ test("the tutorial has 24 flat tiles, 12 per type, and clears with five slots", 
         counts.set(card.kind, (counts.get(card.kind) ?? 0) + 1);
         assert.notEqual(round.take(card.id), null);
     }
-    assert.deepEqual([...counts.values()], [12, 12]);
+    assert.deepEqual([...counts.values()], [6, 6]);
     assert.equal(round.status, "won");
     assert.equal(round.remaining, 0);
 });
@@ -42,8 +43,8 @@ test("returning to the tutorial from group B preserves neighbor reveals", () => 
     assert.equal(round.isFaceUp(round.cards[1]), false);
     assert.equal(round.take(0), 0);
     assert.equal(round.isFaceUp(round.cards[1]), true);
-    assert.equal(round.isFaceUp(round.cards[6]), true);
-    assert.equal(round.isFaceUp(round.cards[7]), false);
+    assert.equal(round.isFaceUp(round.cards[4]), true);
+    assert.equal(round.isFaceUp(round.cards[5]), false);
 });
 
 test("restart protection includes takes, successful props and slot unlocks", () => {
@@ -69,7 +70,10 @@ test("restart protection includes takes, successful props and slot unlocks", () 
 test("A/B/C use the same board and expose only their assigned opening tiles", () => {
     const rounds = GROUPS.map((group) => new Round(2, group));
     assert.equal(rounds[0].cards.length, 189);
-    assert.equal(new Set(rounds[0].cards.map((card) => card.kind)).size, 16);
+    assert.equal(
+        new Set(rounds[0].cards.map((card) => card.kind)).size,
+        ANIMAL_KIND_COUNT,
+    );
     for (const layer of [0, 1, 2]) {
         assert.equal(
             rounds[0].cards.filter((card) => card.layer === layer).length,
@@ -200,7 +204,7 @@ test("all nine settings reserve exactly three copies per key kind and the reques
             return [...groups.entries()].sort(([a], [b]) => a - b);
         };
         const kinds = byKind(round.cards);
-        assert.equal(kinds.length, 16);
+        assert.equal(kinds.length, ANIMAL_KIND_COUNT);
         assert.ok(kinds.every(([, cards]) => cards.length % 3 === 0));
         assert.deepEqual(
             kinds.map(([kind, cards]) => [kind, cards.length]),
