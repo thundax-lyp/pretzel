@@ -35,3 +35,4 @@ dev.env
 /docs/30-designs/assets/level-pack-v1/height-study/*-runs.json
 /docs/30-designs/assets/level-pack-v1/height-study/original-previews/*.png
 /docs/30-designs/assets/level-pack-v1/svg/*-preview.png
+/.agents/skills/wechatide-skill/
