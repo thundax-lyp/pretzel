@@ -10,7 +10,7 @@
 
 记录实际执行命令、结果与远端 CI 状态；不适用项说明原因。
 
-- 管理端：npm ci / npm run format:check / npm run lint / npm test / npm run build。
+- 管理端本地验证（涉及管理端时）：npm ci / npm run format:check / npm run lint / npm test / npm run build。
 - 小程序：npm ci / npm run typecheck / npm run lint / npm run format:check。
 - 工具：结构检查、格式、Oxlint、Ruff 与 Shell 语法检查。
 - 后端：Java 21，./mvnw -B clean verify（含 Spotless、Checkstyle 与测试）。

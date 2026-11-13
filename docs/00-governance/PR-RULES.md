@@ -14,9 +14,9 @@
 
 ## Verification
 
-统一 CI 入口为 .github/workflows/ci.yml，必须显式列出检查，不通过单个脚本隐藏必过项。当前 workflow 仅对面向 main 的 PR 运行管理端、小程序、后端与工具验证。
+统一 CI 入口为 .github/workflows/ci.yml，必须显式列出检查，不通过单个脚本隐藏必过项。当前 workflow 仅对面向 main 的 PR 运行小程序、后端与工具验证。
 
-- frontend/admin 使用 Node 22 和 npm 锁文件；显式执行 npm ci、npm run format:check、npm run lint、npm test、npm run build。
+- 管理端本地验证使用 Node 22 和 npm 锁文件，执行 npm ci、npm run format:check、npm run lint、npm test、npm run build。
 - `frontend/miniprograms/<工程名>/` 下每款游戏使用 Node 22、独立 npm 锁文件和 Creator 3.8.8 引擎声明。执行 npm ci、npm run typecheck、npm test、npm run lint、npm run format:check。场景预览和微信小游戏构建使用 Creator，构建输出导入微信开发者工具验收。
 - Python 工具使用 requirements-dev.txt 固定的 Ruff，显式执行 ruff check 与 ruff format --check；Shell 工具执行 sh -n。
 - 目录结构检查与 4 空格格式检查必须通过；检查器自身的回归测试由 CI 执行。
@@ -34,7 +34,7 @@ Code Review 的覆盖范围、finding 门槛与 P0–P3 标准统一由根 AGENT
 
 ## Main Branch Protection
 
-目标配置保存在 .github/main-protection.json：main 必须通过 PR 合并，分支需更新到最新基线，admin、backend、miniprogram、tooling 四项检查必须通过；管理员也遵守规则，禁止强推和删除，合并前解决讨论。单人仓库暂不要求额外审批人数，不绕过 PR 与 CI。
+目标配置保存在 .github/main-protection.json：main 必须通过 PR 合并，分支需更新到最新基线，backend、miniprogram、tooling 三项检查必须通过；管理员也遵守规则，禁止强推和删除，合并前解决讨论。单人仓库暂不要求额外审批人数，不绕过 PR 与 CI。
 
 GitHub 私有仓库分支保护依赖账号套餐。当前套餐不支持本仓库分支保护，远端保护尚未生效；仓库保持私有。规则文件不是 GitHub 自动执行的配置，不能把已提交配置当作已启用保护。
 

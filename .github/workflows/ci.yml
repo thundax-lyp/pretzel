@@ -8,33 +8,6 @@ concurrency:
 permissions:
     contents: read
 jobs:
-    admin:
-        runs-on: ubuntu-latest
-        defaults:
-            run:
-                working-directory: frontend/admin
-        steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-node@v4
-              with:
-                  node-version: "22"
-                  cache: npm
-                  cache-dependency-path: frontend/admin/package-lock.json
-            - run: npm ci
-            - name: Repository format (4 spaces)
-              run: node ../../scripts/check-format.mjs
-            - name: Tool lint
-              working-directory: ${{ github.workspace }}
-              run: frontend/admin/node_modules/.bin/oxlint --config .oxlintrc.json --deny-warnings scripts .agents
-            - run: npm run format:check
-            - run: npm run lint
-            - name: Structure and review helper tests
-              run: node --test ../../scripts/*.test.mjs
-            - name: Level design skill tests
-              working-directory: ${{ github.workspace }}
-              run: node --test .agents/skills/pretzel-level-design/scripts/*.test.mjs
-            - run: npm test
-            - run: npm run build
     backend:
         runs-on: ubuntu-latest
         services:
@@ -79,6 +52,20 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: "22"
+                  cache: npm
+                  cache-dependency-path: frontend/admin/package-lock.json
+            - run: npm ci --prefix frontend/admin
+            - name: Repository format (4 spaces)
+              run: node scripts/check-format.mjs
+            - name: Tool lint
+              run: frontend/admin/node_modules/.bin/oxlint --config .oxlintrc.json --deny-warnings scripts .agents
+            - name: Structure and review helper tests
+              run: node --test scripts/*.test.mjs
+            - name: Level design skill tests
+              run: node --test .agents/skills/pretzel-level-design/scripts/*.test.mjs
             - uses: actions/setup-python@v5
               with:
                   python-version: "3.12"
