@@ -409,11 +409,13 @@ export class Round {
     firstMatchAt: number | "prop" | null = null;
     private readonly onBoard: Set<number>;
     private readonly revealed = new Set<number>();
+    private readonly claimedProps = new Set<Prop>();
     private readonly usedProps = new Set<Prop>();
     private readonly board: readonly Card[];
     private slotted: Card[] = [];
     private capacity: number;
     private lastTaken: Card | null = null;
+    private readonly requirePropClaim: boolean;
     private readonly random: () => number;
 
     constructor(
@@ -422,7 +424,9 @@ export class Round {
         boardKinds?: readonly number[],
         random = Math.random,
         layout?: MainLayout,
+        requirePropClaim = false,
     ) {
+        this.requirePropClaim = requirePropClaim;
         this.level = level;
         this.group = group;
         this.layout = layout;
@@ -492,13 +496,32 @@ export class Round {
     get hasProgress(): boolean {
         return (
             this.moves > 0 ||
+            this.claimedProps.size > 0 ||
             this.usedProps.size > 0 ||
             this.capacity !== this.initialCapacity
         );
     }
 
     propUsesLeft(prop: Prop): 0 | 1 {
-        return this.usedProps.has(prop) ? 0 : 1;
+        return this.usedProps.has(prop) ||
+            (this.requirePropClaim && !this.claimedProps.has(prop))
+            ? 0
+            : 1;
+    }
+
+    canClaimProp(prop: Prop): boolean {
+        return (
+            this.requirePropClaim &&
+            this.level === 2 &&
+            this.status === "playing" &&
+            !this.claimedProps.has(prop)
+        );
+    }
+
+    claimProp(prop: Prop): boolean {
+        if (!this.canClaimProp(prop)) return false;
+        this.claimedProps.add(prop);
+        return true;
     }
 
     unlockNextSlot(): boolean {

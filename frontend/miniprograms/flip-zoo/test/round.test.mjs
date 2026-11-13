@@ -462,3 +462,22 @@ test("remove searches lower layers for a complete group", () => {
     assert.equal(round.isOnBoard(round.cards[188]), true);
     assert.equal(round.propUsesLeft("remove"), 0);
 });
+
+test("each claim-mode prop can be acquired and used once per round", () => {
+    const round = new Round(2, "A", undefined, Math.random, undefined, true);
+    assert.equal(round.propUsesLeft("peek"), 0);
+    assert.equal(round.use("peek"), false);
+    assert.equal(round.claimProp("peek"), true);
+    assert.equal(round.hasProgress, true);
+    assert.equal(round.claimProp("peek"), false);
+    assert.equal(round.propUsesLeft("peek"), 1);
+    assert.equal(round.use("peek"), true);
+    assert.equal(round.propUsesLeft("peek"), 0);
+    assert.equal(round.claimProp("peek"), false);
+    assert.equal(round.claimProp("undo"), true);
+    assert.equal(round.use("undo"), false);
+    assert.equal(round.propUsesLeft("undo"), 1);
+    round.status = "lost";
+    assert.equal(round.claimProp("remove"), false);
+    assert.equal(new Round(1, "A").claimProp("peek"), false);
+});
