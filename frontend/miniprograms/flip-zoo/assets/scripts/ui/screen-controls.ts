@@ -40,7 +40,7 @@ export interface ScreenControls {
         button: Control,
         active: boolean,
         enabled?: boolean,
-        tone?: "blue" | "green" | "cream",
+        tone?: "blue" | "green" | "cream" | "red" | "purple",
     ): void;
     place(node: Node, x: number, y: number): void;
 }

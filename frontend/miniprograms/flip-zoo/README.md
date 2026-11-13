@@ -1,4 +1,4 @@
-# 翻翻动物园
+# 两只眼睛几条腿
 
 `flip-zoo` 用一个 Cocos Creator 3.8.8（3.8 LTS）工程构建 Web Demo 和微信小游戏。两种构建共用 750 × 1334 的竖屏 `start` 场景、资源与 TypeScript 游戏规则。
 
@@ -24,7 +24,7 @@ npm run preview
 
 微信小游戏第二关开局开放 7 格，槽满失败后可以重试或返回首页。
 
-背景音乐使用原版 MP3，放在 `music` 分包。首次开始游戏且音乐音量大于零时加载，消除音效随主包提供。微信构建分别检查主包 4 MB 和整包 30 MB。
+背景音乐放在 `music` 分包。首页加载完成后，音乐音量大于零时加载并循环播放；点击「开始游戏」时会再次检查播放状态。消除音效随主包提供。微信构建分别检查主包 4 MB 和整包 30 MB。
 
 本地模拟器调试在仓库根目录的私有 `.env` 中设置 `FLIP_ZOO_WECHAT_TEST_APP_ID`，使用当前微信开发者工具账号可用的小游戏测试号。从仓库根目录执行以下命令，再把 `build/wechatgame-test` 作为小游戏项目导入微信开发者工具。
 
@@ -32,9 +32,9 @@ npm run preview
 python3 scripts/with-env.py --env-file .env -- npm --prefix frontend/miniprograms/flip-zoo run build:wechat -- --test
 ```
 
-首页、微信菜单和结算页可以转发。通过私有环境的 `FLIP_ZOO_SHARE_DEFAULT_*` 和 `FLIP_ZOO_SHARE_VICTORY_*` 配置普通卡片和通关卡片。审核图片的 ID 与 URL 必须成对提供。设置页可以打开微信客服和原生问题反馈。
+首页、微信菜单和结算页可以转发。第二关每种道具开局未领取，成功调用微信分享后领取一次，用完后本局不能再领。Web Demo 提供模拟分享。通过私有环境的 `FLIP_ZOO_SHARE_DEFAULT_*` 和 `FLIP_ZOO_SHARE_VICTORY_*` 配置普通卡片和通关卡片。审核图片的 ID 与 URL 必须成对提供。设置页可以打开微信客服和原生问题反馈。
 
-第二关胜利后，开放数据域读取并更新本周的微信托管数据 `mgrank`。好友周榜按北京时间周一切换，读取同玩好友的本周成绩。总榜需要服务端确认胜局并提供累计排名，当前入口显示未开放。
+第二关胜利后，开放数据域读取并更新本周的微信托管数据 `mgrank`。好友周榜按北京时间周一切换，读取同玩好友的本周成绩。胜负结算都展示好友周榜前三。历史榜与家园兑换暂未开放。
 
 两个微信构建都从教学关开始，每次进入或重开第二关，都从本轮尚未发过的固定牌局中随机抽取。12 副发完后开启下一轮，首副避开上一轮最后一副。完全退出小游戏后，抽取记录重置。金字塔、双峰、三峰各有 4 副，分别有 2、3、4、5 组命门。三种形态均为六层，双峰和三峰支持错位外挑的峰尖。A/B/C 对照、难度后台和模拟广告由 Web Demo 提供。
 
@@ -57,3 +57,11 @@ npm test
 npm run lint
 npm run format:check
 ```
+
+### 分享素材与儿童隐私
+
+普通和胜利分享卡使用 [share/default.jpg](share/default.jpg) 与 [share/victory.jpg](share/victory.jpg)，均为 500 × 400。微信构建将两张图复制进代码包。可通过既有的分享配置指定平台审核通过的图片编号与地址。
+
+弹层纸纹改编自 [ambientCG Paper 001](https://ambientcg.com/view?id=Paper001)，采用 [CC0 1.0](https://docs.ambientcg.com/license/)。标题装饰和胜负熊猫为本项目生成的插画。
+
+儿童隐私弹层按当前代码的数据用途编写，参考[《个人信息保护法》](https://www.miit.gov.cn/jgsj/zfs/fl/art/2022/art_515a4b20c12f430eab54bb4f56d89f56.html)、[《儿童个人信息网络保护规定》](https://www.moj.gov.cn/pub/sfbgw/flfggz/flfggzbmgz/202101/t20210105_146377.html)及[腾讯儿童隐私保护声明](https://privacy.tencent.com/yszc-children.htm)。发布前由运营方补齐主体、联系方式、保存期限和权利请求处理安排，并确认微信后台公示内容与监护人同意流程。当前游戏内弹层提供说明，好友信息授权由微信弹窗处理。

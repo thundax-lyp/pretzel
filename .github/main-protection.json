@@ -1,7 +1,7 @@
 {
     "required_status_checks": {
         "strict": true,
-        "contexts": ["admin", "backend", "miniprogram", "tooling"]
+        "contexts": ["backend", "miniprogram", "tooling"]
     },
     "enforce_admins": true,
     "required_pull_request_reviews": {

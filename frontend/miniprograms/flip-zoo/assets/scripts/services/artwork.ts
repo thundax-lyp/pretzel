@@ -1,15 +1,16 @@
 import { Rect, Size, SpriteFrame, Texture2D, resources } from "cc";
-import type { Prop } from "../gameplay/round";
 
 export interface ZooArtwork {
+    readonly paper: SpriteFrame;
     readonly garden: SpriteFrame;
-    readonly playfield: SpriteFrame;
     readonly title: SpriteFrame;
     readonly mascots: SpriteFrame;
+    readonly winPanda: SpriteFrame;
     readonly sadPanda: SpriteFrame;
     readonly animals: readonly SpriteFrame[];
     readonly paw: SpriteFrame;
-    readonly props: Readonly<Record<Exclude<Prop, "remove">, SpriteFrame>>;
+    readonly homeAnimals: readonly SpriteFrame[];
+    readonly undo: SpriteFrame;
 }
 
 function loadTexture(name: string): Promise<Texture2D> {
@@ -48,33 +49,39 @@ function slice(
 export async function loadZooArtwork(): Promise<ZooArtwork> {
     const [
         garden,
-        playfield,
         title,
         mascots,
         sadPanda,
+        winPanda,
         animals,
         symbols,
         props,
+        homeAnimals,
+        paper,
     ] = await Promise.all([
         loadTexture("zoo-garden"),
-        loadTexture("zoo-playfield"),
         loadTexture("zoo-title"),
         loadTexture("zoo-mascots"),
         loadTexture("zoo-sad-panda"),
+        loadTexture("zoo-win-panda"),
         loadTexture("animal-portraits"),
         loadTexture("zoo-symbols"),
         loadTexture("zoo-props"),
+        loadTexture("home-portraits"),
+        loadTexture("panel-paper"),
     ]);
     const symbolsFrames = slice(symbols, 3, 2);
-    const [undo, peek] = slice(props, 2, 2);
+    const [undo] = slice(props, 2, 2);
     return {
+        paper: slice(paper, 1, 1)[0],
         garden: slice(garden, 1, 1)[0],
-        playfield: slice(playfield, 1, 1)[0],
         title: slice(title, 1, 1)[0],
         mascots: slice(mascots, 1, 1)[0],
+        winPanda: slice(winPanda, 1, 1)[0],
         sadPanda: slice(sadPanda, 1, 1)[0],
         animals: slice(animals, 4, 4),
         paw: symbolsFrames[0],
-        props: { undo, peek },
+        homeAnimals: slice(homeAnimals, 3, 1),
+        undo,
     };
 }

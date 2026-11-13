@@ -1,7 +1,7 @@
-import { Color, Graphics, Node, UITransform, Vec3, type EventTouch } from "cc";
+import { Graphics, Node, UITransform, Vec3, type EventTouch } from "cc";
 import type { Level } from "../gameplay/round";
 import type { ZooAudio, VolumeChannel } from "../services/zoo-audio";
-import { color, label, titleLine, uiNode } from "../ui/nodes";
+import { color, label, uiNode } from "../ui/nodes";
 import type { ScreenControls } from "../ui/screen-controls";
 
 interface SettingsActions {
@@ -9,93 +9,103 @@ interface SettingsActions {
     feedback(): void;
     abandon(): void;
     restart(): void;
+    privacy(): void;
     back(): void;
 }
 
 export class SettingsView {
-    private readonly lastAudibleVolume: Record<VolumeChannel, number> = {
-        music: 30,
-        sfx: 70,
-    };
     constructor(
         private readonly controls: ScreenControls,
         private readonly audio: ZooAudio,
     ) {}
 
     show(dialog: Node, fromWelcome: boolean, actions: SettingsActions): Node {
-        this.controls.heading(
-            dialog,
-            "设置",
-            513,
-            "#2FBBD0",
-            "#147289",
-            "small",
-        );
+        const height = fromWelcome ? 525 : 660;
         const settings = this.controls.panel(
             dialog,
             "SettingsCard",
-            fromWelcome ? 195 : 140,
-            650,
-            fromWelcome ? 440 : 430,
-            "#FFF9E0",
-            "#859F73",
+            0,
+            600,
+            height,
+            "#FFF1D4",
+            "#8F552B",
         );
-        for (const [index, channel] of (["music", "sfx"] as const).entries()) {
+        this.controls.heading(
+            settings,
+            "设置",
+            height / 2,
+            "#995A2C",
+            "#623619",
+            "small",
+        );
+        const close = this.controls.button(
+            "×",
+            273,
+            height / 2,
+            65,
+            actions.back,
+            settings,
+            65,
+        );
+        this.controls.paintButton(close, false, true, "cream");
+
+        for (const [index, channel] of (["sfx", "music"] as const).entries()) {
             this.createVolumeRow(
                 settings,
                 channel,
-                (fromWelcome ? 135 : 148) - index * 126,
+                height / 2 - 115 - index * 75,
             );
         }
-        const supportY = fromWelcome ? -154 : -119;
-        this.controls.button(
-            "联系客服",
-            -150,
-            supportY,
-            263,
-            actions.contact,
-            settings,
-            57,
-        );
-        const feedbackControl = this.controls.button(
+
+        const feedback = this.controls.button(
             "问题反馈",
-            150,
-            supportY,
-            263,
+            0,
+            height / 2 - 274,
+            320,
             actions.feedback,
             settings,
-            57,
-        ).graphic.node;
+        );
+        const contact = this.controls.button(
+            "联系客服",
+            0,
+            height / 2 - 354,
+            320,
+            actions.contact,
+            settings,
+        );
+        this.controls.paintButton(feedback, false, true, "cream");
+        this.controls.paintButton(contact, false, true, "cream");
         if (!fromWelcome) {
             const abandon = this.controls.button(
                 "放弃挑战",
                 0,
-                -112,
-                385,
+                -105,
+                320,
                 actions.abandon,
-                dialog,
-                88,
+                settings,
             );
-            this.controls.paintButton(abandon, false, true, "cream");
-            this.controls.button(
+            const restart = this.controls.button(
                 "重玩本关",
                 0,
-                -212,
-                385,
+                -184,
+                320,
                 actions.restart,
-                dialog,
-                88,
+                settings,
             );
+            this.controls.paintButton(abandon, false, true, "cream");
+            this.controls.paintButton(restart, false, true, "cream");
         }
-        this.controls.button(
-            "返回",
+        const privacy = this.controls.button(
+            "儿童隐私保护声明及监护人须知",
             0,
-            fromWelcome ? -116 : -312,
-            385,
-            actions.back,
-            dialog,
-            88,
+            -height / 2 + 55,
+            512,
+            actions.privacy,
+            settings,
+            50,
         );
+        this.controls.paintButton(privacy, false, true, "cream");
+        const feedbackControl = feedback.graphic.node;
         return feedbackControl;
     }
 
@@ -158,16 +168,24 @@ export class SettingsView {
             0,
             19,
         );
-        this.controls.button("放弃本局", -135, -80, 236, onAbandon, dialog);
+        const abandon = this.controls.button(
+            "是的",
+            -135,
+            -80,
+            236,
+            onAbandon,
+            dialog,
+        );
+        this.controls.paintButton(abandon, false, true, "red");
         const resume = this.controls.button(
-            "继续游戏",
+            "不是",
             135,
             -80,
             236,
             onCancel,
             dialog,
         );
-        this.controls.paintButton(resume, true);
+        this.controls.paintButton(resume, false, true, "green");
     }
 
     private createVolumeRow(
@@ -175,61 +193,25 @@ export class SettingsView {
         channel: VolumeChannel,
         y: number,
     ): void {
-        const name = channel === "music" ? "背景音乐" : "音效";
-        titleLine(
-            parent,
-            channel === "music" ? "♫" : "◖))",
-            y + 32,
-            30,
-            "#52BFB3",
-            "#245D59",
-        ).node.setPosition(-247, y + 32);
-        const caption = label(parent, name, 27, "#343D30");
-        const captionTransform = caption.node.getComponent(UITransform)!;
-        captionTransform.setAnchorPoint(0, 0.5);
-        caption.node.setPosition(-205, y + 32);
-        const value = label(parent, "", 23, "#536946");
-        value.node.setPosition(72, y + 32);
-        if (channel === "music") {
-            const divider = uiNode(parent, "AudioDivider").addComponent(
-                Graphics,
-            );
-            divider.fillColor = color("#DAD6B7");
-            divider.rect(-256, y - 60, 512, 2);
-            divider.fill();
-        }
-        const toggle = uiNode(parent, `${name}开关`, 100, 52);
-        toggle.setPosition(203, y + 32);
-        const switchGraphic = toggle.addComponent(Graphics);
-        const width = 500;
-        const track = uiNode(parent, name, width + 40, 52);
-        track.setPosition(0, y - 15);
+        const name = channel === "music" ? "音乐音量" : "音效音量";
+        label(parent, name, 28, "#56351C").node.setPosition(-166, y);
+        const width = 260;
+        const track = uiNode(parent, name, width + 40, 60);
+        track.setPosition(103, y);
         const graphic = track.addComponent(Graphics);
         const draw = (volume: number) => {
-            value.string = volume === 0 ? "静音" : `${volume}%`;
-            const on = volume > 0;
-            switchGraphic.clear();
-            switchGraphic.fillColor = color(on ? "#4BBF76" : "#A7B7A7");
-            switchGraphic.strokeColor = color(on ? "#317D55" : "#748C7A");
-            switchGraphic.lineWidth = 3;
-            switchGraphic.roundRect(-46, -23, 92, 46, 23);
-            switchGraphic.fill();
-            switchGraphic.stroke();
-            switchGraphic.fillColor = Color.WHITE;
-            switchGraphic.circle(on ? 22 : -22, 0, 17);
-            switchGraphic.fill();
             const fill = (width * volume) / 100;
             graphic.clear();
-            graphic.fillColor = color("#D3E4BB");
+            graphic.fillColor = color("#D3C4A6");
             graphic.roundRect(-width / 2, -9, width, 18, 9);
             graphic.fill();
-            graphic.fillColor = color("#49B970");
             if (fill >= 14) {
-                graphic.roundRect(-width / 2, -7, fill, 14, 7);
+                graphic.fillColor = color("#80B94F");
+                graphic.roundRect(-width / 2, -9, fill, 18, 9);
                 graphic.fill();
             }
             graphic.fillColor = color("#FFF1D2");
-            graphic.strokeColor = color("#39875A");
+            graphic.strokeColor = color("#8D713F");
             graphic.lineWidth = 3;
             graphic.circle(fill - width / 2, 0, 15);
             graphic.fill();
@@ -245,16 +227,6 @@ export class SettingsView {
                 Math.min(100, Math.round((x / width + 0.5) * 100)),
             );
         };
-        const setVolume = (volume: number) => {
-            if (volume > 0) this.lastAudibleVolume[channel] = volume;
-            this.audio.setVolume(channel, volume);
-            draw(this.audio.volume(channel));
-        };
-        toggle.on(Node.EventType.TOUCH_END, () => {
-            const volume = this.audio.volume(channel);
-            if (volume > 0) this.lastAudibleVolume[channel] = volume;
-            setVolume(volume > 0 ? 0 : this.lastAudibleVolume[channel]);
-        });
         track.on(Node.EventType.TOUCH_START, (event: EventTouch) =>
             draw(volumeAt(event)),
         );
@@ -264,9 +236,10 @@ export class SettingsView {
         track.on(Node.EventType.TOUCH_CANCEL, () =>
             draw(this.audio.volume(channel)),
         );
-        track.on(Node.EventType.TOUCH_END, (event: EventTouch) =>
-            setVolume(volumeAt(event)),
-        );
+        track.on(Node.EventType.TOUCH_END, (event: EventTouch) => {
+            this.audio.setVolume(channel, volumeAt(event));
+            draw(this.audio.volume(channel));
+        });
         draw(this.audio.volume(channel));
     }
 }
