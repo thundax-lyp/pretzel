@@ -10,6 +10,8 @@ import {
     sys,
 } from "cc";
 
+import { ButtonPress } from "../ui/button-press";
+
 export type VolumeChannel = "music" | "sfx";
 
 const { ccclass } = _decorator;
@@ -19,6 +21,7 @@ export class ZooAudio extends Component {
     private music!: AudioSource;
     private effects!: AudioSource;
     private matchClip?: AudioClip;
+    private pressClip?: AudioClip;
     private started = false;
     private loadingMusic = false;
     private foreground = true;
@@ -31,12 +34,17 @@ export class ZooAudio extends Component {
         this.effects.playOnAwake = false;
         game.on(Game.EVENT_HIDE, this.onHide, this);
         game.on(Game.EVENT_SHOW, this.onShow, this);
+        this.node.on(ButtonPress.PRESSED, this.playButtonPress, this);
+        resources.load("audio/button-press", AudioClip, (error, clip) => {
+            if (!error && this.isValid) this.pressClip = clip;
+        });
         resources.load("audio/tile-match", AudioClip, (error, clip) => {
             if (!error && this.isValid) this.matchClip = clip;
         });
     }
 
     onDestroy(): void {
+        this.node.off(ButtonPress.PRESSED, this.playButtonPress, this);
         game.off(Game.EVENT_HIDE, this.onHide, this);
         game.off(Game.EVENT_SHOW, this.onShow, this);
     }
@@ -61,9 +69,17 @@ export class ZooAudio extends Component {
     }
 
     playMatch(): void {
+        this.playEffect(this.matchClip);
+    }
+
+    playButtonPress(): void {
+        this.playEffect(this.pressClip);
+    }
+
+    private playEffect(clip?: AudioClip): void {
         const volume = this.volume("sfx") / 100;
-        if (this.foreground && this.matchClip && volume > 0) {
-            this.effects.playOneShot(this.matchClip, volume);
+        if (this.foreground && clip && volume > 0) {
+            this.effects.playOneShot(clip, volume);
         }
     }
 

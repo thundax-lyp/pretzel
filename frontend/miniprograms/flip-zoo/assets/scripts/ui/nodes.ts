@@ -1,5 +1,6 @@
 import {
     Color,
+    Graphics,
     Label,
     LabelOutline,
     Node,
@@ -7,6 +8,7 @@ import {
     UITransform,
     type SpriteFrame,
 } from "cc";
+import { ButtonPress } from "./button-press";
 
 export function color(hex: string): Color {
     return Color.fromHEX(new Color(), hex);
@@ -71,4 +73,52 @@ export function titleLine(
     outline.color = color(border);
     outline.width = Math.max(2, Math.round(size / 16));
     return caption;
+}
+
+const imageWidth = 1152;
+const imageHeight = 2048;
+
+export function screenArtwork(
+    parent: Node,
+    name: string,
+    frame: SpriteFrame,
+): Node {
+    return picture(parent, name, frame, imageWidth, imageHeight).node;
+}
+
+export function artworkButton(
+    artwork: Node,
+    name: string,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    action: () => void,
+): Node {
+    const button = uiNode(artwork, name, width, height);
+    button.setPosition(x - imageWidth / 2, imageHeight / 2 - y);
+    shadedButton(button, action);
+    return button;
+}
+
+export function shadedButton(node: Node, action: () => void): ButtonPress {
+    const { width, height } = node.getComponent(UITransform)!.contentSize;
+    const shade = uiNode(node, "PressedShade");
+    const graphic = shade.addComponent(Graphics);
+    graphic.fillColor = color("#281D2336");
+    graphic.roundRect(
+        -width / 2,
+        -height / 2,
+        width,
+        height,
+        Math.min(width, height) * 0.28,
+    );
+    graphic.fill();
+    shade.active = false;
+    const press = node.addComponent(ButtonPress);
+    press.action = action;
+    press.showPressed = (pressed) => {
+        if (shade.isValid) shade.active = pressed;
+    };
+    return press;
 }

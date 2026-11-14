@@ -1,6 +1,7 @@
 import type { Graphics, Label, Node, Sprite, SpriteFrame } from "cc";
 
 export interface Control {
+    readonly node: Node;
     readonly graphic: Graphics;
     readonly caption: Label;
     readonly width: number;
