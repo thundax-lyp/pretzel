@@ -3,15 +3,25 @@ import {
     Color,
     Component,
     Graphics,
+    Rect,
+    Size,
+    Sprite,
+    SpriteFrame,
+    Texture2D,
+    resources,
     Label,
     Node,
     UITransform,
+    tween,
+    Tween,
+    Vec3,
 } from "cc";
 import {
     covers,
     deal,
-    hasMatch,
-    matchTiles,
+    findMatch,
+    shuffleBoard,
+    SLOT_CAPACITY,
     TILE_WIDTH,
     TILE_HEIGHT,
     type PlacedTile,
@@ -20,111 +30,222 @@ import {
 const INK = new Color(26, 59, 47);
 const CREAM = new Color(255, 244, 217);
 const GOLD = new Color(248, 205, 118);
-const SHADED = new Color(155, 163, 156);
-const PORCELAIN = new Color(255, 255, 245);
-const JADE = new Color(46, 108, 86);
-const RED = new Color(163, 39, 35);
-const BLUE = new Color(31, 52, 94);
-const GREEN = new Color(26, 111, 71);
+const PORCELAIN = new Color(249, 250, 239);
+const JADE = new Color(38, 131, 73);
 const FELT = new Color(17, 68, 55);
 const RAIL = new Color(37, 99, 77);
 
-const PIP_PATTERNS: Readonly<Record<number, readonly number[]>> = {
-    1: [4],
-    2: [1, 7],
-    3: [0, 4, 8],
-    4: [0, 2, 6, 8],
-    5: [0, 2, 4, 6, 8],
-    6: [0, 2, 3, 5, 6, 8],
-    7: [0, 2, 3, 4, 5, 6, 8],
-    8: [0, 1, 2, 3, 5, 6, 7, 8],
-    9: [0, 1, 2, 3, 4, 5, 6, 7, 8],
-};
+const SLOT_Y = 345;
+const SLOT_STEP = 74;
+const SLOT_SCALE = 0.65;
 
 type BoardTile = {
     tile: PlacedTile;
-    labels: Label[];
     node: Node;
-    face: Graphics;
-    marks: Graphics;
+    sprite: Sprite;
 };
+
+function loadTexture(name: string): Promise<Texture2D> {
+    return new Promise((resolve, reject) => {
+        resources.load(`art/${name}/texture`, Texture2D, (error, texture) => {
+            if (error) reject(error);
+            else resolve(texture);
+        });
+    });
+}
+
+function frame(texture: Texture2D, rect: Rect): SpriteFrame {
+    const spriteFrame = new SpriteFrame();
+    spriteFrame.texture = texture;
+    spriteFrame.rect = rect;
+    spriteFrame.originalSize = new Size(rect.width, rect.height);
+    return spriteFrame;
+}
 
 @_decorator.ccclass("MahjongStartScreen")
 export class MahjongStartScreen extends Component {
     private board: BoardTile[] = [];
-    private selected: BoardTile[] = [];
+    private tray: BoardTile[] = [];
+    private beforePick?: { board: PlacedTile[]; tray: PlacedTile[] };
+    private round!: Node;
+    private busy = false;
+    private finished = false;
     private status!: Label;
     private remaining!: Label;
 
+    private tileFrames: SpriteFrame[] = [];
+    private toolFrames: SpriteFrame[] = [];
+
     protected start(): void {
-        const table = this.child(this.node, "Felt", 0, 28).addComponent(
+        void this.loadArtwork().catch((error: unknown) => {
+            if (this.node.isValid)
+                this.text(
+                    this.node,
+                    "美术资源加载失败，请刷新重试",
+                    28,
+                    CREAM,
+                    0,
+                    0,
+                );
+            console.error(error);
+        });
+    }
+
+    private async loadArtwork(): Promise<void> {
+        const [table, tiles, tools] = await Promise.all([
+            loadTexture("table"),
+            loadTexture("tiles"),
+            loadTexture("tools"),
+        ]);
+        if (!this.node.isValid) return;
+        this.tileFrames = Array.from({ length: 28 }, (_, index) =>
+            frame(
+                tiles,
+                new Rect(
+                    (index % 7) * 128,
+                    Math.floor(index / 7) * 176,
+                    128,
+                    176,
+                ),
+            ),
+        );
+        this.toolFrames = Array.from({ length: 3 }, (_, index) =>
+            frame(tools, new Rect(index * 160, 0, 160, 160)),
+        );
+        const background = this.child(this.node, "Table", 0, 0);
+        this.image(
+            background,
+            frame(table, new Rect(0, 0, table.width, table.height)),
+            750,
+            1334,
+        );
+        this.showGame();
+    }
+
+    private showGame(): void {
+        this.text(this.node, "麻将消消", 56, CREAM, 0, 524);
+        this.text(this.node, "点亮牌入槽，凑成顺子或刻子", 25, CREAM, 0, 457);
+        const tray = this.child(this.node, "Tray", 0, SLOT_Y).addComponent(
             Graphics,
         );
-        this.fill(table, 570, 538, 34, RAIL);
-        this.fill(table, 558, 526, 30, INK);
-        this.fill(table, 542, 510, 26, FELT);
-        table.strokeColor = RAIL;
-        table.lineWidth = 2;
-        table.roundRect(-258, -242, 516, 484, 22);
-        table.stroke();
-
-        this.text(this.node, "麻将消消", 62, CREAM, 0, 448);
-        this.text(
-            this.node,
-            "同花色连续三张，或三张完全相同",
-            26,
-            CREAM,
-            0,
-            370,
-        );
-        this.text(this.node, "只可选未被压住的牌", 24, CREAM, 0, 329);
-        this.remaining = this.text(this.node, "", 25, GOLD, 0, 295);
+        this.fill(tray, 460, 104, 18, RAIL);
+        this.fill(tray, 452, 96, 15, INK);
+        for (let index = 0; index < SLOT_CAPACITY; index++) {
+            tray.fillColor = FELT;
+            tray.roundRect(this.slotPosition(index).x - 32, -43, 64, 86, 8);
+            tray.fill();
+        }
+        this.remaining = this.text(this.node, "", 25, GOLD, 0, 278);
         this.status = this.text(this.node, "", 28, CREAM, 0, -335);
 
-        const restart = this.child(this.node, "Restart", 0, -440);
-        this.text(restart, "重新发牌", 30, INK, 0, 0);
-        this.panel(restart, 236, 70, 20, GOLD);
+        this.addTool("洗牌", 0, -172, this.shuffle);
+        this.addTool("消除", 1, 0, this.clearTray);
+        this.addTool("撤回", 2, 172, this.undo);
+
+        const restart = this.child(this.node, "Restart", 0, -555);
+        this.panel(restart, 166, 48, 16, RAIL);
+        this.text(restart, "重新发牌", 23, CREAM, 0, 0);
         restart.on(Node.EventType.TOUCH_END, this.startRound, this);
 
         this.startRound();
     }
 
+    private addTool(
+        label: string,
+        icon: number,
+        x: number,
+        action: () => void,
+    ): void {
+        const button = this.child(this.node, label, x, -423);
+        button.addComponent(UITransform).setContentSize(114, 112);
+        this.image(
+            this.child(button, "Icon", 0, 10),
+            this.toolFrames[icon],
+            88,
+            88,
+        );
+        this.text(button, label, 27, CREAM, 0, -44);
+        button.on(Node.EventType.TOUCH_END, action, this);
+    }
+
     private startRound(): void {
-        for (const { node } of this.board) {
-            node.active = false;
-            node.destroy();
-        }
-        this.selected = [];
-        this.board = deal().map((tile) => this.makeTile(tile));
+        this.beforePick = undefined;
+        this.restoreTiles(deal(), []);
+        this.status.string = "点亮牌放入收牌槽";
+    }
+
+    private restoreTiles(board: PlacedTile[], tray: PlacedTile[]): void {
+        this.clearRound();
+        this.round = this.child(this.node, "Round", 0, 0);
+        this.busy = false;
+        this.finished = false;
+        this.board = board.map((tile) => this.makeTile(tile));
+        this.tray = tray.map((tile, index) => {
+            const card = this.makeTile(tile);
+            card.node.setPosition(this.slotPosition(index));
+            card.node.setScale(SLOT_SCALE, SLOT_SCALE, 1);
+            this.drawTile(card, false);
+            return card;
+        });
         this.refreshBoard();
-        this.status.string = "请选择三张牌";
+    }
+
+    private shuffle(): void {
+        if (this.busy) return;
+        if (this.board.length < 2 || this.tray.length === SLOT_CAPACITY) {
+            this.status.string =
+                this.tray.length === SLOT_CAPACITY
+                    ? "槽满了，先消除或撤回"
+                    : "牌山里没有足够的牌可洗";
+            return;
+        }
+        this.beforePick = undefined;
+        this.restoreTiles(
+            shuffleBoard(this.board.map(({ tile }) => tile)),
+            this.tray.map(({ tile }) => tile),
+        );
+        this.status.string = "已洗牌，槽内牌保留";
+    }
+
+    private clearTray(): void {
+        if (this.busy) return;
+        if (this.tray.length === 0) {
+            this.status.string = "收牌槽是空的";
+            return;
+        }
+        this.beforePick = undefined;
+        const count = Math.min(3, this.tray.length);
+        this.removeFromTray(
+            new Set(Array.from({ length: count }, (_, index) => index)),
+        );
+        this.finishMove(`已消除槽内 ${count} 张牌`);
+    }
+
+    private undo(): void {
+        if (this.busy) return;
+        const previous = this.beforePick;
+        if (!previous) {
+            this.status.string = "没有可撤回的取牌";
+            return;
+        }
+        this.beforePick = undefined;
+        this.restoreTiles(previous.board, previous.tray);
+        this.status.string = "已撤回上一次取牌";
     }
 
     private makeTile(tile: PlacedTile): BoardTile {
-        const node = this.child(this.node, "Tile", tile.x, tile.y);
-        node.addComponent(UITransform).setContentSize(TILE_WIDTH, TILE_HEIGHT);
-        const face = node.addComponent(Graphics);
-        const marks = this.child(node, "SuitMarks", 0, 4).addComponent(
-            Graphics,
+        const node = this.child(this.round, "Tile", tile.x, tile.y);
+        const index =
+            tile.suit === "字"
+                ? 27
+                : ["万", "筒", "条"].indexOf(tile.suit) * 9 + tile.rank - 1;
+        const sprite = this.image(
+            node,
+            this.tileFrames[index],
+            TILE_WIDTH,
+            TILE_HEIGHT,
         );
-        const labels: Label[] = [];
-        if (tile.suit === "字") {
-            labels.push(this.text(node, "發", 56, GREEN, 0, 4));
-        } else if (tile.suit === "万") {
-            labels.push(
-                this.text(
-                    node,
-                    "一二三四五六七八九"[tile.rank - 1],
-                    40,
-                    BLUE,
-                    0,
-                    26,
-                ),
-                this.text(node, "萬", 38, RED, 0, -23),
-            );
-        }
-
-        const card = { tile, node, face, labels, marks };
+        const card = { tile, node, sprite };
         node.on(Node.EventType.TOUCH_END, () => this.select(card));
         return card;
     }
@@ -136,118 +257,157 @@ export class MahjongStartScreen extends Component {
     }
 
     private select(card: BoardTile): void {
+        if (this.busy || this.finished || !this.board.includes(card)) return;
         if (this.isCovered(card)) {
-            this.status.string = "这张牌被压住了，先消上面的牌";
+            this.status.string = "这张牌被压住了";
             return;
         }
 
-        const previous = this.selected.indexOf(card);
-        if (previous >= 0) {
-            this.selected.splice(previous, 1);
-            this.drawTile(card, false);
-        } else {
-            this.selected.push(card);
-            this.drawTile(card, true);
-        }
-
-        if (this.selected.length < 3) {
-            this.status.string = this.selected.length
-                ? `已选 ${this.selected.length} / 3`
-                : "请选择三张牌";
-            return;
-        }
-
-        const [first, second, third] = this.selected;
-        const match = matchTiles(first.tile, second.tile, third.tile);
-        if (!match) {
-            for (const tile of this.selected) this.drawTile(tile, false);
-            this.selected = [];
-            this.status.string = "这三张凑不成牌型，再试一次";
-            return;
-        }
-
-        for (const { node } of this.selected) node.active = false;
-        this.selected = [];
-        const remaining = this.board.filter(({ node }) => node.active);
+        this.beforePick = {
+            board: this.board.map(({ tile }) => tile),
+            tray: this.tray.map(({ tile }) => tile),
+        };
+        this.busy = true;
+        this.board = this.board.filter((tile) => tile !== card);
+        this.tray.push(card);
+        card.node.setSiblingIndex(this.round.children.length - 1);
         this.refreshBoard();
-        if (remaining.length === 0) {
+
+        tween(card.node)
+            .to(
+                0.18,
+                {
+                    position: this.slotPosition(this.tray.length - 1),
+                    scale: new Vec3(SLOT_SCALE, SLOT_SCALE, 1),
+                },
+                { easing: "quadOut" },
+            )
+            .call(() => this.resolveTray())
+            .start();
+    }
+
+    private resolveTray(): void {
+        const result = findMatch(this.tray.map(({ tile }) => tile));
+        if (result) this.removeFromTray(new Set(result.indices));
+        this.finishMove(
+            result
+                ? `${result.match}！消掉三张`
+                : `收牌槽 ${this.tray.length} / ${SLOT_CAPACITY}`,
+        );
+    }
+
+    private removeFromTray(indices: ReadonlySet<number>): void {
+        this.tray = this.tray.filter(({ node }, index) => {
+            if (!indices.has(index)) return true;
+            Tween.stopAllByTarget(node);
+            this.shatter(node.position);
+            node.active = false;
+            node.destroy();
+            return false;
+        });
+        this.tray.forEach(({ node }, index) => {
+            Tween.stopAllByTarget(node);
+            tween(node)
+                .to(0.12, { position: this.slotPosition(index) })
+                .start();
+        });
+    }
+
+    private finishMove(message: string): void {
+        this.finished = false;
+        this.status.string = message;
+        this.refreshBoard();
+        if (this.board.length === 0 && this.tray.length === 0) {
+            this.finished = true;
             this.status.string = "清台成功！";
         } else if (
-            !hasMatch(
-                remaining
-                    .filter((card) => !this.isCovered(card))
-                    .map(({ tile }) => tile),
-            )
+            this.tray.length === SLOT_CAPACITY ||
+            this.board.length === 0
         ) {
-            this.status.string = "露出的牌凑不成组，可以重新发牌";
-        } else {
-            this.status.string = `${match}！消掉三张`;
+            this.finished = true;
+            this.status.string = this.board.length
+                ? "收牌槽满了，可消除或撤回"
+                : "槽里还有散牌，可消除或撤回";
         }
+        this.busy = false;
+    }
+
+    private slotPosition(index: number): Vec3 {
+        return new Vec3(
+            (index - (SLOT_CAPACITY - 1) / 2) * SLOT_STEP,
+            SLOT_Y,
+            0,
+        );
+    }
+
+    private shatter(position: Vec3): void {
+        for (let index = 0; index < 9; index++) {
+            const angle = (index / 9) * Math.PI * 2;
+            const shard = this.child(
+                this.round,
+                "Shard",
+                position.x,
+                position.y,
+            );
+            const shape = shard.addComponent(Graphics);
+            shape.fillColor = index % 3 === 0 ? JADE : PORCELAIN;
+            shape.moveTo(-5, -4);
+            shape.lineTo(8, -2);
+            shape.lineTo(1, 8);
+            shape.close();
+            shape.fill();
+            tween(shard)
+                .to(
+                    0.32,
+                    {
+                        position: new Vec3(
+                            position.x + Math.cos(angle) * 55,
+                            position.y + Math.sin(angle) * 45,
+                            0,
+                        ),
+                        angle: 135,
+                        scale: new Vec3(0.05, 0.05, 1),
+                    },
+                    { easing: "quadOut" },
+                )
+                .call(() => shard.destroy())
+                .start();
+        }
+    }
+
+    protected onDestroy(): void {
+        this.clearRound();
+    }
+
+    private clearRound(): void {
+        if (!this.round?.isValid) return;
+        for (const node of this.round.children) Tween.stopAllByTarget(node);
+        this.round.active = false;
+        this.round.destroy();
     }
 
     private refreshBoard(): void {
         for (const card of this.board) {
-            if (card.node.active)
-                this.drawTile(card, false, this.isCovered(card));
+            if (card.node.active) this.drawTile(card, this.isCovered(card));
         }
-        const count = this.board.filter(({ node }) => node.active).length;
-        this.remaining.string = `剩余 ${count} 张`;
+        this.remaining.string = `剩余 ${this.board.length + this.tray.length} 张`;
     }
 
-    private drawTile(
-        { face, labels, marks, tile }: BoardTile,
-        selected: boolean,
-        covered = false,
-    ): void {
-        for (const [index, label] of labels.entries()) {
-            label.color = covered
-                ? INK
-                : tile.suit === "字"
-                  ? GREEN
-                  : index === 0
-                    ? BLUE
-                    : RED;
-        }
+    private drawTile({ sprite }: BoardTile, covered = false): void {
+        sprite.color = covered ? new Color(133, 142, 137) : Color.WHITE;
+    }
 
-        face.clear();
-        this.fill(face, TILE_WIDTH, TILE_HEIGHT, 12, INK);
-        this.fill(face, 90, 124, 10, selected ? GOLD : covered ? INK : JADE, 2);
-        this.fill(face, 86, 114, 9, covered ? SHADED : PORCELAIN, 6);
-        if (selected) {
-            face.strokeColor = GOLD;
-            face.lineWidth = 4;
-            face.roundRect(-42, -50, 84, 112, 9);
-            face.stroke();
-        }
-
-        marks.clear();
-        if (tile.suit !== "筒" && tile.suit !== "条") return;
-        for (const position of PIP_PATTERNS[tile.rank]) {
-            const x = ((position % 3) - 1) * 23;
-            const y = (1 - Math.floor(position / 3)) * 30;
-            const color = covered
-                ? INK
-                : position === 4
-                  ? RED
-                  : tile.suit === "筒"
-                    ? BLUE
-                    : GREEN;
-            if (tile.suit === "筒") {
-                marks.strokeColor = color;
-                marks.lineWidth = 2;
-                marks.circle(x, y, 9);
-                marks.stroke();
-                marks.fillColor = color;
-                marks.circle(x, y, 4);
-                marks.fill();
-            } else {
-                marks.fillColor = color;
-                for (const offset of [-7, 0, 7]) {
-                    marks.roundRect(x - 3, y + offset - 4, 6, 8, 2);
-                    marks.fill();
-                }
-            }
-        }
+    private image(
+        node: Node,
+        artwork: SpriteFrame,
+        width: number,
+        height: number,
+    ): Sprite {
+        const sprite = node.addComponent(Sprite);
+        sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+        sprite.spriteFrame = artwork;
+        node.getComponent(UITransform)!.setContentSize(width, height);
+        return sprite;
     }
 
     private panel(

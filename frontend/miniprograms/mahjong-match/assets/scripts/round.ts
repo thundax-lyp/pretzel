@@ -22,27 +22,48 @@ function shuffled<T>(items: readonly T[]): T[] {
 }
 
 export function deal(): PlacedTile[] {
+    const suits = ["万", "筒", "条"] as const;
     const groups = shuffled([
-        group("万", 1, 2, 3),
-        group("万", 4, 5, 6),
-        group("筒", 3, 4, 5),
-        group("筒", 5, 5, 5),
-        group("条", 7, 8, 9),
+        ...suits.flatMap((suit) => {
+            const [rank] = shuffled([1, 5, 6, 7, 8, 9]);
+            return [
+                group(suit, 1, 2, 3),
+                group(suit, 2, 3, 4),
+                group(suit, 4, 5, 6),
+                group(suit, 7, 8, 9),
+                group(suit, rank, rank, rank),
+            ];
+        }),
         group("字", 1, 1, 1),
     ]);
     const layers = [
-        { x: -127, y: 178, tiles: groups.slice(0, 3) },
-        { x: -94, y: 138, tiles: groups.slice(3, 5) },
-        { x: -114, y: 176, tiles: groups.slice(5) },
+        { rows: [5, 7, 7, 5], x: 0, y: 170 },
+        { rows: [3, 5, 4], x: -35, y: 137 },
+        { rows: [2, 4, 3], x: 38, y: 101 },
+        { rows: [1, 2], x: -25, y: 59 },
     ];
-    return layers.flatMap(({ x, y, tiles }, layer) =>
-        shuffled(tiles.flat()).map((tile, index) => ({
-            ...tile,
-            x: x + (index % 3) * 110,
-            y: y - Math.floor(index / 3) * 145,
-            layer,
-        })),
-    );
+    let offset = 0;
+    return layers.flatMap(({ rows, x, y }, layer) => {
+        const positions = rows.flatMap((width, row) =>
+            Array.from({ length: width }, (_, column) => ({
+                x: x + (column - (width - 1) / 2) * 96 + (row % 2 ? 12 : -12),
+                y: y - row * 132,
+                layer,
+            })),
+        );
+        const count = positions.length / 3;
+        const tiles = shuffled(groups.slice(offset, offset + count).flat());
+        offset += count;
+        return positions.map((position, index) => ({
+            ...position,
+            ...tiles[index],
+        }));
+    });
+}
+
+export function shuffleBoard(tiles: readonly PlacedTile[]): PlacedTile[] {
+    const faces = shuffled(tiles.map(({ suit, rank }) => ({ suit, rank })));
+    return tiles.map((tile, index) => ({ ...tile, ...faces[index] }));
 }
 
 export function covers(upper: Position, lower: Position): boolean {
@@ -68,15 +89,23 @@ export function matchTiles(
     return middle === low + 1 && high === middle + 1 ? "顺子" : null;
 }
 
-export function hasMatch(tiles: readonly Tile[]): boolean {
+export const SLOT_CAPACITY = 6;
+
+export function findMatch(tiles: readonly Tile[]): {
+    indices: readonly [number, number, number];
+    match: Match;
+} | null {
     for (let first = 0; first < tiles.length - 2; first++) {
         for (let second = first + 1; second < tiles.length - 1; second++) {
             for (let third = second + 1; third < tiles.length; third++) {
-                if (matchTiles(tiles[first], tiles[second], tiles[third])) {
-                    return true;
-                }
+                const match = matchTiles(
+                    tiles[first],
+                    tiles[second],
+                    tiles[third],
+                );
+                if (match) return { indices: [first, second, third], match };
             }
         }
     }
-    return false;
+    return null;
 }
