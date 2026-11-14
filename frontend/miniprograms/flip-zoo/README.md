@@ -38,7 +38,7 @@ python3 scripts/with-env.py --env-file .env -- npm --prefix frontend/miniprogram
 
 两个微信构建都从教学关开始，每次进入或重开第二关，都从本轮尚未发过的固定牌局中随机抽取。20 副发完后开启下一轮，首副避开上一轮最后一副。完全退出小游戏后，抽取记录重置。固定牌库覆盖无峰平台、单峰至六峰、左右斜面、上下斜面和两头高中间低，每类两个六层变种。A/B/C 对照、难度后台和模拟广告由 Web Demo 提供。
 
-第二关统一通过 `BoardApi.loadMainBoard()` 读牌。微信首发由 `LocalBoardAdapter` 从固定牌库抽取牌序，每副牌局都有一条仅用七格、无需道具的清盘路径。Creator 直接预览使用本地生成的三层牌序；本地 Web Demo 由 `HttpBoardAdapter` 请求现有的 `GET /api/board`，响应仍是按牌 ID 排列的动物编号数组。第二版微信小游戏接入服务器时，在 `createBoardApi` 选择实现相同接口的联网适配器，场景和关卡规则继续使用同一接口。
+第二关统一通过 `BoardApi.loadMainBoard()` 读牌。微信首发由 `LocalBoardAdapter` 从固定牌库抽取牌序，每副牌局都有一条仅用七格、无需道具的清盘路径。Creator 直接预览使用本地生成的三层牌序；本地 Web Demo 由 `HttpBoardAdapter` 请求前端预览脚本提供的 `GET /api/board`，响应仍是按牌 ID 排列的动物编号数组。第二版微信小游戏接入服务器时，在 `createBoardApi` 选择实现相同接口的联网适配器，场景和关卡规则继续使用同一接口。
 
 ## 难度对照
 

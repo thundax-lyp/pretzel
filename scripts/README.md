@@ -1,12 +1,12 @@
 # 开发工具与检查
 
-从项目根目录执行下列命令。Java 使用 21，Node 使用 22，Python 工具使用 3.10 或以上。不要将实际凭据写入命令参数或输出。
+从项目根目录执行下列命令。Node 使用 22，Python 工具使用 3.10 或以上。不要将实际凭据写入命令参数或输出。
 
 ## 安装
 
 ```sh
 npm --prefix frontend/admin ci
-npm --prefix frontend/miniprograms/eyes-and-legs ci
+npm --prefix frontend/miniprograms/flip-zoo ci
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements-dev.txt
 ```
@@ -18,39 +18,31 @@ python3 -m venv .venv
 node scripts/check-format.mjs
 npm --prefix frontend/admin run lint
 node --test scripts/check-structure.test.mjs
-frontend/admin/node_modules/.bin/oxlint --config .oxlintrc.json --deny-warnings frontend/miniprograms/eyes-and-legs scripts
-.venv/bin/ruff check scripts deploy
-.venv/bin/ruff format --check scripts deploy
-sh -n scripts/infra-tunnel.sh
-
-# Java 与 POM 格式，均使用 4 个空格。
-./backend/mvnw -f backend/pom.xml spotless:check
-./backend/mvnw -f backend/pom.xml checkstyle:check
+frontend/admin/node_modules/.bin/oxlint --config .oxlintrc.json --deny-warnings frontend/miniprograms/flip-zoo scripts
+.venv/bin/ruff check scripts
+.venv/bin/ruff format --check scripts
 ```
 
-check-format 根据 .prettierrc.json 处理前端、小程序、配置及 Markdown，尊重 Git 忽略规则，跳过产物、备份和私有文件。Java 与 Maven POM 由 Spotless 维护；Python 由 Ruff 维护。
+check-format 根据 .prettierrc.json 处理前端、小程序、配置及 Markdown，尊重 Git 忽略规则，跳过产物、备份和私有文件。Python 由 Ruff 维护。
 
-check-structure 检查前端文件命名、服务依赖方向、HTTP 归属、官方 UI 组件使用、Java 包路径、自动配置注册与文档目录树。它不代替 TypeScript 编译、ArchUnit 或运行时验证。
+check-structure 检查前端文件命名、服务依赖方向、HTTP 归属、官方 UI 组件使用与文档目录树。它不代替 TypeScript 编译 或运行时验证。
 
 ## 测试与构建
 
 ```sh
-npm --prefix frontend/miniprograms/eyes-and-legs run typecheck
-npm --prefix frontend/miniprograms/eyes-and-legs run lint
+npm --prefix frontend/miniprograms/flip-zoo run typecheck
+npm --prefix frontend/miniprograms/flip-zoo run lint
 npm --prefix frontend/admin test
 npm --prefix frontend/admin run build
-./backend/mvnw -f backend/pom.xml -B clean verify
 ```
-
-后端 verify 同时执行 Checkstyle、Spotless、单元测试和 ArchUnit。真实 MySQL 与 Redis 集成验证使用隔离测试库，通过 TEST_DB_URL、TEST_DB_USERNAME、TEST_DB_PASSWORD、TEST_REDIS_URL 配置；不得将测试指向已部署的业务数据库。
 
 ## 私有环境加载
 
 ```sh
-python3 scripts/with-env.py --env-file dev.env -- <命令>
+python3 scripts/with-env.py --env-file .env -- <命令>
 ```
 
-环境加载器按字面读取 KEY=VALUE，不执行 Shell 展开。infra-tunnel.sh 负责独立的开发隧道操作；传入目标 SSH 主机，不将账号和基础环境凭据硬编码到脚本。
+环境加载器按字面读取 KEY=VALUE，不执行 Shell 展开。
 
 ## main 分支保护
 
@@ -87,11 +79,11 @@ prototype 为每个内容种子输出直叠对照、盖二重点、盖四重点�
 
 ## Cocos 构建
 
-`frontend/miniprograms/eyes-and-legs/scripts/build-cocos.mjs` 调用本机 Cocos Creator 3.8.8。微信构建从私有环境读取 `WECHAT_GAME_APP_ID`，生成的项目目录导入微信开发者工具。
+`frontend/miniprograms/flip-zoo/scripts/build-cocos.mjs` 调用本机 Cocos Creator 3.8.8。微信构建从私有环境读取 `FLIP_ZOO_WECHAT_GAME_APP_ID`，生成的项目目录导入微信开发者工具。
 
 ```sh
-npm --prefix frontend/miniprograms/eyes-and-legs run build:web -- --debug
-python3 scripts/with-env.py --env-file .env -- npm --prefix frontend/miniprograms/eyes-and-legs run build:wechat -- --debug
+npm --prefix frontend/miniprograms/flip-zoo run build:web -- --debug
+python3 scripts/with-env.py --env-file .env -- npm --prefix frontend/miniprograms/flip-zoo run build:wechat -- --debug
 ```
 
 Node 关卡设计工具统一采用当前的免费原位复位与移出、纠错、重排规则。广告数据需要在固定输入和预算下重新运行，旧规则报告只可作为历史材料。

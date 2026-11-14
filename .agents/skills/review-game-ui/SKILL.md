@@ -13,7 +13,7 @@ description: 由用户主动调用，以文件名或路径为参数审核休闲�
 
 ```text
 $review-game-ui home.png
-$review-game-ui frontend/miniprograms/eyes-and-legs
+$review-game-ui frontend/miniprograms/flip-zoo
 $review-game-ui "/absolute/path/home ready.png"
 ```
 

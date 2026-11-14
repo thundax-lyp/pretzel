@@ -11,7 +11,7 @@ npm run build
 npm run dev
 ```
 
-Vite将`/pretzel-admin-api`代理到本机8080。可通过`VITE_ADMIN_API_BASE_URL`覆盖API根；部署同源代理，并为前端历史路由配置index.html回退。
+管理端登录及业务数据依赖独立运行的兼容 API 服务。Vite将`/pretzel-admin-api`代理到本机8080。可通过`VITE_ADMIN_API_BASE_URL`覆盖API根；部署同源代理，并为前端历史路由配置index.html回退。
 
 登录必须先取得令牌再加载权限，失败清理登录态；清令牌同时清权限。路由守卫和按钮隐藏仅改善展示，最终权限由服务端检查。管理用户与微信玩家身份独立。个人资料入口暂未实现完整个人中心。
 
@@ -27,4 +27,4 @@ Pro Components 固定为 `3.1.15-9`，该版本声明兼容 Ant Design 6；当�
 
 生产源码放在 src/，测试独立放在 test/，并保持对应的目录结构，例如 src/auth/token-storage.ts 对应 test/auth/token-storage.test.ts。组件测试使用 .test.tsx，普通逻辑测试使用 .test.ts；共享初始化位于 test/setup.ts。测试通过 @/ 引用源码，生产源码不得依赖测试。tsconfig.app.json 与 tsconfig.test.json 分别检查生产代码和测试，npm run build 同时执行两者的类型检查。
 
-api 只处理传输，auth 保存底层认证与令牌、权限，session 编排当前用户和登录后会话，页面 service 与业务域就近放置。源码使用 kebab-case，4 个空格缩进。npm run lint 执行 Oxlint 与项目结构检查；检查文档树、Java 包路径及前端服务依赖。跨工程格式检查从仓库根目录执行 node scripts/check-format.mjs。
+api 只处理传输，auth 保存底层认证与令牌、权限，session 编排当前用户和登录后会话，页面 service 与业务域就近放置。源码使用 kebab-case，4 个空格缩进。npm run lint 执行 Oxlint 与项目结构检查；检查文档树及前端服务依赖。跨工程格式检查从仓库根目录执行 node scripts/check-format.mjs。
