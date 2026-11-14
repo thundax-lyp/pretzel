@@ -1,0 +1,11 @@
+/build/
+/library/
+/temp/
+/local/
+/profiles/
+
+/settings/v2/packages/information.json
+/settings/v2/packages/device.json
+/settings/v2/packages/program.json
+/settings/v2/packages/builder.json
+/native/
