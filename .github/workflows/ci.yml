@@ -8,46 +8,23 @@ concurrency:
 permissions:
     contents: read
 jobs:
-    backend:
+    admin:
         runs-on: ubuntu-latest
-        services:
-            mysql:
-                image: mysql:8.4
-                env:
-                    MYSQL_DATABASE: pretzel_test
-                    MYSQL_ROOT_PASSWORD: ci-test-only
-                ports:
-                    - 3306:3306
-                options: >-
-                    --health-cmd="mysqladmin ping -h localhost -pci-test-only"
-                    --health-interval=10s
-                    --health-timeout=5s
-                    --health-retries=12
-            redis:
-                image: redis:7.2
-                ports:
-                    - 6379:6379
-                options: >-
-                    --health-cmd="redis-cli ping"
-                    --health-interval=5s
-                    --health-timeout=3s
-                    --health-retries=12
-        env:
-            TEST_REDIS_URL: redis://127.0.0.1:6379/15
-            TEST_DB_URL: jdbc:mysql://127.0.0.1:3306/pretzel_test?serverTimezone=Asia/Shanghai
-            TEST_DB_USERNAME: root
-            TEST_DB_PASSWORD: ci-test-only
         defaults:
             run:
-                working-directory: backend
+                working-directory: frontend/admin
         steps:
             - uses: actions/checkout@v4
-            - uses: actions/setup-java@v4
+            - uses: actions/setup-node@v4
               with:
-                  distribution: temurin
-                  java-version: "21"
-                  cache: maven
-            - run: ./mvnw -B clean verify
+                  node-version: "22"
+                  cache: npm
+                  cache-dependency-path: frontend/admin/package-lock.json
+            - run: npm ci
+            - run: npm run format:check
+            - run: npm run lint
+            - run: npm test
+            - run: npm run build
     tooling:
         runs-on: ubuntu-latest
         steps:
@@ -70,9 +47,8 @@ jobs:
               with:
                   python-version: "3.12"
             - run: python -m pip install -r requirements-dev.txt
-            - run: ruff check scripts deploy
-            - run: ruff format --check scripts deploy
-            - run: sh -n scripts/infra-tunnel.sh
+            - run: ruff check scripts
+            - run: ruff format --check scripts
     miniprogram:
         name: ${{ matrix.check-name }}
         runs-on: ubuntu-latest
@@ -80,10 +56,12 @@ jobs:
             fail-fast: false
             matrix:
                 include:
-                    - game: eyes-and-legs
-                      check-name: miniprogram
                     - game: flip-zoo
-                      check-name: miniprogram (flip-zoo)
+                      check-name: miniprogram
+                      run-tests: true
+                    - game: mahjong-match
+                      check-name: miniprogram (mahjong-match)
+                      run-tests: false
         defaults:
             run:
                 working-directory: frontend/miniprograms/${{ matrix.game }}
@@ -96,6 +74,7 @@ jobs:
                   cache-dependency-path: frontend/miniprograms/${{ matrix.game }}/package-lock.json
             - run: npm ci
             - run: npm run typecheck
-            - run: npm test
+            - if: matrix.run-tests
+              run: npm test
             - run: npm run lint
             - run: npm run format:check

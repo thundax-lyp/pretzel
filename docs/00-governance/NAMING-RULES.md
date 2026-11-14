@@ -2,11 +2,11 @@
 
 ## 工程与文件
 
-根目录按工程职责划分为 frontend、backend、deploy、scripts 和 docs。frontend/admin 为管理后台，`frontend/miniprograms/<工程名>/` 为各款微信小游戏。游戏工程名用小写 kebab-case 表达游戏主题，例如 `eyes-and-legs`。管理后台与各款游戏独立维护依赖、构建和测试配置。没有实际内容不创建空目录，产物、运行数据和私有配置不进入源码。
+根目录按工程职责划分为 frontend、scripts 和 docs。frontend/admin 为管理后台，`frontend/miniprograms/<工程名>/` 为各款微信小游戏。游戏工程名用小写 kebab-case 表达游戏主题，例如 `flip-zoo`。管理后台与各款游戏独立维护依赖、构建和测试配置。没有实际内容不创建空目录，产物、运行数据和私有配置不进入源码。
 
 代码与配置统一为 UTF-8、LF、4 个空格缩进，文件末尾保留换行，不使用 Tab 缩进。工具生成且不人工维护的文件不手工改写；Markdown 列表与代码块遵循语法要求。
 
-工具约定名称保持原样，例如 package.json、compose.yaml、application.yml、AGENTS.md、README.md。Java、TypeScript、Cocos 资源分别遵循自身命名规则，不机械套用同一后缀。
+工具约定名称保持原样，例如 package.json、AGENTS.md、README.md。TypeScript、Cocos 资源分别遵循自身命名规则，不机械套用同一后缀。
 
 ## 管理端
 
@@ -20,24 +20,12 @@
 - types 仅存放跨业务通用类型，不能成为页面类型的集中桶。pages、layouts 等集合目录可以使用复数。
 - 不新增 service、utils、common 等没有明确职责的杂物目录，不建立官方 UI 组件的转发包装。
 
-## Java
-
-- 类使用 PascalCase，方法及变量使用 camelCase，常量使用 UPPER_SNAKE_CASE，包名使用小写。
-- 配置类和配置属性放在 config 包，禁止 configure；工具包统一为 util，禁止 utils；架构约束注解和测试支撑使用 architecture，禁止 arch。
-- backend/common 存放技术能力，backend/biz 按业务域组织，backend/starter 只做运行时装配。
-- 业务域内部先按 DDD 层次，再按业务能力分包。game.domain.board 保存卡牌和布局相关对象，game.domain.slot 保存卡槽判定。
-- Controller、Request、Response 属于 HTTP 接口；ApplicationService、Command、Query 属于用例编排；Repository 是领域端口；Mapper、DO、PersistenceAssembler 属于持久化实现。
-- 模块名使用 pretzel-<domain>-<layer>。Java 包中的 interfaces 表示接口层，Maven 模块后缀使用 interface；两者分别遵循包与构件约定，不引入额外同义目录。
-- 单元及架构测试使用 Test 后缀；当前 Maven Surefire 同时执行 IntegrationTest，不使用尚未配置 Failsafe 的 IT 后缀冒充集成测试已执行。
-
-## 小程序、部署与文档
+## 小程序与文档
 
 `frontend/miniprograms/<工程名>/` 使用独立的 Cocos Creator 工程结构。场景放在 assets/scenes，组件和纯 TypeScript 模块放在 assets/scripts，动态加载资源放在 assets/resources。资源及对应 .meta 文件一起维护。
-
-部署使用 deploy/smoke 与 deploy/release，各环境保留 compose.yaml 和 .env.example；真实文件 .env、dev.env、.secrets 与 .environment 全部忽略。脚本使用小写 kebab-case 及对应语言扩展名。
 
 文档使用大写英文和连字符，按治理、需求、契约、设计、验收分类；章节顺序由目录 README 决定，不给每个文件添加容易失效的序号前缀。
 
 ## 自动检查
 
-EditorConfig 约束编辑器缩进；Prettier 检查前端、小程序和配置；Spotless 检查 Java 与 Maven POM；Checkstyle 检查 Java 静态规则；ArchUnit 检查配置类位置、领域依赖与命名；Ruff 检查 Python 格式与静态规范；结构 lint 检查目录、导入边界、自动配置注册和文档链接。
+EditorConfig 约束编辑器缩进；Prettier 检查前端、小程序和配置；Ruff 检查 Python 格式与静态规范；结构 lint 检查目录、导入边界和文档链接。

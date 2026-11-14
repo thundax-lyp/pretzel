@@ -26,19 +26,30 @@ npm run preview
 
 背景音乐放在 `music` 分包。首页加载完成后，音乐音量大于零时加载并循环播放；点击「开始游戏」时会再次检查播放状态。消除音效随主包提供。微信构建分别检查主包 4 MB 和整包 30 MB。
 
-本地模拟器调试在仓库根目录的私有 `.env` 中设置 `FLIP_ZOO_WECHAT_TEST_APP_ID`，使用当前微信开发者工具账号可用的小游戏测试号。从仓库根目录执行以下命令，再把 `build/wechatgame-test` 作为小游戏项目导入微信开发者工具。
+本地模拟器调试在仓库根目录的私有 `dev.env` 中设置 `FLIP_ZOO_WECHAT_TEST_APP_ID`，使用当前微信开发者工具账号可用的小游戏测试号。从仓库根目录执行以下命令，再把 `build/wechatgame-test` 作为小游戏项目导入微信开发者工具。
 
 ```bash
-python3 scripts/with-env.py --env-file .env -- npm --prefix frontend/miniprograms/flip-zoo run build:wechat -- --test
+python3 scripts/with-env.py --env-file dev.env -- npm --prefix frontend/miniprograms/flip-zoo run build:wechat -- --test
 ```
 
 首页和失败结算页可以直接转发。胜利结算时可从微信菜单转发通关卡片。第二关每种道具开局未领取，成功调用微信分享后领取一次，用完后本局不能再领。Web Demo 提供模拟分享。通过私有环境的 `FLIP_ZOO_SHARE_DEFAULT_*` 和 `FLIP_ZOO_SHARE_VICTORY_*` 配置普通卡片和通关卡片。审核图片的 ID 与 URL 必须成对提供。设置页可以打开微信客服和原生问题反馈。
 
 第二关胜利后，开放数据域读取并更新本周的微信托管数据 `mgrank`。好友周榜按北京时间周一切换，读取同玩好友的本周成绩。胜负结算都展示好友周榜前三。历史榜与家园兑换暂未开放。
 
-两个微信构建都从教学关开始，每次进入或重开第二关，都从本轮尚未发过的固定牌局中随机抽取。20 副发完后开启下一轮，首副避开上一轮最后一副。完全退出小游戏后，抽取记录重置。固定牌库覆盖无峰平台、单峰至六峰、左右斜面、上下斜面和两头高中间低，每类两个六层变种。A/B/C 对照、难度后台和模拟广告由 Web Demo 提供。
+微信构建从教学关开始。配置云环境的构建由云函数签发第二关固定牌局，每个账号在 20 副牌局中循环抽取。云函数重放操作校验清盘，每局最多发放 1 个动物碎片，每个账号按北京时间每天最多发放 60 个。家园从云函数读取碎片余额，网络失败的结算会在打开家园时重试。兑换尚未开放。
 
-第二关统一通过 `BoardApi.loadMainBoard()` 读牌。微信首发由 `LocalBoardAdapter` 从固定牌库抽取牌序，每副牌局都有一条仅用七格、无需道具的清盘路径。Creator 直接预览使用本地生成的三层牌序；本地 Web Demo 由 `HttpBoardAdapter` 请求现有的 `GET /api/board`，响应仍是按牌 ID 排列的动物编号数组。第二版微信小游戏接入服务器时，在 `createBoardApi` 选择实现相同接口的联网适配器，场景和关卡规则继续使用同一接口。
+未配置云环境的微信构建在本地抽取固定牌局。Creator 直接预览使用本地生成的三层牌序，本地 Web Demo 通过 `HttpBoardAdapter` 读取 `GET /api/board`。A/B/C 对照、难度后台和模拟广告由 Web Demo 提供。
+
+### 微信云开发
+
+在微信云开发控制台将小游戏 AppID 关联到目标环境。正式构建从私有环境读取
+`FLIP_ZOO_WECHAT_CLOUD_ENV`，`--test` 构建读取
+`FLIP_ZOO_WECHAT_TEST_CLOUD_ENV`。将 `cloudfunctions/flipZooHealth` 部署到对应环境，并安装云端依赖。
+
+配置环境 ID 后，小游戏启动时调用 `flipZooHealth`。云函数通过微信调用上下文验证身份，
+只返回验证结果。接通时，开发者工具控制台显示 `FLIP ZOO cloud connection verified`。
+
+运行 `node scripts/package-fragments.mjs` 生成 `build/cloudfunctions/flipZooFragments`，然后将该目录部署到同一云环境并安装云端依赖。云函数使用 `flipZooFragments` 集合保存牌局、发放记录和余额。集合权限应设为仅云端可读写。
 
 ## 难度对照
 
