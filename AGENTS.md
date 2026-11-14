@@ -11,6 +11,8 @@
 - 代码与配置统一使用 4 个空格缩进，禁止 Tab 缩进。通过 EditorConfig、Prettier 与对应 lint 检查约束。
 - Oxlint 与结构检查验证前端和脚本边界，Ruff 检查 Python 工具。规则变化同步门禁与必要测试。
 - `.env`、`dev.env` 和私有凭据目录全部忽略；公开配置样例使用 `.env.example`。
+- 查找 FLIP ZOO 的正式微信小游戏 AppID 时，在仓库根目录的私有 `*.env` 文件中查找 `WECHAT_GAME_APP_ID`。构建正式包时，将该值传给 `FLIP_ZOO_WECHAT_GAME_APP_ID`。云开发查询使用正式 AppID，核对时只输出脱敏后缀。
+- 每次启动微信开发者工具打开 FLIP ZOO 时，默认使用正式 AppID 构建 `build/wechatgame`，确保构建已从私有环境文件（当前使用 `dev.env`）加载 `FLIP_ZOO_WECHAT_CLOUD_ENV`。已有产物缺少该配置或与当前配置不一致时，先重新构建，再打开 IDE，使小游戏启动时自动初始化云开发。用户明确要求使用测试号时，打开对应测试构建。
 - 未经授权不提交、推送、合并或部署。规则文档本身不构成操作授权。
 - 只有用户明确授权创建分支时，才可创建本地或远端 Git 分支。提交、推送或创建 PR 的授权不包含创建分支。禁止创建 Git worktree。
 
