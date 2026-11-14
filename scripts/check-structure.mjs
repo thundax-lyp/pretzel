@@ -151,34 +151,6 @@ if (fs.existsSync(testRoot)) {
     }
 }
 const all = files(root);
-for (const file of all) {
-    if (file.endsWith(".java")) {
-        const text = fs.readFileSync(file, "utf8");
-        const match = text.match(/^package ([\w.]+);/m);
-        if (match) {
-            if (/(?:^|\.)(configure|utils|arch)(?:\.|$)/.test(match[1]))
-                fail(file, "use config, util and architecture packages");
-            if (
-                !file
-                    .replaceAll(path.sep, "/")
-                    .endsWith(
-                        `${match[1].replaceAll(".", "/")}/${path.basename(file)}`,
-                    )
-            )
-                fail(file, "source directory must match Java package");
-        }
-    }
-    if (
-        file.endsWith(".imports") &&
-        /com\.thundax\.pretzel\..*\.configure\./.test(
-            fs.readFileSync(file, "utf8"),
-        )
-    )
-        fail(
-            file,
-            "Spring auto-configuration registration references an old package",
-        );
-}
 const docsRoot = path.join(root, "docs");
 const parents = new Map();
 for (const file of all.filter(
@@ -231,6 +203,6 @@ if (errors.length) {
     process.exitCode = 1;
 } else {
     console.log(
-        "Structure lint passed: source ownership, Java packages, official UI and document tree.",
+        "Structure lint passed: source ownership, official UI and document tree.",
     );
 }

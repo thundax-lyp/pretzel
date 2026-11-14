@@ -5,12 +5,12 @@
 - 本项目处于初始化阶段，直接维护当前目标设计；修改原定义并删除废弃实现，不叠加历史兼容层、过渡开关或修补式迁移。此原则不授权清空已部署数据。
 - 初始化交付只维护最终环境状态，不累计中间迁移、替换与排错记录；文档和 PR 描述围绕最终配置与验证结果组织。
 - 保留用户已有改动。真实配置、令牌、密码与私有环境文件不得进入 Git 或工具输出。
-- Java 使用 21 与 Maven Wrapper；前端工程使用 Node 22，管理端采用 React、TypeScript、Ant Design 和 Pro Components，游戏客户端采用 Cocos Creator 3.8.8（3.8 LTS） 与 TypeScript，发布到微信小游戏。
+- 前端工程使用 Node 22，管理端采用 React、TypeScript、Ant Design 和 Pro Components，游戏客户端采用 Cocos Creator 3.8.8（3.8 LTS） 与 TypeScript，发布到微信小游戏。
 - 前端应用统一放在 frontend：管理端为 frontend/admin，游戏客户端放在 `frontend/miniprograms/<工程名>/`，每款游戏独立维护依赖、构建与测试配置。
 - 通用管理界面直接使用官方组件，业务组件承担明确业务职责。
-- 代码与配置统一使用 4 个空格缩进，禁止 Tab 缩进。通过 EditorConfig、Prettier、Spotless 与对应 lint 检查约束。
-- ArchUnit 验证 Java 层次、包归属与依赖；Checkstyle 验证 Java 静态规范；Oxlint 与结构检查验证前端和脚本边界，Ruff 检查 Python 工具。规则变化同步门禁与必要测试。
-- `.env`、`dev.env` 和私有凭据目录全部忽略；公开配置样例使用 `.env.example`。Compose 统一放在 deploy。
+- 代码与配置统一使用 4 个空格缩进，禁止 Tab 缩进。通过 EditorConfig、Prettier 与对应 lint 检查约束。
+- Oxlint 与结构检查验证前端和脚本边界，Ruff 检查 Python 工具。规则变化同步门禁与必要测试。
+- `.env`、`dev.env` 和私有凭据目录全部忽略；公开配置样例使用 `.env.example`。
 - 查找 FLIP ZOO 的正式微信小游戏 AppID 时，在仓库根目录的私有 `*.env` 文件中查找 `WECHAT_GAME_APP_ID`。构建正式包时，将该值传给 `FLIP_ZOO_WECHAT_GAME_APP_ID`。云开发查询使用正式 AppID，核对时只输出脱敏后缀。
 - 每次启动微信开发者工具打开 FLIP ZOO 时，默认使用正式 AppID 构建 `build/wechatgame`，确保构建已从私有环境文件（当前使用 `dev.env`）加载 `FLIP_ZOO_WECHAT_CLOUD_ENV`。已有产物缺少该配置或与当前配置不一致时，先重新构建，再打开 IDE，使小游戏启动时自动初始化云开发。用户明确要求使用测试号时，打开对应测试构建。
 - 未经授权不提交、推送、合并或部署。规则文档本身不构成操作授权。
@@ -28,7 +28,7 @@
 - **运行完整性**：事务、并发、幂等、重试、排序、状态流转、初始化、授权、敏感信息、可观测性与恢复。
 - **验证**：关键行为和失败路径的测试及静态门禁。检查通过是证据，不是行为正确的证明。
 
-先识别受影响模块与契约，再沿真实依赖追踪 backend、frontend/admin、frontend/miniprograms、deploy 和工具，不凭关键词扩张范围。使用与风险匹配的最小验证；共享契约、基础设施或跨模块变化再扩大验证。
+先识别受影响模块与契约，再沿真实依赖追踪 frontend/admin、frontend/miniprograms 和工具，不凭关键词扩张范围。使用与风险匹配的最小验证；共享契约、基础设施或跨模块变化再扩大验证。
 
 正式 finding 必须由当前变更引入、暴露或实质加重，具有具体触发条件、可观察影响、变更位置与可执行修复方向。相同根因合并，纯风格偏好、无后果的改进和未经证明的推测不算缺陷。
 
@@ -48,7 +48,7 @@
 - 认证、令牌与权限存储归属 auth；当前用户和会话建立归属 session；HTTP 传输归属 api。检查菜单、路由、按钮、后端鉴权和资源读取使用一致的权限事实。
 - 初始化阶段按当前最终设计评审，不要求兼容已废弃方案；真实数据重置仍需明确授权。只把本 PR 已承诺的游戏能力纳入完成度判断。
 - 小程序区分 TypeScript 检查与微信工具/真机验证；实际交付的消除、道具、视频奖励与归档规则必须验证服务端事实、时序和幂等。
-- scripts、deploy/smoke、CI、文档和 skill 均纳入 diff 覆盖，不默认豁免脚本或配置。审查 skill 不等于运行它所描述的外部写操作。
+- scripts、CI、文档和 skill 均纳入 diff 覆盖，不默认豁免脚本或配置。审查 skill 不等于运行它所描述的外部写操作。
 
 评审以当前有效文档提取适用承诺，为其建立 source → producer → adapter → validator → consumer/sink 证据链，不把相邻项目作为源码、协议、目录或兼容基线。设计不替代需求，验收只证明其记录的范围。
 

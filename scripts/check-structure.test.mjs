@@ -31,7 +31,7 @@ function fixture(t, entries = {}) {
 test("accepts a tree of documents and protocol-owned code", (t) => {
     assert.equal(
         fixture(t, {
-            "frontend/miniprograms/eyes-and-legs/package.json": "{}\n",
+            "frontend/miniprograms/sample-game/package.json": "{}\n",
         }).status,
         0,
     );
@@ -80,17 +80,6 @@ test("rejects direct HTTP in pages and removed UI wrappers", (t) => {
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /HTTP requests belong/);
     assert.match(result.stderr, /official Pro Components/);
-});
-test("rejects stale Java package registration and mismatched source paths", (t) => {
-    const result = fixture(t, {
-        "backend/src/main/java/com/thundax/pretzel/Sample.java":
-            "package com.thundax.pretzel.configure; public class Sample {}\n",
-        "backend/src/main/resources/META-INF/spring/AutoConfiguration.imports":
-            "com.thundax.pretzel.common.web.configure.WebConfiguration\n",
-    });
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /source directory must match/);
-    assert.match(result.stderr, /registration references an old package/);
 });
 test("rejects cross references in document leaves", (t) => {
     const result = fixture(t, {
