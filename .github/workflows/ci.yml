@@ -8,6 +8,23 @@ concurrency:
 permissions:
     contents: read
 jobs:
+    admin:
+        runs-on: ubuntu-latest
+        defaults:
+            run:
+                working-directory: frontend/admin
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: "22"
+                  cache: npm
+                  cache-dependency-path: frontend/admin/package-lock.json
+            - run: npm ci
+            - run: npm run format:check
+            - run: npm run lint
+            - run: npm test
+            - run: npm run build
     tooling:
         runs-on: ubuntu-latest
         steps:
@@ -33,19 +50,31 @@ jobs:
             - run: ruff check scripts
             - run: ruff format --check scripts
     miniprogram:
+        name: ${{ matrix.check-name }}
         runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - game: flip-zoo
+                      check-name: miniprogram
+                      run-tests: true
+                    - game: mahjong-match
+                      check-name: miniprogram (mahjong-match)
+                      run-tests: false
         defaults:
             run:
-                working-directory: frontend/miniprograms/flip-zoo
+                working-directory: frontend/miniprograms/${{ matrix.game }}
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-node@v4
               with:
                   node-version: "22"
                   cache: npm
-                  cache-dependency-path: frontend/miniprograms/flip-zoo/package-lock.json
+                  cache-dependency-path: frontend/miniprograms/${{ matrix.game }}/package-lock.json
             - run: npm ci
             - run: npm run typecheck
-            - run: npm test
+            - if: matrix.run-tests
+              run: npm test
             - run: npm run lint
             - run: npm run format:check
