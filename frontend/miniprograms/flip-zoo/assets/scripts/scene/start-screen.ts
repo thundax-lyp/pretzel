@@ -20,10 +20,23 @@ import {
     view,
     type EventTouch,
     type SpriteFrame,
+    Tween,
 } from "cc";
+import { ButtonPress, scaleButton } from "../ui/button-press";
 import { drawButtonIcon } from "../ui/button-icon";
 import { WECHAT } from "cc/env";
 import { loadZooArtwork, type ZooArtwork } from "../services/artwork";
+import {
+    checkCloudConnection,
+    hasCloudEnvironment,
+} from "../services/cloud-health";
+import {
+    FRAGMENT_ANIMALS,
+    loadFragmentBalances,
+    settleFragmentRound,
+    startFragmentRound,
+    type RoundAction,
+} from "../services/fragments";
 import { createBoardApi, type MainBoardDeal } from "../services/board-api";
 import type { Control, ScreenControls } from "../ui/screen-controls";
 import {
@@ -33,7 +46,16 @@ import {
     slideSlotCard,
 } from "../gameplay/card-effects";
 import { CardView } from "../gameplay/card-view";
-import { color, label, picture, titleLine, uiNode } from "../ui/nodes";
+import {
+    artworkButton,
+    screenArtwork,
+    shadedButton,
+    color,
+    label,
+    picture,
+    titleLine,
+    uiNode,
+} from "../ui/nodes";
 import { ClearCelebration } from "../gameplay/clear-celebration";
 import { showWelcome } from "../home/welcome-view";
 import { SettingsView } from "../settings/settings-view";
@@ -72,6 +94,7 @@ interface ShareCard {
 
 declare const GameGlobal: { flipZooShareCards?: ShareCard[] };
 declare const wx: {
+    getAccountInfoSync?: () => { miniProgram?: { version?: string } };
     shareAppMessage?: (card: ShareCard) => void;
     showShareMenu?: (options: { menus: string[] }) => void;
     onShareAppMessage?: (handler: () => ShareCard) => void;
@@ -95,7 +118,7 @@ declare const wx: {
             backgroundColor: string;
             color: string;
         };
-    }) => { show(): void; destroy(): void };
+    }) => { show(): void; destroy(): void; onTap?(callback: () => void): void };
     getOpenDataContext?: () => {
         postMessage(data: {
             action: "show-week" | "show-preview" | "record-win" | "scroll-week";
@@ -163,6 +186,7 @@ export class FlipZooStartScreen extends Component {
             this.overlay?.name === "RoundResult" && this.round.status === "won",
         );
     private readonly boardApi = createBoardApi(WECHAT);
+    private fragmentRound?: { id: string; actions: RoundAction[] };
     private requestVersion = 0;
     private failedBoardGroup?: Group;
     private loadingBoard = false;
@@ -198,7 +222,7 @@ export class FlipZooStartScreen extends Component {
                 250,
                 () => {
                     loading.node.destroy();
-                    retry.graphic.node.destroy();
+                    retry.node.destroy();
                     void this.start();
                 },
                 this.node,
@@ -220,6 +244,9 @@ export class FlipZooStartScreen extends Component {
         this.showWelcome();
         this.audio.startMusic();
         if (WECHAT) {
+            void checkCloudConnection().catch(() => {
+                console.warn("FLIP ZOO cloud connection could not be verified");
+            });
             wx.onShareAppMessage?.(this.shareFromMenu);
             wx.showShareMenu?.({ menus: ["shareAppMessage"] });
         }
@@ -250,7 +277,10 @@ export class FlipZooStartScreen extends Component {
             -306,
             594,
             76,
-            () => this.showSettings(),
+            () => {
+                if (this.failedBoardGroup) this.restartRound();
+                else this.showSettings();
+            },
             this.gameRoot,
             72,
         );
@@ -331,7 +361,7 @@ export class FlipZooStartScreen extends Component {
         this.steps = titleLine(moves, "", -16, 38, "#FFF9DD", "#375339");
         this.gameHeader = {
             stage,
-            settings: settings.graphic.node,
+            settings: settings.node,
             goals,
             moves,
         };
@@ -435,31 +465,13 @@ export class FlipZooStartScreen extends Component {
             slot.node.setPosition(column * slotPitch + offset, 0);
             if (extra) {
                 if (!WECHAT) this.addAdBadge(slot.node, width, height);
-                slot.node.on(Node.EventType.TOUCH_END, () =>
+                const press = shadedButton(slot.node, () =>
                     this.onSlotTouch(index),
                 );
+                press.available = () => this.canTapSlot(index);
             }
             this.slots.push(slot);
         }
-    }
-
-    private requestRestart(settings: Node): void {
-        if (this.overlay !== settings || this.loadingBoard) return;
-        if (this.failedBoardGroup || !this.round.hasProgress) {
-            this.closeOverlay();
-            this.restartRound();
-            return;
-        }
-        const dialog = this.openOverlay("ConfirmRestart");
-        this.settingsView.confirmRestart(
-            dialog,
-            this.round.level,
-            () => this.closeOverlay(),
-            () => {
-                this.closeOverlay();
-                this.restartRound();
-            },
-        );
     }
 
     private showSettings(fromWelcome = false): void {
@@ -473,8 +485,13 @@ export class FlipZooStartScreen extends Component {
             return;
         const dialog = this.openOverlay("AudioSettings");
         this.gameRoot.active = false;
-        this.settingsView ??= new SettingsView(this.controls, this.audio);
+        this.settingsView ??= new SettingsView(
+            this.controls,
+            this.audio,
+            this.art.screens.settings,
+        );
         this.feedbackControl = this.settingsView.show(dialog, fromWelcome, {
+            version: this.releaseVersion(),
             contact: () => {
                 if (!WECHAT || !wx.openCustomerServiceConversation) {
                     this.platformNotice("请在微信小游戏内联系客服");
@@ -492,12 +509,12 @@ export class FlipZooStartScreen extends Component {
                 ),
             privacy: () => this.showPrivacy(fromWelcome),
             abandon: () => this.confirmAbandon(),
-            restart: () => this.requestRestart(dialog),
             back: () => {
                 if (fromWelcome) this.showWelcome();
                 else this.closeOverlay();
             },
         });
+        this.fitScreenArtwork(dialog.getChildByName("SettingsArtwork"));
         this.syncFeedbackButton();
     }
 
@@ -595,19 +612,29 @@ export class FlipZooStartScreen extends Component {
         this.loadingBoard = true;
         this.failedBoardGroup = undefined;
         this.message.string = "读取第二关牌局…";
-        let deal: MainBoardDeal;
+        let deal: MainBoardDeal & { roundId?: string };
         try {
-            deal = await this.boardApi.loadMainBoard();
+            deal =
+                WECHAT && hasCloudEnvironment()
+                    ? await startFragmentRound()
+                    : await this.boardApi.loadMainBoard();
         } catch {
             if (this.isValid && version === this.requestVersion) {
                 this.loadingBoard = false;
                 this.failedBoardGroup = group;
-                this.message.string = "读取牌局失败，请在设置中重开";
+                this.message.string = "读取牌局失败，点击左上角重试";
             }
             return;
         }
         if (this.isValid && version === this.requestVersion) {
-            this.openRound(2, group, deal.kinds, deal.layout);
+            this.openRound(
+                2,
+                deal.roundId ? "C" : group,
+                deal.kinds,
+                deal.layout,
+            );
+            if (deal.roundId)
+                this.fragmentRound = { id: deal.roundId, actions: [] };
         }
     }
 
@@ -618,6 +645,7 @@ export class FlipZooStartScreen extends Component {
         layout?: BoardLayout,
     ): void {
         this.requestVersion += 1;
+        this.fragmentRound = undefined;
         this.failedBoardGroup = undefined;
         this.loadingBoard = false;
         this.unschedule(this.advanceToMainBoard);
@@ -722,6 +750,7 @@ export class FlipZooStartScreen extends Component {
             return;
         }
 
+        this.fragmentRound?.actions.push(card.id);
         this.animatingCards = true;
         for (let index = insertionIndex; index < previous.length; index += 1) {
             slideSlotCard(
@@ -800,7 +829,11 @@ export class FlipZooStartScreen extends Component {
         } else if (this.round.status === "won") {
             if (this.round.level === 2) {
                 if (WECHAT) this.postRankMessage("record-win");
-                this.showResult(true);
+                const reward = this.fragmentRound;
+                this.fragmentRound = undefined;
+                if (reward)
+                    void this.finishFragments(reward.id, reward.actions);
+                else this.showResult(true);
                 return;
             }
             const won = this.round;
@@ -813,15 +846,17 @@ export class FlipZooStartScreen extends Component {
         }
     }
 
+    private canTapSlot(index: number): boolean {
+        return (
+            index >= this.round.slotCapacity &&
+            this.round.status === "playing" &&
+            !this.overlay &&
+            !this.loadingBoard &&
+            !this.animatingCards
+        );
+    }
+
     private onSlotTouch(index: number): void {
-        if (
-            index < this.round.slotCapacity ||
-            this.round.status !== "playing" ||
-            this.overlay ||
-            this.loadingBoard ||
-            this.animatingCards
-        )
-            return;
         if (WECHAT) {
             this.message.string = "额外卡槽暂未开放";
             return;
@@ -909,110 +944,287 @@ export class FlipZooStartScreen extends Component {
         const welcome = uiNode(this.node, "Welcome", 750, 1334);
         this.welcome = welcome;
         this.gameRoot.active = false;
-        showWelcome(welcome, this.art, this.controls, {
-            settings: () => this.showSettings(true),
-            play: () => {
-                this.welcome = undefined;
-                welcome.destroy();
-                this.gameRoot.active = true;
-                this.audio.startMusic();
+        const artwork = showWelcome(
+            welcome,
+            this.art.screens.welcome,
+            this.controls,
+            {
+                settings: () => this.showSettings(true),
+                play: () => {
+                    this.welcome = undefined;
+                    welcome.destroy();
+                    this.gameRoot.active = true;
+                    this.audio.startMusic();
+                },
+                home: () => this.showHomeCollection(),
+                share: () => this.share(),
+                leaderboard: () => this.showLeaderboard(),
             },
-            home: () => this.showHomeCollection(),
-            share: () => this.share(),
-            leaderboard: () => this.showLeaderboard(),
-        });
+        );
+        this.fitScreenArtwork(artwork);
+        const version = this.releaseVersion();
+        if (version) {
+            const caption = label(welcome, `版本 ${version}`, 21, "#FFFFFF");
+            caption.node.name = "ReleaseVersion";
+            caption.node.getComponent(UITransform)!.setAnchorPoint(1, 0.5);
+            caption.node.addComponent(UIOpacity).opacity = 155;
+            this.positionWelcomeVersion(caption.node);
+        }
+    }
+
+    private releaseVersion(): string | undefined {
+        if (!WECHAT) return undefined;
+        try {
+            return (
+                wx.getAccountInfoSync?.()?.miniProgram?.version?.trim() ||
+                undefined
+            );
+        } catch {
+            return undefined;
+        }
+    }
+
+    private positionWelcomeVersion(node: Node): void {
+        const { width, height } = this.screenSize();
+        const window = WECHAT ? wx.getWindowInfo?.() : undefined;
+        const bottomInset =
+            window?.windowHeight && window.safeArea
+                ? (Math.max(
+                      0,
+                      window.windowHeight -
+                          (window.safeArea.bottom ?? window.windowHeight),
+                  ) *
+                      height) /
+                  window.windowHeight
+                : 0;
+        node.setPosition(width / 2 - 24, -height / 2 + bottomInset + 28);
     }
 
     private showHomeCollection(): void {
         const overlay = this.openOverlay("HomeCollection");
         this.gameRoot.active = false;
-        const card = this.panel(
+        const artwork = screenArtwork(
             overlay,
-            "HomeCollectionCard",
-            0,
-            580,
-            660,
-            "#FFF1D4",
-            "#8F552B",
+            "CollectionArtwork",
+            this.art.screens.collection,
         );
-        this.heading(card, "我的家园", 330, "#C58D42", "#805025", "small");
-        picture(
-            card,
-            "HomeMascot",
-            this.art.homeAnimals[2],
-            135,
-        ).node.setPosition(0, 208);
-        const close = this.button(
-            "×",
-            254,
-            314,
-            60,
-            () => this.showWelcome(),
-            card,
-            60,
+        this.fitScreenArtwork(artwork);
+        artworkButton(artwork, "关闭家园", 922, 446, 98, 98, () =>
+            this.showWelcome(),
         );
-        this.paintButton(close, false, true, "cream");
-        const viewport = uiNode(card, "AnimalListViewport", 530, 362);
-        viewport.setPosition(0, -62);
-        viewport.addComponent(Mask);
-        const scroll = viewport.addComponent(ScrollView);
-        scroll.horizontal = false;
-        const list = uiNode(viewport, "AnimalList", 530, 362);
-        scroll.content = list;
-        const animals = [
-            { name: "猫猫", area: "猛兽区", description: "喵星人，有四条腿。" },
-            {
-                name: "小鹿",
-                area: "家禽区",
-                description: "温顺的鹿，有四条腿。",
-            },
-            {
-                name: "小熊猫",
-                area: "乐园区",
-                description: "萌萌的熊猫，有四条腿。",
-            },
-        ];
-        animals.forEach(({ name, area, description }, index) => {
-            const row = this.panel(
-                list,
-                name,
-                116 - index * 116,
-                510,
-                104,
-                "#FFF9E5",
-                "#D2B987",
-            );
-            picture(
-                row,
-                "AnimalBadge",
-                this.art.homeAnimals[index],
-                77,
-            ).node.setPosition(-201, 0);
-            label(row, name, 31, "#56351C").node.setPosition(-111, 23);
-            const category = this.panel(
-                row,
-                "AnimalArea",
-                23,
-                96,
-                34,
-                ["#BD5546", "#548865", "#4384AD"][index],
-                "#00000000",
-            );
-            category.setPosition(18, 23);
-            label(category, area, 20, "#FFFFFF");
-            label(row, description, 23, "#56351C").node.setPosition(-51, -22);
-            const exchange = this.button(
-                "兑换",
-                178,
-                0,
-                94,
-                () => undefined,
-                row,
-                65,
-            );
-            this.paintButton(exchange, false, false);
+        const balances = [578, 775, 972, 1167, 1361, 1560].map((y, index) => {
+            this.showHomeAnimal(artwork, y, index);
+            const cover = uiNode(artwork, "FragmentRow", 470, 135);
+            cover.setPosition(110, 1024 - y);
+            const background = cover.addComponent(Graphics);
+            background.fillColor = color("#FFF2D8");
+            background.roundRect(-235, -67, 470, 134, 15);
+            background.fill();
+            const name = label(cover, FRAGMENT_ANIMALS[index], 43, "#56351C");
+            name.isBold = true;
+            const value = label(cover, "碎片：—", 38, "#684824");
+            for (const [caption, offset] of [
+                [name, 31],
+                [value, -32],
+            ] as const) {
+                caption.horizontalAlign = Label.HorizontalAlign.LEFT;
+                caption.node.getComponent(UITransform)!.setAnchorPoint(0, 0.5);
+                caption.node.setPosition(-213, offset);
+            }
+            const button = uiNode(cover, "RedeemUnavailable", 160, 104);
+            button.setPosition(140, 0);
+            const buttonStyle = button.addComponent(Graphics);
+            buttonStyle.fillColor = color("#A39D93");
+            buttonStyle.strokeColor = color("#817A70");
+            buttonStyle.lineWidth = 3;
+            buttonStyle.roundRect(-80, -52, 160, 104, 18);
+            buttonStyle.fill();
+            buttonStyle.stroke();
+            const redeem = label(button, "兑换", 34, "#FFFFFF");
+            redeem.isBold = true;
+            redeem.node.setPosition(0, 20);
+            label(button, "暂未开放", 25, "#FFFFFF").node.setPosition(0, -23);
+            return value;
         });
-        label(card, "兑换暂未开放", 25, "#684824").node.setPosition(0, -290);
+        if (WECHAT && hasCloudEnvironment()) {
+            const load = async () => {
+                balances.forEach((value) => {
+                    value.string = "读取中…";
+                });
+                try {
+                    const amounts = await loadFragmentBalances();
+                    if (this.overlay !== overlay) return;
+                    balances.forEach((value, index) => {
+                        value.string = `碎片：${amounts[index]}`;
+                    });
+                } catch {
+                    if (this.overlay !== overlay) return;
+                    balances.forEach((value) => {
+                        value.string = "读取失败";
+                    });
+                    artworkButton(artwork, "重试", 576, 1660, 450, 72, () => {
+                        retry.node.destroy();
+                        artwork.getChildByName("重试")?.destroy();
+                        void load();
+                    });
+                    const retry = label(artwork, "点击重试", 30, "#684824");
+                    retry.node.setPosition(0, -636);
+                }
+            };
+            void load();
+        }
+    }
+
+    private showHomeAnimal(artwork: Node, y: number, animal: number): void {
+        const portrait = uiNode(artwork, "HomeAnimal", 210, 188);
+        portrait.setPosition(-238, 1024 - y);
+        const background = portrait.addComponent(Graphics);
+        background.fillColor = color("#FFF2D8");
+        const top = [86, 100, 89, 91, 88, 92][animal];
+        background.rect(-100, -91, 202, 91 + top);
+        background.fill();
+        // Restore the part of the card border covered along with the baked-in portrait.
+        const [cardTop, cardBottom] = [
+            [492, 664],
+            [685, 856],
+            [879, 1050],
+            [1072, 1244],
+            [1274, 1447],
+            [1477, 1649],
+        ][animal];
+        const topEdge = y - cardTop;
+        const bottomEdge = y - cardBottom;
+        background.strokeColor = color("#E1CAA0");
+        background.lineWidth = 4;
+        background.moveTo(105, topEdge);
+        background.lineTo(-82, topEdge);
+        background.quadraticCurveTo(-113, topEdge, -113, topEdge - 30);
+        background.lineTo(-113, bottomEdge + 30);
+        background.quadraticCurveTo(-113, bottomEdge, -82, bottomEdge);
+        background.lineTo(105, bottomEdge);
+        background.stroke();
+
+        const inset = 6;
+        const viewport = uiNode(
+            portrait,
+            "PortraitViewport",
+            194,
+            topEdge - bottomEdge - 2 * inset,
+        );
+        const viewportCenter = (topEdge + bottomEdge) / 2;
+        viewport.setPosition(0, viewportCenter);
+        viewport.addComponent(Mask);
+
+        const [rest, ...poses] = this.art.screens.homeAnimals[animal];
+        const { width, height } = rest.originalSize;
+        const sprite = picture(viewport, "Portrait", rest, width, height);
+        sprite.node.setPosition(0, -viewportCenter);
+
+        const animate = (delay = 0) => {
+            Tween.stopAllByTarget(sprite.node);
+            sprite.spriteFrame = rest;
+            const playback = tween(sprite.node).delay(delay);
+            for (const pose of poses) {
+                playback
+                    .call(() => {
+                        sprite.spriteFrame = pose;
+                    })
+                    .delay(0.09);
+            }
+            playback
+                .call(() => {
+                    sprite.spriteFrame = rest;
+                })
+                .start();
+        };
+        shadedButton(viewport, () => animate());
+        animate(animal * 0.1);
+    }
+
+    private async finishFragments(
+        id: string,
+        actions: readonly RoundAction[],
+    ): Promise<void> {
+        const overlay = this.openOverlay("FragmentReward");
+        const waiting = titleLine(
+            overlay,
+            "正在结算碎片…",
+            0,
+            34,
+            "#FFF3CC",
+            "#684824",
+        );
+        let expired: () => void = () => {};
+        const deadline = new Promise<never>((_, reject) => {
+            expired = () => reject(new Error("Fragment settlement timed out"));
+            this.scheduleOnce(expired, 6);
+        });
+        let feedback = "碎片结算未完成，打开家园可重试";
+        try {
+            const result = await Promise.race([
+                settleFragmentRound(id, actions),
+                deadline,
+            ]);
+            if (this.overlay !== overlay) return;
+            if (
+                result.status === "granted" &&
+                FRAGMENT_ANIMALS[result.animal]
+            ) {
+                waiting.node.destroy();
+                this.playFragmentReward(overlay, result.animal);
+                return;
+            }
+            feedback =
+                result.status === "limit"
+                    ? "今日碎片已达上限"
+                    : "本局碎片校验未通过";
+        } catch {
+            // The pending settlement is retried when the player opens Home.
+        } finally {
+            this.unschedule(expired);
+        }
+        if (this.overlay === overlay) this.showResult(true, feedback);
+    }
+
+    private playFragmentReward(overlay: Node, animal: number): void {
+        const reward = uiNode(overlay, "Reward");
+        const badge = uiNode(reward, "FragmentBadge");
+        const [frame] = this.art.screens.homeAnimals[animal];
+        const chip = badge.addComponent(Graphics);
+        chip.fillColor = color("#FFD46D");
+        chip.strokeColor = color("#9D5A22");
+        chip.lineWidth = 6;
+        chip.roundRect(-119, -102, 238, 204, 34);
+        chip.fill();
+        chip.stroke();
+        const { width, height } = frame.originalSize;
+        const fit = 1.25;
+        picture(badge, "AnimalPortrait", frame, width * fit, height * fit);
+        titleLine(badge, "+1", -117, 64, "#FFF1A8", "#89521D");
+        this.celebrate(reward, badge, false);
+
+        const home = uiNode(overlay, "HomeRewardTarget");
+        home.setPosition(-211, -465);
+        const target = home.addComponent(Graphics);
+        target.fillColor = color("#FFE8AC");
+        target.roundRect(-51, -51, 102, 102, 24);
+        target.fill();
+        drawButtonIcon(home, "home", 0, 0, 62, "#805025");
+
+        tween(reward)
+            .delay(0.68)
+            .to(
+                0.42,
+                {
+                    position: home.position.clone(),
+                    scale: new Vec3(0.22, 0.22, 1),
+                },
+                { easing: "quadIn" },
+            )
+            .call(() => {
+                if (this.overlay === overlay) this.showResult(true);
+            })
+            .start();
     }
 
     private celebrate(parent: Node, badge: Node, finale: boolean): void {
@@ -1232,6 +1444,7 @@ export class FlipZooStartScreen extends Component {
                     color: "#FFFFFF",
                 },
             });
+            button?.onTap?.(() => this.audio.playButtonPress());
             this.feedbackButton = button;
             button?.show();
         } catch {
@@ -1272,7 +1485,7 @@ export class FlipZooStartScreen extends Component {
             const refresh = this.button(
                 "刷新",
                 preview ? -230 : 233,
-                preview ? -145 : -381,
+                preview ? -145 : -350,
                 98,
                 () =>
                     this.postRankMessage(
@@ -1329,7 +1542,7 @@ export class FlipZooStartScreen extends Component {
         this.paintButton(previous, history, true, "cream");
         if (history) label(card, "历史榜暂未开放", 32, "#56351C");
         else this.showWeekRanking(card);
-        const close = this.button("◀ 返回", 0, -381, 244, back, card, 72);
+        const close = this.button("◀ 返回", 0, -350, 244, back, card, 72);
         this.paintButton(close, true);
     }
 
@@ -1407,6 +1620,7 @@ export class FlipZooStartScreen extends Component {
                 )
                     return;
                 if ((WECHAT && !this.share()) || !round.claimProp(prop)) return;
+                this.fragmentRound?.actions.push("claim:" + prop);
                 this.closeOverlay();
                 this.message.string = "已获得" + PROP_LABELS[prop] + "道具";
                 this.refresh();
@@ -1460,6 +1674,7 @@ export class FlipZooStartScreen extends Component {
                     : "卡槽是空的";
                 return;
             }
+            this.fragmentRound?.actions.push(prop);
             this.animatingCards = true;
             this.message.string = "正在补齐槽内同款…";
             this.playSlotClear(groups, 0);
@@ -1468,6 +1683,7 @@ export class FlipZooStartScreen extends Component {
                 this.message.string = PROP_UNAVAILABLE[prop];
                 return;
             }
+            this.fragmentRound?.actions.push(prop);
             this.message.string = PROP_MESSAGES[prop];
             this.finishAction(false);
         }
@@ -1561,7 +1777,7 @@ export class FlipZooStartScreen extends Component {
         }
         this.refreshSlots(round.slots.map((card) => card.kind));
         for (const [prop, { button, count }] of this.propButtons) {
-            button.graphic.node.active = round.level === 2;
+            button.node.active = round.level === 2;
             const remaining = round.propUsesLeft(prop);
             const available = round.canUse(prop);
             const claimable = round.canClaimProp(prop);
@@ -1622,6 +1838,14 @@ export class FlipZooStartScreen extends Component {
         view.setDesignResolutionSize(750, 1334, policy);
     }
 
+    private fitScreenArtwork(artwork: Node | null | undefined): void {
+        if (!artwork) return;
+        const { width, height } = this.screenSize();
+        const size = artwork.getComponent(UITransform)!.contentSize;
+        const scale = Math.max(width / size.width, height / size.height);
+        artwork.setScale(scale, scale);
+    }
+
     private resizeLayout(): void {
         this.fitViewport();
         const { width, height } = this.screenSize();
@@ -1649,6 +1873,13 @@ export class FlipZooStartScreen extends Component {
             if (root === this.overlay)
                 root.getComponent(UITransform)!.setContentSize(width, height);
         }
+        this.fitScreenArtwork(this.welcome?.getChildByName("WelcomeArtwork"));
+        const version = this.welcome?.getChildByName("ReleaseVersion");
+        if (version) this.positionWelcomeVersion(version);
+        this.fitScreenArtwork(this.overlay?.getChildByName("SettingsArtwork"));
+        this.fitScreenArtwork(
+            this.overlay?.getChildByName("CollectionArtwork"),
+        );
         if (WECHAT) this.layoutWeChatGame(height);
         this.syncFeedbackButton();
     }
@@ -1940,17 +2171,21 @@ export class FlipZooStartScreen extends Component {
     ): Control {
         const node = uiNode(parent, text || "Other-Level", width, height);
         this.place(node, x, y);
-        node.on(Node.EventType.TOUCH_END, action);
+        const visual = uiNode(node, "ButtonVisual");
+        const press = node.addComponent(ButtonPress);
+        press.action = action;
+        press.showPressed = scaleButton(visual, width < 110 ? 0.97 : 0.94);
         const button = {
-            graphic: node.addComponent(Graphics),
-            caption: label(node, text, height >= 80 && !frame ? 35 : 26),
+            node,
+            graphic: visual.addComponent(Graphics),
+            caption: label(visual, text, height >= 80 && !frame ? 35 : 26),
             width,
             height,
             icon:
                 typeof frame === "string"
-                    ? this.drawPropIcon(node, frame)
+                    ? this.drawPropIcon(visual, frame)
                     : frame
-                      ? picture(node, "PropIcon", frame, 86)
+                      ? picture(visual, "PropIcon", frame, 86)
                       : undefined,
         };
         if (button.icon) {
@@ -1973,7 +2208,9 @@ export class FlipZooStartScreen extends Component {
         tone: "blue" | "green" | "cream" | "red" | "purple" = "blue",
         cornerRadius?: number,
     ): void {
-        const { graphic, caption, width, height, icon } = button;
+        const { node, graphic, caption, width, height, icon } = button;
+        const press = node.getComponent(ButtonPress)!;
+        press.enabled = enabled;
         const palette = !enabled
             ? icon
                 ? ["#527F98", "#34586C", "#D5E7EC"]

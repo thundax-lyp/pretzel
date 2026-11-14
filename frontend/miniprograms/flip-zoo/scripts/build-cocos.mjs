@@ -27,6 +27,13 @@ if (wechat && !/^wx[0-9a-f]{16}$/.test(appid ?? "")) {
 if (wechat && !testBuild && appid === testAppId) {
     throw new Error("Use the game's AppID for a release build");
 }
+const cloudEnv = wechat
+    ? process.env[
+          testBuild
+              ? "FLIP_ZOO_WECHAT_TEST_CLOUD_ENV"
+              : "FLIP_ZOO_WECHAT_CLOUD_ENV"
+      ]?.trim()
+    : undefined;
 const outputName = testBuild ? "wechatgame-test" : platform;
 const creator =
     process.env.COCOS_CREATOR_PATH ??
@@ -126,27 +133,32 @@ try {
         });
         fs.writeFileSync(
             entry,
-            `GameGlobal.flipZooShareCards = ${JSON.stringify(shareCards)};\n` +
+            (cloudEnv
+                ? `GameGlobal.flipZooCloudEnv = ${JSON.stringify(cloudEnv)};\n`
+                : "") +
+                `GameGlobal.flipZooShareCards = ${JSON.stringify(shareCards)};\n` +
                 fs.readFileSync(entry, "utf8"),
         );
         const gameConfigPath = path.join(output, "game.json");
         const gameConfig = JSON.parse(fs.readFileSync(gameConfigPath, "utf8"));
         // The Cocos WeChat adapter resolves bundles listed in settings.assets.subpackages from this directory.
-        const musicRoot = "subpackages/music";
         fs.mkdirSync(path.join(output, "subpackages"), { recursive: true });
-        fs.renameSync(
-            path.join(output, "assets/music"),
-            path.join(output, musicRoot),
-        );
-        fs.renameSync(
-            path.join(output, musicRoot, "index.js"),
-            path.join(output, musicRoot, "game.js"),
-        );
         gameConfig.subpackages ??= [];
-        gameConfig.subpackages.push({ name: "music", root: musicRoot });
         const settingsPath = path.join(output, "src/settings.json");
         const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
-        settings.assets.subpackages.push("music");
+        for (const name of ["music", "screens"]) {
+            const root = `subpackages/${name}`;
+            fs.renameSync(
+                path.join(output, "assets", name),
+                path.join(output, root),
+            );
+            fs.renameSync(
+                path.join(output, root, "index.js"),
+                path.join(output, root, "game.js"),
+            );
+            gameConfig.subpackages.push({ name, root });
+            settings.assets.subpackages.push(name);
+        }
         fs.writeFileSync(settingsPath, JSON.stringify(settings));
         gameConfig.openDataContext = "open-data";
         fs.cpSync(
