@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { MAIN_BOARD_POOL } from "../assets/scripts/services/main-board-pool.ts";
+import {
+    MAIN_BOARD_CONFIG,
+    MAIN_BOARD_POOL,
+} from "../assets/scripts/services/main-board-pool.ts";
 import { createBoardApi } from "../assets/scripts/services/board-api.ts";
 import {
     ANIMAL_KIND_COUNT,
@@ -29,6 +32,8 @@ test("WeChat draws each saved board without contacting the preview server", asyn
     context.mock.method(Math, "random", () => draw);
     const api = createBoardApi(true);
     const boards = new Set();
+    const layouts = new Set();
+    assert.equal(clearOrders.length, MAIN_BOARD_POOL.length);
 
     for (const [index, expected] of MAIN_BOARD_POOL.entries()) {
         draw = 0;
@@ -42,6 +47,43 @@ test("WeChat draws each saved board without contacting the preview server", asyn
             [...counts.values()].every((cards) => cards.length % 3 === 0),
         );
         const round = new Round(2, "C", kinds, undefined, layout);
+        const layoutKey = round.cards
+            .map(({ layer, left, top }) => `${layer},${left},${top}`)
+            .sort()
+            .join(";");
+        assert.ok(!layouts.has(layoutKey), expected.name);
+        layouts.add(layoutKey);
+        const layers = Map.groupBy(round.cards, ({ layer }) => layer);
+        assert.equal(round.cards.length, 189, expected.name);
+        assert.equal(layers.size, 6, expected.name);
+        const overlaps = (a, b) =>
+            Math.abs(a.left - b.left) < 1 && Math.abs(a.top - b.top) < 1;
+        for (const [layer, cards] of layers) {
+            for (const card of cards) {
+                assert.ok(
+                    cards.every(
+                        (other) => other === card || !overlaps(card, other),
+                    ),
+                    expected.name,
+                );
+                if (layer > 0) {
+                    assert.ok(
+                        layers
+                            .get(layer - 1)
+                            .some((lower) => overlaps(card, lower)),
+                        expected.name,
+                    );
+                }
+            }
+        }
+        const layerKindCounts = [...layers.values()]
+            .reverse()
+            .map((cards) => new Set(cards.map(({ kind }) => kind)).size);
+        assert.deepEqual(
+            layerKindCounts,
+            MAIN_BOARD_CONFIG[index].layerKindCounts,
+            expected.name,
+        );
         for (const id of clearOrders[index]) {
             assert.notEqual(round.take(id), null, expected.name);
         }
@@ -59,7 +101,7 @@ test("WeChat draws each saved board without contacting the preview server", asyn
         nextCycle.add(key);
     }
     assert.deepEqual(nextCycle, boards);
-    assert.equal(boards.size, 20);
+    assert.equal(boards.size, 40);
     assert.equal(fetch.mock.callCount(), 0);
 });
 
