@@ -11,7 +11,6 @@
         "build:web": "node scripts/build-cocos.mjs web-mobile",
         "build:wechat": "node scripts/build-cocos.mjs wechatgame",
         "preview": "node scripts/preview-web.mjs",
-        "compare:difficulty": "node scripts/compare-difficulty.mjs",
         "simulate:win-rate": "node scripts/simulate-win-rate.mjs"
     },
     "devDependencies": {

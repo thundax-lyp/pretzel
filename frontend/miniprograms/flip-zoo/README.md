@@ -51,12 +51,6 @@ python3 scripts/with-env.py --env-file dev.env -- npm --prefix frontend/miniprog
 
 运行 `node scripts/package-fragments.mjs` 生成 `build/cloudfunctions/flipZooFragments`，然后将该目录部署到同一云环境并安装云端依赖。云函数使用 `flipZooFragments` 集合保存牌局、发放记录和余额。集合权限应设为仅云端可读写。
 
-## 难度对照
-
-`npm run compare:difficulty` 对同一副第二关牌局运行四种场景。5、6、7 格三组仅改变可用槽位，辅助组从 5 格起步，接近满槽且看不到可立即成组的牌时尝试道具和扩槽。每组使用同一批 60 个固定种子，每手有 10% 概率改选另一张可入槽的牌。结果用于比较模拟策略在这副牌上的表现。
-
-`npm run compare:difficulty -- --key-groups` 固定 C 组，比较九种命门组数和叠压组数的组合。每种配置各跑 60 局纯 5 格和 60 局按需辅助。相同命门组数下，增加叠压只交换中层牌位置，各图样张数保持相同。
-
 ## 检查
 
 从本目录运行以下检查（Node.js 22）：
