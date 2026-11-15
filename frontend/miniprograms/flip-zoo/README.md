@@ -51,6 +51,36 @@ python3 scripts/with-env.py --env-file dev.env -- npm --prefix frontend/miniprog
 
 运行 `node scripts/package-fragments.mjs` 生成 `build/cloudfunctions/flipZooFragments`，然后将该目录部署到同一云环境并安装云端依赖。云函数使用 `flipZooFragments` 集合保存牌局、发放记录和余额。集合权限应设为仅云端可读写。
 
+## 脚本索引
+
+在 FLIP ZOO 工程目录下运行表中的命令，使用 Node.js 22。
+
+| 文件                    | 用途                                                                          | 入口                                             |
+| ----------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------ |
+| `build-cocos.mjs`       | 调用 Cocos Creator 构建 Web Demo 或微信小游戏。                               | `npm run build:web`、`npm run build:wechat`      |
+| `preview-web.mjs`       | 提供本地 Web 试玩、第二关牌局接口和难度设置页面。                             | `npm run preview`                                |
+| `difficulty-admin.html` | 调整 Web 第二关的命门组数和直接叠压组数。                                     | 预览服务启动后访问 `http://127.0.0.1:8874/admin` |
+| `difficulty.mjs`        | 校验难度参数，并按参数构造 Web 第二关的配牌。                                 | 由预览服务和模拟脚本导入                         |
+| `simulate-win-rate.mjs` | 批量运行无道具模拟，默认逐副输出微信第二关固定牌局的通关率和 40% 进度达标率。 | `npm run simulate:win-rate`                      |
+| `simulate-round.mjs`    | 复用游戏的 `Round` 规则运行单局，按可见牌推演策略选牌。                       | 由 `simulate-win-rate.mjs` 导入                  |
+| `visible-lookahead.mjs` | 根据可见牌、遮挡和卡槽向前推演，为候选取牌操作打分。                          | 由 `simulate-round.mjs` 导入                     |
+| `package-fragments.mjs` | 生成碎片云函数的本地部署包 `build/cloudfunctions/flipZooFragments`。          | `node scripts/package-fragments.mjs`             |
+
+## 难度推演
+
+实现、指标口径和布局级评估设计见 [FLIP ZOO 难度推演说明](../../../docs/30-designs/FLIP-ZOO-DIFFICULTY-SIMULATION.md)。
+
+在本目录使用 Node.js 22 运行：
+
+```sh
+npm run simulate:win-rate
+npm run simulate:win-rate -- --rounds 1000 --seed 42 --error-rate 0.1
+npm run simulate:win-rate -- --source web --key-groups 2 --overlap-groups 1
+npm run simulate:win-rate -- --source tutorial
+```
+
+默认模拟微信第二关的全部 40 副固定牌局，每副 100 次，使用 C 组翻牌规则和 7 格卡槽。Web 和教学关使用 5 格。模拟沿用游戏的取牌与三消规则，根据当前可见牌面、遮挡关系和卡槽，最多向前看三手（含当前手）。优先考虑能三消腾槽的走法，卡槽越接近满槽，风险扣分越高。碰到未知牌时停止推演，实际取牌后才读取新露出的牌面。同分时随机选择。默认没有随机误选，可通过 `--error-rate` 设置每次有备选牌时改选的概率。各副使用相同种子范围，胜率为清盘次数除以已完成的模拟次数。40% 进度达标率统计累计消除至少开局总牌数 40% 的对局占比，尚未消除的槽内牌不计入消除数。加 `--json` 输出可保存的结构化结果。结果反映该策略和参数下的胜率，真人胜率需实测。
+
 ## 检查
 
 从本目录运行以下检查（Node.js 22）：
@@ -70,16 +100,3 @@ npm run format:check
 弹层纸纹改编自 [ambientCG Paper 001](https://ambientcg.com/view?id=Paper001)，采用 [CC0 1.0](https://docs.ambientcg.com/license/)。标题装饰和胜负熊猫为本项目生成的插画。
 
 儿童隐私弹层按当前代码的数据用途编写，参考[《个人信息保护法》](https://www.miit.gov.cn/jgsj/zfs/fl/art/2022/art_515a4b20c12f430eab54bb4f56d89f56.html)、[《儿童个人信息网络保护规定》](https://www.moj.gov.cn/pub/sfbgw/flfggz/flfggzbmgz/202101/t20210105_146377.html)及[腾讯儿童隐私保护声明](https://privacy.tencent.com/yszc-children.htm)。发布前由运营方补齐主体、联系方式、保存期限和权利请求处理安排，并确认微信后台公示内容与监护人同意流程。当前游戏内弹层提供说明，好友信息授权由微信弹窗处理。
-
-### 无道具胜率
-
-在本目录使用 Node.js 22 运行：
-
-```sh
-npm run simulate:win-rate
-npm run simulate:win-rate -- --rounds 1000 --seed 42 --error-rate 0.1
-npm run simulate:win-rate -- --source web --key-groups 2 --overlap-groups 1
-npm run simulate:win-rate -- --source tutorial
-```
-
-默认模拟微信第二关的全部 40 副固定牌局，每副 100 次，使用 C 组翻牌规则和 7 格卡槽。Web 和教学关使用 5 格。模拟沿用游戏的取牌与三消规则，根据当前可见牌面、遮挡关系和卡槽，最多向前看三手（含当前手）。优先考虑能三消腾槽的走法，卡槽越接近满槽，风险扣分越高。碰到未知牌时停止推演，实际取牌后才读取新露出的牌面。同分时随机选择。默认没有随机误选，可通过 `--error-rate` 设置每次有备选牌时改选的概率。各副使用相同种子范围，胜率为清盘次数除以已完成的模拟次数。40% 进度达标率统计累计消除至少开局总牌数 40% 的对局占比，尚未消除的槽内牌不计入消除数。加 `--json` 输出可保存的结构化结果。结果反映该策略和参数下的胜率，真人胜率需实测。
