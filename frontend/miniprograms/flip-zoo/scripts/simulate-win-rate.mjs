@@ -54,19 +54,36 @@ const cases = {
 
 const results = cases.map(({ name, ...board }) => {
     let wins = 0;
+    let reached40 = 0;
     for (let index = 0; index < rounds; index += 1) {
-        if (play({ ...board, group: "C", seed: seed + index, errorRate }).won)
-            wins += 1;
+        const result = play({
+            ...board,
+            group: "C",
+            seed: seed + index,
+            errorRate,
+        });
+        if (result.won) wins += 1;
+        if (result.reached40) reached40 += 1;
     }
-    return { board: name, rounds, wins, winRate: wins / rounds };
+    return {
+        board: name,
+        rounds,
+        wins,
+        winRate: wins / rounds,
+        reached40,
+        reached40Rate: reached40 / rounds,
+    };
 });
 const totalWins = results.reduce((sum, row) => sum + row.wins, 0);
+const totalReached40 = results.reduce((sum, row) => sum + row.reached40, 0);
 const totalRounds = results.length * rounds;
 const summary = {
     board: "Total",
     rounds: totalRounds,
     wins: totalWins,
     winRate: totalWins / totalRounds,
+    reached40: totalReached40,
+    reached40Rate: totalReached40 / totalRounds,
 };
 const settings = {
     source,
@@ -86,6 +103,7 @@ if (values.json) {
         [...results, summary].map((row) => ({
             ...row,
             winRate: (row.winRate * 100).toFixed(2) + "%",
+            reached40Rate: (row.reached40Rate * 100).toFixed(2) + "%",
         })),
     );
 }
