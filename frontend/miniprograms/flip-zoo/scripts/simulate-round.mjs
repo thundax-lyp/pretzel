@@ -43,5 +43,9 @@ export function play({
         if (result === null)
             throw new Error("Strategy attempted an illegal move");
     }
-    return { won: round.status === "won" };
+    const cleared = round.cards.length - round.remaining;
+    return {
+        won: round.status === "won",
+        reached40: cleared >= Math.ceil(round.cards.length * 0.4),
+    };
 }
