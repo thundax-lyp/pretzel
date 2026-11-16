@@ -11,7 +11,7 @@
 记录实际执行命令、结果与远端 CI 状态；不适用项说明原因。
 
 - 管理端本地验证（涉及管理端时）：npm ci / npm run format:check / npm run lint / npm test / npm run build。
-- 小程序：npm ci / npm run typecheck / npm run lint / npm run format:check。
+- 小程序（逐个受影响的工程记录）：npm ci / npm run typecheck / npm run lint / npm run format:check；工程有测试入口时运行 npm test。
 - 工具：结构检查、格式、Oxlint与 Ruff。
 - 人工或运行时冒烟：
 

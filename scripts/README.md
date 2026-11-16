@@ -44,6 +44,10 @@ python3 scripts/with-env.py --env-file .env -- <命令>
 
 环境加载器按字面读取 KEY=VALUE，不执行 Shell 展开。
 
+## PR 检查触发范围
+
+CI 比较 PR 与目标分支的共同祖先，按改动目录选择管理端、Flip Zoo 和 Mahjong Match 检查。涉及多个应用时，各应用任务并行执行。修改工作流或根目录共享的格式与 lint 配置时，运行所有应用检查。仓库级工具检查每个 PR 都运行；应用任务保留分支保护登记的检查名称。
+
 ## main 分支保护
 
 node scripts/configure-branch-protection.mjs 将 .github/main-protection.json 应用到 GitHub main 分支，需要 gh 登录、仓库管理员权限和支持私有分支保护的套餐。当前账号的 API 请求被套餐限制拒绝，升级后可重新执行；仓库保持 private。脚本失败返回非零，不冒充配置成功。

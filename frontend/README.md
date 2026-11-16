@@ -6,6 +6,8 @@
 
 管理后台和各款游戏客户端独立维护 package.json、package-lock.json、类型检查和构建配置。frontend 负责目录归类，不配置共享运行时依赖或统一构建框架。
 
+面向 main 的 PR 按改动目录触发对应应用检查，多个应用可并行检查。共享配置改动会触发全部应用检查。详细规则见 [PR 验证规则](../docs/00-governance/PR-RULES.md#verification)。
+
 从仓库根目录执行：
 
 ```sh
