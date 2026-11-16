@@ -1,6 +1,6 @@
 # 开发工具与检查
 
-从项目根目录执行下列命令。工具统一使用 Node.js 22。不要将实际凭据写入命令参数或输出。
+从项目根目录执行下列命令。工具统一使用 Node.js 22。ESLint 要求 22.13.0 或以上的 22.x 版本。不要将实际凭据写入命令参数或输出。
 
 ## 安装
 
@@ -19,7 +19,7 @@ npm run lint
 
 check-format 根据 .prettierrc.json 处理前端、小程序、配置及 Markdown，尊重 Git 忽略规则，跳过产物、备份和私有文件。
 
-check-structure 检查小游戏目录与文档导航。
+check-structure 检查小游戏目录与文档导航。仓库和各小游戏的 `npm run lint` 共用根目录的 `eslint.config.mjs`。
 
 ## 小游戏脚本
 

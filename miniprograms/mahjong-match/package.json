@@ -5,12 +5,11 @@
     "type": "module",
     "scripts": {
         "typecheck": "tsc --noEmit",
-        "lint": "oxlint --config ../../.oxlintrc.json --deny-warnings assets",
+        "lint": "node ../../node_modules/eslint/bin/eslint.js --max-warnings 0 assets",
         "format:check": "prettier --check assets/scripts package.json tsconfig.json \"settings/**/*.json\""
     },
     "devDependencies": {
         "@cocos/creator-types": "3.8.8",
-        "oxlint": "1.89.0",
         "prettier": "3.9.3",
         "typescript": "5.9.3"
     },

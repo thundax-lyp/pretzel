@@ -89,6 +89,8 @@ npm run simulate:win-rate -- --source tutorial
 
 从本目录运行以下检查（Node.js 22）：
 
+先在仓库根目录运行 `npm ci` 安装共享 ESLint，再在本工程目录执行。
+
 ```sh
 npm ci
 npm run typecheck
