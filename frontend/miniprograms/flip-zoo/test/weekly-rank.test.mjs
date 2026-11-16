@@ -18,7 +18,19 @@ test("the weekly leaderboard scrolls past eight friends and keeps the player ran
         fillText(text) {
             labels.push(text);
         },
-        fillRect() {},
+        save() {},
+        restore() {},
+        strokeText() {},
+        beginPath() {},
+        moveTo() {},
+        lineTo() {},
+        closePath() {},
+        arc() {},
+        fill() {},
+        stroke() {},
+        measureText(text) {
+            return { width: text.length * 16 };
+        },
     };
     const entries = Array.from({ length: 12 }, (_, index) => ({
         nickname: `玩家 ${index + 1}`,
@@ -52,14 +64,16 @@ test("the weekly leaderboard scrolls past eight friends and keeps the player ran
     runInNewContext(source, { wx });
     receive({ action: "show-week" });
     await new Promise((resolve) => setImmediate(resolve));
-    assert.deepEqual(labels.slice(-3), ["10", "我", "3"]);
-    assert.ok(labels.includes("玩家 7"));
+    assert.deepEqual(labels.slice(-4), ["10", "我", "累计胜利", "3"]);
+    assert.ok(labels.includes("玩家 8"));
+    assert.ok(!labels.includes("玩家 9"));
     assert.ok(!labels.includes("玩家 12"));
 
     receive({ action: "scroll-week", rows: 50 });
     assert.ok(labels.includes("玩家 12"));
     assert.ok(!labels.includes("玩家 1"));
-    assert.deepEqual(labels.slice(-3), ["10", "我", "3"]);
+    assert.ok(labels.includes("玩家 10"));
+    assert.ok(!labels.includes("我"));
 
     receive({ action: "show-preview" });
     await new Promise((resolve) => setImmediate(resolve));

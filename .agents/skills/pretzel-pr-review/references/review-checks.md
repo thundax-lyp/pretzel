@@ -30,7 +30,6 @@
 
 专项只验证模块职责和证据链，不补充业务语义：
 
-- frontend/admin：api/auth/session/页面服务归属、Pro Components 的受控表单与异步刷新，以及 UI 与后端授权一致性。
 - `miniprogram:<工程名>`：TypeScript、微信 API、页面生命周期与后端契约；类型检查不能冒充真机验收。
 - scripts、CI 与文档：实际放行对象、配置隔离、失败清理及验证声明。
 

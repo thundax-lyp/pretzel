@@ -8,73 +8,103 @@ concurrency:
 permissions:
     contents: read
 jobs:
-    admin:
+    changes:
         runs-on: ubuntu-latest
-        defaults:
-            run:
-                working-directory: frontend/admin
+        outputs:
+            flip-zoo: ${{ steps.paths.outputs.flip-zoo }}
+            mahjong-match: ${{ steps.paths.outputs.mahjong-match }}
         steps:
             - uses: actions/checkout@v4
-            - uses: actions/setup-node@v4
               with:
-                  node-version: "22"
-                  cache: npm
-                  cache-dependency-path: frontend/admin/package-lock.json
-            - run: npm ci
-            - run: npm run format:check
-            - run: npm run lint
-            - run: npm test
-            - run: npm run build
+                  fetch-depth: 0
+            - id: paths
+              name: Detect changed project paths
+              shell: bash
+              env:
+                  PR_BASE: ${{ github.event.pull_request.base.sha }}
+                  PR_HEAD: ${{ github.event.pull_request.head.sha }}
+              run: |
+                  changed() {
+                      local check="$1" status
+                      shift
+                      if git diff --quiet --no-renames --no-ext-diff "$PR_BASE...$PR_HEAD" -- "$@"; then
+                          printf '%s=false\n' "$check" >> "$GITHUB_OUTPUT"
+                      else
+                          status=$?
+                          if [[ "$status" -ne 1 ]]; then
+                              return "$status"
+                          fi
+                          printf '%s=true\n' "$check" >> "$GITHUB_OUTPUT"
+                      fi
+                  }
+                  shared=(.github/workflows/ .editorconfig .oxlintrc.json .prettierrc.json .prettierignore)
+                  changed flip-zoo frontend/miniprograms/flip-zoo/ "${shared[@]}"
+                  changed mahjong-match frontend/miniprograms/mahjong-match/ "${shared[@]}"
     tooling:
+        needs: changes
+        if: always() && !cancelled()
         runs-on: ubuntu-latest
         steps:
+            - name: Require successful path detection
+              env:
+                  DETECTION_RESULT: ${{ needs.changes.result }}
+              run: test "$DETECTION_RESULT" = success
             - uses: actions/checkout@v4
             - uses: actions/setup-node@v4
               with:
                   node-version: "22"
                   cache: npm
-                  cache-dependency-path: frontend/admin/package-lock.json
-            - run: npm ci --prefix frontend/admin
+                  cache-dependency-path: package-lock.json
+            - run: npm ci
             - name: Repository format (4 spaces)
-              run: node scripts/check-format.mjs
+              run: npm run format:check
             - name: Tool lint
-              run: frontend/admin/node_modules/.bin/oxlint --config .oxlintrc.json --deny-warnings scripts .agents
+              run: npm run lint
             - name: Structure and review helper tests
-              run: node --test scripts/*.test.mjs
-            - name: Level design skill tests
-              run: node --test .agents/skills/pretzel-level-design/scripts/*.test.mjs
+              run: npm test
             - uses: actions/setup-python@v5
               with:
                   python-version: "3.12"
             - run: python -m pip install -r requirements-dev.txt
             - run: ruff check scripts
             - run: ruff format --check scripts
-    miniprogram:
-        name: ${{ matrix.check-name }}
+    flip-zoo:
+        # Check names are also registered in .github/main-protection.json.
+        name: miniprogram
+        needs: changes
+        if: needs.changes.outputs.flip-zoo == 'true'
         runs-on: ubuntu-latest
-        strategy:
-            fail-fast: false
-            matrix:
-                include:
-                    - game: flip-zoo
-                      check-name: miniprogram
-                      run-tests: true
-                    - game: mahjong-match
-                      check-name: miniprogram (mahjong-match)
-                      run-tests: false
         defaults:
             run:
-                working-directory: frontend/miniprograms/${{ matrix.game }}
+                working-directory: frontend/miniprograms/flip-zoo
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-node@v4
               with:
                   node-version: "22"
                   cache: npm
-                  cache-dependency-path: frontend/miniprograms/${{ matrix.game }}/package-lock.json
+                  cache-dependency-path: frontend/miniprograms/flip-zoo/package-lock.json
             - run: npm ci
             - run: npm run typecheck
-            - if: matrix.run-tests
-              run: npm test
+            - run: npm test
+            - run: npm run lint
+            - run: npm run format:check
+    mahjong-match:
+        name: miniprogram (mahjong-match)
+        needs: changes
+        if: needs.changes.outputs.mahjong-match == 'true'
+        runs-on: ubuntu-latest
+        defaults:
+            run:
+                working-directory: frontend/miniprograms/mahjong-match
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: "22"
+                  cache: npm
+                  cache-dependency-path: frontend/miniprograms/mahjong-match/package-lock.json
+            - run: npm ci
+            - run: npm run typecheck
             - run: npm run lint
             - run: npm run format:check

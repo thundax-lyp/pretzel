@@ -13,8 +13,6 @@ function fixture(t, entries = {}) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "pretzel-structure-"));
     t.after(() => fs.rmSync(root, { recursive: true, force: true }));
     const files = {
-        "frontend/admin/src/auth/token-storage.ts":
-            "export const token = null;\n",
         "docs/README.md": "[规范](00-governance/README.md)\n",
         "docs/00-governance/README.md": "[命名](NAMING-RULES.md)\n",
         "docs/00-governance/NAMING-RULES.md": "# Naming\n",
@@ -28,7 +26,7 @@ function fixture(t, entries = {}) {
     return spawnSync(process.execPath, [checker, root], { encoding: "utf8" });
 }
 
-test("accepts a tree of documents and protocol-owned code", (t) => {
+test("accepts a tree of documents and a game application", (t) => {
     assert.equal(
         fixture(t, {
             "frontend/miniprograms/sample-game/package.json": "{}\n",
@@ -39,47 +37,15 @@ test("accepts a tree of documents and protocol-owned code", (t) => {
 test("rejects retired frontend application locations", (t) => {
     const result = fixture(t, {
         "admin-web/package.json": "{}\n",
+        "frontend/admin/package.json": "{}\n",
         "miniprogram/app.json": "{}\n",
         "frontend/miniprogram/package.json": "{}\n",
     });
     assert.notEqual(result.status, 0);
     assert.match(
         result.stderr,
-        /frontend\/miniprogram: place frontend applications/,
+        /frontend\/miniprogram: place game applications/,
     );
-});
-test("separates production code from mirrored tests", (t) => {
-    assert.equal(
-        fixture(t, {
-            "frontend/admin/test/auth/token-storage.test.ts":
-                'import { token } from "@/auth/token-storage";\n',
-        }).status,
-        0,
-    );
-    const result = fixture(t, {
-        "frontend/admin/src/auth/token-storage.test.ts": "export {};\n",
-        "frontend/admin/src/auth/production.ts": 'import "../../test/setup";\n',
-    });
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /outside src/);
-    assert.match(result.stderr, /must not depend on tests/);
-});
-test("rejects session code depending on a business page", (t) => {
-    const result = fixture(t, {
-        "frontend/admin/src/session/current-user-service.ts":
-            'import { user } from "@/pages/system/user/user-service";\n',
-    });
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /must not depend on UI/);
-});
-test("rejects direct HTTP in pages and removed UI wrappers", (t) => {
-    const result = fixture(t, {
-        "frontend/admin/src/pages/system/user/user-page.tsx":
-            'fetch("/api"); export const Page = () => <PretzelTable />;\n',
-    });
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /HTTP requests belong/);
-    assert.match(result.stderr, /official Pro Components/);
 });
 test("rejects cross references in document leaves", (t) => {
     const result = fixture(t, {

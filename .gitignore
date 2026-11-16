@@ -10,7 +10,6 @@ target/
 *.iml
 project.private.config.json
 logs/
-/backend/starter/pretzel-admin-starter/storage/
 coverage/
 .secrets/
 client.env
@@ -29,10 +28,4 @@ dev.env
 .ruff_cache/
 .venv/
 
-# Local level-design exports; curated layouts and evidence remain tracked.
-/docs/30-designs/assets/level-pack-v1/*.zip
-/docs/30-designs/assets/level-pack-v1/height-study/*.zip
-/docs/30-designs/assets/level-pack-v1/height-study/*-runs.json
-/docs/30-designs/assets/level-pack-v1/height-study/original-previews/*.png
-/docs/30-designs/assets/level-pack-v1/svg/*-preview.png
 /.agents/skills/wechatide-skill/

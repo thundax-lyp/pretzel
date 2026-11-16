@@ -2,11 +2,9 @@ import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createRequire } from "node:module";
+import prettier from "prettier";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const require = createRequire(path.join(root, "frontend/admin/package.json"));
-const prettier = require("prettier");
 const ignored = new Set([
     ".git",
     "node_modules",

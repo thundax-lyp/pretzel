@@ -38,3 +38,13 @@ export async function checkCloudConnection(): Promise<void> {
     }
     console.info("FLIP ZOO cloud connection verified");
 }
+
+export async function readReleaseVersion(): Promise<string | undefined> {
+    const result = await callCloud<{ version?: unknown }>("flipZooHealth", {
+        action: "release-version",
+    });
+    return typeof result.version === "string" &&
+        /^\d+\.\d+\.\d+$/.test(result.version)
+        ? result.version
+        : undefined;
+}

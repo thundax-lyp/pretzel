@@ -1,17 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createRequire } from "node:module";
 
 const toolRoot = path.resolve(
     path.dirname(fileURLToPath(import.meta.url)),
     "..",
 );
 const root = process.argv[2] ? path.resolve(process.argv[2]) : toolRoot;
-const require = createRequire(
-    path.join(toolRoot, "frontend/admin/package.json"),
-);
-const ts = require("typescript");
 const errors = [];
 const skip = new Set([
     ".git",
@@ -35,120 +30,18 @@ function files(directory) {
 function fail(file, message) {
     errors.push(`${path.relative(root, file)}: ${message}`);
 }
-for (const retired of ["admin-web", "miniprogram", "frontend/miniprogram"]) {
+for (const retired of [
+    "admin-web",
+    "frontend/admin",
+    "miniprogram",
+    "frontend/miniprogram",
+]) {
     const directory = path.join(root, retired);
     if (fs.existsSync(directory))
         fail(
             directory,
-            "place frontend applications in frontend/admin and frontend/miniprograms/<game>",
+            "place game applications in frontend/miniprograms/<game>",
         );
-}
-const sourceRoot = path.join(root, "frontend/admin/src");
-for (const file of files(sourceRoot).filter((name) =>
-    /\.(ts|tsx)$/.test(name),
-)) {
-    const relative = path.relative(sourceRoot, file).replaceAll(path.sep, "/");
-    if (!/^[a-z0-9]+(?:[-.][a-z0-9]+)*\.(ts|tsx)$/.test(path.basename(file)))
-        fail(file, "use kebab-case source filenames");
-    if (relative.startsWith("service/"))
-        fail(file, "place shared session capability in session, not service");
-    if (/\.test\.tsx?$/.test(file) || relative.startsWith("test/")) {
-        fail(
-            file,
-            "place tests and test support in frontend/admin/test, outside src",
-        );
-        continue;
-    }
-    const text = fs.readFileSync(file, "utf8");
-    const ast = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
-    function visit(node) {
-        if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
-            const specifier = node.moduleSpecifier;
-            if (specifier && ts.isStringLiteral(specifier)) {
-                const name = specifier.text;
-                const target = name.startsWith("@/")
-                    ? name.slice(2)
-                    : name.startsWith(".")
-                      ? path
-                            .relative(
-                                sourceRoot,
-                                path.resolve(path.dirname(file), name),
-                            )
-                            .replaceAll(path.sep, "/")
-                      : null;
-                if (target) {
-                    if (/^(?:\.\.\/)+test(?:\/|$)/.test(target))
-                        fail(file, "production code must not depend on tests");
-                    if (name.startsWith("../../"))
-                        fail(
-                            file,
-                            "use @/ for imports more than one parent above",
-                        );
-                    const area = relative.split("/")[0];
-                    if (
-                        ["api", "auth", "session"].includes(area) &&
-                        /^(pages|layouts|components)\//.test(target)
-                    )
-                        fail(
-                            file,
-                            "shared protocol and session code must not depend on UI",
-                        );
-                    if (
-                        ["api", "auth"].includes(area) &&
-                        target.startsWith("session/")
-                    )
-                        fail(
-                            file,
-                            "low-level protocol must not depend on session orchestration",
-                        );
-                    if (
-                        area === "pages" &&
-                        target.startsWith("pages/") &&
-                        relative.split("/").slice(0, 3).join("/") !==
-                            target.split("/").slice(0, 3).join("/")
-                    )
-                        fail(
-                            file,
-                            "page domains must not import other page domains",
-                        );
-                }
-            }
-        }
-        if (
-            ts.isCallExpression(node) &&
-            ["fetch", "window.fetch", "globalThis.fetch"].includes(
-                node.expression.getText(ast),
-            ) &&
-            relative !== "api/http.ts"
-        )
-            fail(file, "HTTP requests belong in api/http.ts");
-        if (
-            (ts.isJsxOpeningElement(node) ||
-                ts.isJsxSelfClosingElement(node)) &&
-            /^Pretzel(Button|Table|Form|Page|Drawer|Select|Space|Alert|Switch|Tag)$/.test(
-                node.tagName.getText(ast),
-            )
-        )
-            fail(file, "use official Pro Components or antd controls directly");
-        ts.forEachChild(node, visit);
-    }
-    visit(ast);
-}
-const testRoot = path.join(root, "frontend/admin/test");
-if (fs.existsSync(testRoot)) {
-    for (const file of files(testRoot).filter((name) =>
-        /\.test\.tsx?$/.test(name),
-    )) {
-        const relative = path.relative(testRoot, file);
-        if (
-            !/^[a-z0-9]+(?:[-.][a-z0-9]+)*\.test\.tsx?$/.test(
-                path.basename(file),
-            )
-        )
-            fail(file, "use kebab-case test filenames");
-        if (!fs.existsSync(path.join(sourceRoot, path.dirname(relative))))
-            fail(file, "test directory must mirror the source directory");
-    }
 }
 const all = files(root);
 const docsRoot = path.join(root, "docs");
@@ -202,7 +95,5 @@ if (errors.length) {
     console.error(errors.join("\n"));
     process.exitCode = 1;
 } else {
-    console.log(
-        "Structure lint passed: source ownership, official UI and document tree.",
-    );
+    console.log("Structure lint passed: game directories and document tree.");
 }

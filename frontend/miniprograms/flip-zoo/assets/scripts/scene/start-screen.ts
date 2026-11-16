@@ -22,6 +22,7 @@ import {
     type SpriteFrame,
     Tween,
 } from "cc";
+import { leaderboardScale } from "../ui/leaderboard-layout";
 import { ButtonPress, scaleButton } from "../ui/button-press";
 import { drawButtonIcon } from "../ui/button-icon";
 import { WECHAT } from "cc/env";
@@ -29,6 +30,7 @@ import { loadZooArtwork, type ZooArtwork } from "../services/artwork";
 import {
     checkCloudConnection,
     hasCloudEnvironment,
+    readReleaseVersion,
 } from "../services/cloud-health";
 import {
     FRAGMENT_ANIMALS,
@@ -962,13 +964,31 @@ export class FlipZooStartScreen extends Component {
             },
         );
         this.fitScreenArtwork(artwork);
-        const version = this.releaseVersion();
-        if (version) {
-            const caption = label(welcome, `版本 ${version}`, 21, "#FFFFFF");
-            caption.node.name = "ReleaseVersion";
-            caption.node.getComponent(UITransform)!.setAnchorPoint(1, 0.5);
-            caption.node.addComponent(UIOpacity).opacity = 155;
-            this.positionWelcomeVersion(caption.node);
+        void this.loadWelcomeVersion(welcome);
+    }
+
+    private addWelcomeVersion(welcome: Node, version: string): void {
+        const caption = label(welcome, `v ${version}`, 21, "#FFFFFF");
+        caption.node.name = "ReleaseVersion";
+        const transform = caption.node.getComponent(UITransform)!;
+        transform.setContentSize(180, 32);
+        caption.horizontalAlign = Label.HorizontalAlign.RIGHT;
+        caption.overflow = Label.Overflow.SHRINK;
+        caption.node.addComponent(UIOpacity).opacity = Math.round(255 * 0.7);
+        this.positionWelcomeVersion(caption.node);
+    }
+
+    private async loadWelcomeVersion(welcome: Node): Promise<void> {
+        let version = this.releaseVersion();
+        if (!version && WECHAT && hasCloudEnvironment()) {
+            try {
+                version = await readReleaseVersion();
+            } catch {
+                console.warn("FLIP ZOO release version could not be loaded");
+            }
+        }
+        if (this.isValid && this.welcome === welcome) {
+            this.addWelcomeVersion(welcome, version ?? "0.0.1");
         }
     }
 
@@ -987,17 +1007,10 @@ export class FlipZooStartScreen extends Component {
     private positionWelcomeVersion(node: Node): void {
         const { width, height } = this.screenSize();
         const window = WECHAT ? wx.getWindowInfo?.() : undefined;
-        const bottomInset =
-            window?.windowHeight && window.safeArea
-                ? (Math.max(
-                      0,
-                      window.windowHeight -
-                          (window.safeArea.bottom ?? window.windowHeight),
-                  ) *
-                      height) /
-                  window.windowHeight
-                : 0;
-        node.setPosition(width / 2 - 24, -height / 2 + bottomInset + 28);
+        const bottomMargin = window?.windowHeight
+            ? (24 * height) / window.windowHeight
+            : 24;
+        node.setPosition(width / 2 - 24 - 90, -height / 2 + bottomMargin + 18);
     }
 
     private showHomeCollection(): void {
@@ -1464,28 +1477,36 @@ export class FlipZooStartScreen extends Component {
     }
 
     private showWeekRanking(parent: Node, preview = false): void {
-        const height = preview ? 226 : 515;
-        const list = uiNode(parent, "WeeklyLeaderboard", 550, height);
+        const height = preview ? 226 : 1064;
+        const width = preview
+            ? 550
+            : parent.getComponent(UITransform)!.width - 42;
+        const list = uiNode(parent, "WeeklyLeaderboard", width, height);
         list.setPosition(0, preview ? 12 : -13);
         if (WECHAT && wx.getOpenDataContext?.()) {
-            list.addComponent(SubContextView).fps = 12;
+            list.active = false;
+            const subContext = list.addComponent(SubContextView);
+            subContext.designResolutionSize.set(width, height);
+            subContext.fps = 12;
+            list.active = true;
             if (!preview) {
+                const rowDragDistance = Math.round(height * 0.105);
                 let distance = 0;
                 list.on(Node.EventType.TOUCH_START, () => {
                     distance = 0;
                 });
                 list.on(Node.EventType.TOUCH_MOVE, (event: EventTouch) => {
                     distance += event.getUIDelta().y;
-                    const rows = Math.trunc(distance / 48);
+                    const rows = Math.trunc(distance / rowDragDistance);
                     if (!rows) return;
-                    distance -= rows * 48;
+                    distance -= rows * rowDragDistance;
                     this.postRankMessage("scroll-week", rows);
                 });
             }
             const refresh = this.button(
                 "刷新",
                 preview ? -230 : 233,
-                preview ? -145 : -350,
+                preview ? -145 : -586,
                 98,
                 () =>
                     this.postRankMessage(
@@ -1514,16 +1535,17 @@ export class FlipZooStartScreen extends Component {
             overlay,
             "LeaderboardCard",
             0,
-            642,
-            840,
+            682,
+            1312,
             "#FFF1D4",
             "#8F552B",
         );
-        this.heading(card, "好友排行榜", 418, "#A66532", "#63381D", "small");
+        this.heading(card, "好友排行榜", 654, "#A66532", "#63381D", "small");
+        this.fitLeaderboardCard(card);
         const week = this.button(
             "本周榜",
             -117,
-            333,
+            569,
             226,
             () => this.showLeaderboard(false, back),
             card,
@@ -1532,18 +1554,31 @@ export class FlipZooStartScreen extends Component {
         const previous = this.button(
             "历史榜",
             117,
-            333,
+            569,
             226,
             () => this.showLeaderboard(true, back),
             card,
             58,
         );
         this.paintButton(week, !history, true, "cream");
-        this.paintButton(previous, history, true, "cream");
+        this.paintButton(previous, false, false, "cream");
         if (history) label(card, "历史榜暂未开放", 32, "#56351C");
         else this.showWeekRanking(card);
-        const close = this.button("◀ 返回", 0, -350, 244, back, card, 72);
+        const close = this.button("◀ 返回", 0, -586, 244, back, card, 72);
         this.paintButton(close, true);
+    }
+
+    private fitLeaderboardCard(card: Node): void {
+        const bounds = card.getComponent(UITransform)!;
+        const heading = card.getChildByName("Heading")!;
+        const headingTop =
+            heading.position.y + heading.getComponent(UITransform)!.height / 2;
+        const scale = leaderboardScale(
+            this.screenSize(),
+            bounds.width,
+            headingTop,
+        );
+        card.setScale(scale, scale, 1);
     }
 
     private addAdBadge(parent: Node, width: number, height: number): void {
@@ -1876,6 +1911,8 @@ export class FlipZooStartScreen extends Component {
         this.fitScreenArtwork(this.welcome?.getChildByName("WelcomeArtwork"));
         const version = this.welcome?.getChildByName("ReleaseVersion");
         if (version) this.positionWelcomeVersion(version);
+        const leaderboard = this.overlay?.getChildByName("LeaderboardCard");
+        if (leaderboard) this.fitLeaderboardCard(leaderboard);
         this.fitScreenArtwork(this.overlay?.getChildByName("SettingsArtwork"));
         this.fitScreenArtwork(
             this.overlay?.getChildByName("CollectionArtwork"),
