@@ -29,7 +29,7 @@ function fixture(t, entries = {}) {
 test("accepts a tree of documents and a game application", (t) => {
     assert.equal(
         fixture(t, {
-            "frontend/miniprograms/sample-game/package.json": "{}\n",
+            "miniprograms/sample-game/package.json": "{}\n",
         }).status,
         0,
     );

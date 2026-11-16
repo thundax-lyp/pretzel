@@ -16,11 +16,11 @@
 
 统一 CI 入口为 .github/workflows/ci.yml，必须显式列出检查，不通过单个脚本隐藏必过项。工作流在面向 main 的 PR 上运行，以 PR 分支与目标分支的共同祖先为起点检测改动。各应用任务独立启动：
 
-- 修改 `frontend/miniprograms/flip-zoo/` 或 `frontend/miniprograms/mahjong-match/` 时，分别运行对应的检查。改动涉及多个应用时，并行运行。
+- 修改 `miniprograms/flip-zoo/` 或 `miniprograms/mahjong-match/` 时，分别运行对应的检查。改动涉及多个应用时，并行运行。
 - 修改 `.github/workflows/`、`.editorconfig`、`.oxlintrc.json`、`.prettierrc.json` 或 `.prettierignore` 时，运行所有小游戏检查。
 - 仓库级工具检查在每个 PR 上运行。路径检测失败时，工具检查也会失败。
 
-- `frontend/miniprograms/<工程名>/` 下每款游戏使用 Node 22、独立 npm 锁文件和 Creator 3.8.8 引擎声明。执行 npm ci、npm run typecheck、npm run lint、npm run format:check；有测试入口的工程同时执行 npm test。场景预览和微信小游戏构建使用 Creator，构建输出导入微信开发者工具验收。
+- `miniprograms/<工程名>/` 下每款游戏使用 Node 22、独立 npm 锁文件和 Creator 3.8.8 引擎声明。执行 npm ci、npm run typecheck、npm run lint、npm run format:check；有测试入口的工程同时执行 npm test。场景预览和微信小游戏构建使用 Creator，构建输出导入微信开发者工具验收。
 - Python 工具使用 requirements-dev.txt 固定的 Ruff，显式执行 ruff check 与 ruff format --check；Shell 工具执行 sh -n。
 - 目录结构检查与 4 空格格式检查必须通过；检查器自身的回归测试由 CI 执行。
 - 修改共享配置、workflow 或治理契约时检查前端与工具验证是否仍符合规则；仅声明本项目已落地的验证，不将尚未实现的检查列为必过门禁。

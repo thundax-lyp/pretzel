@@ -1,6 +1,6 @@
 # FLIP-ZOO《两只眼睛几条腿》改版 TODO
 
-设计稿在本机 `~/Downloads/UIDownloads`。15 张 JPG 中有一张重复的「放弃挑战」，按 14 个画面验收。游戏名称使用《两只眼睛几条腿》，工程目录使用 `frontend/miniprograms/flip-zoo`。本清单只保留尚未完成或尚未验收的事项。
+设计稿在本机 `~/Downloads/UIDownloads`。15 张 JPG 中有一张重复的「放弃挑战」，按 14 个画面验收。游戏名称使用《两只眼睛几条腿》，工程目录使用 `miniprograms/flip-zoo`。本清单只保留尚未完成或尚未验收的事项。
 
 ## 1. 品牌和首页
 
@@ -8,7 +8,7 @@
 
 - [ ] 真机检查代码包内的普通、胜利分享卡显示。发布环境若使用微信审核图，配置对应编号与地址。
 
-代码入口：`frontend/miniprograms/flip-zoo/assets/scripts/home/welcome-view.ts`、`frontend/miniprograms/flip-zoo/scripts/build-cocos.mjs`。
+代码入口：`miniprograms/flip-zoo/assets/scripts/home/welcome-view.ts`、`miniprograms/flip-zoo/scripts/build-cocos.mjs`。
 
 ## 2. 游戏页布局
 
@@ -17,7 +17,7 @@
 - [ ] 在微信六层牌局核对错位外挑、受压牌可读性和点击命中。
 - [ ] 验收其他屏幕尺寸，走通第二关胜利和槽满失败。iPhone 12/13 mini 模拟器已走通教学关并截图核对第二关七格布局、顶部胶囊和底部安全区。
 
-代码入口：`frontend/miniprograms/flip-zoo/assets/scripts/scene/start-screen.ts`、`frontend/miniprograms/flip-zoo/assets/scripts/gameplay/card-view.ts`。
+代码入口：`miniprograms/flip-zoo/assets/scripts/scene/start-screen.ts`、`miniprograms/flip-zoo/assets/scripts/gameplay/card-view.ts`。
 
 ## 3. 设置、隐私与放弃挑战
 
@@ -25,7 +25,7 @@
 
 - [ ] 在真机确认「问题反馈」原生页面可以打开，并检查离开设置后的原生点击区域。微信 IDE 已走通设置和儿童隐私切换，点击反馈未观察到原生页面。
 
-代码入口：`frontend/miniprograms/flip-zoo/assets/scripts/settings/settings-view.ts`、`frontend/miniprograms/flip-zoo/assets/scripts/scene/start-screen.ts`。
+代码入口：`miniprograms/flip-zoo/assets/scripts/settings/settings-view.ts`、`miniprograms/flip-zoo/assets/scripts/scene/start-screen.ts`。
 
 ## 4. 三种道具的领取与使用
 
@@ -33,7 +33,7 @@
 
 - [ ] 在微信真机验证转发面板和领用结果。本地回归已覆盖关闭弹窗、调用抛错保留资格、重试成功和重复点击仅发放一次。
 
-代码入口：`frontend/miniprograms/flip-zoo/assets/scripts/scene/start-screen.ts`、`frontend/miniprograms/flip-zoo/assets/scripts/gameplay/round.ts`。
+代码入口：`miniprograms/flip-zoo/assets/scripts/scene/start-screen.ts`、`miniprograms/flip-zoo/assets/scripts/gameplay/round.ts`。
 
 ## 5. 结算与好友排行榜
 
@@ -42,7 +42,7 @@
 - [ ] 历史榜保留入口并提示暂未开放。周范围、好友范围和历史数据留待后续。当前 `mgrank` 只保留最近一次写入的周成绩。
 - [ ] 在微信端授权测试号使用好友信息后，验证好友周榜滚动、个人名次、三处入口返回和加载状态。微信 IDE 已打开好友周榜并显示好友信息授权提示。
 
-代码入口：`frontend/miniprograms/flip-zoo/assets/scripts/scene/start-screen.ts`、`frontend/miniprograms/flip-zoo/open-data/index.js`。
+代码入口：`miniprograms/flip-zoo/assets/scripts/scene/start-screen.ts`、`miniprograms/flip-zoo/open-data/index.js`。
 
 ## 6. 我的家园
 
@@ -54,7 +54,7 @@
 - [ ] 接通可兑换、余额不足、已拥有、兑换失败状态。一次成功兑换只扣一次，重新打开家园或重进游戏可读回结果。
 - [ ] 验收从首页打开、滚动和关闭，再测成功、余额不足、连续点击和重进游戏。
 
-代码入口：`frontend/miniprograms/flip-zoo/assets/scripts/home/welcome-view.ts`。
+代码入口：`miniprograms/flip-zoo/assets/scripts/home/welcome-view.ts`。
 
 ## 7. 每改完一块的检查
 

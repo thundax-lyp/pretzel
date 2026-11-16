@@ -40,7 +40,7 @@ for (const retired of [
     if (fs.existsSync(directory))
         fail(
             directory,
-            "place game applications in frontend/miniprograms/<game>",
+            "place game applications in miniprograms/<game>",
         );
 }
 const all = files(root);

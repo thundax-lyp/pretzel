@@ -6,7 +6,7 @@
 
 ```sh
 npm ci
-npm --prefix frontend/miniprograms/flip-zoo ci
+npm --prefix miniprograms/flip-zoo ci
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements-dev.txt
 ```
@@ -29,8 +29,8 @@ check-structure 检查小游戏目录与文档导航。
 ## 测试与构建
 
 ```sh
-npm --prefix frontend/miniprograms/flip-zoo run typecheck
-npm --prefix frontend/miniprograms/flip-zoo run lint
+npm --prefix miniprograms/flip-zoo run typecheck
+npm --prefix miniprograms/flip-zoo run lint
 ```
 
 ## 私有环境加载
@@ -51,11 +51,11 @@ node scripts/configure-branch-protection.mjs 将 .github/main-protection.json �
 
 ## Cocos 构建
 
-`frontend/miniprograms/flip-zoo/scripts/build-cocos.mjs` 调用本机 Cocos Creator 3.8.8。微信构建从私有环境读取 `FLIP_ZOO_WECHAT_GAME_APP_ID`，生成的项目目录导入微信开发者工具。
+`miniprograms/flip-zoo/scripts/build-cocos.mjs` 调用本机 Cocos Creator 3.8.8。微信构建从私有环境读取 `FLIP_ZOO_WECHAT_GAME_APP_ID`，生成的项目目录导入微信开发者工具。
 
 ```sh
-npm --prefix frontend/miniprograms/flip-zoo run build:web -- --debug
-python3 scripts/with-env.py --env-file .env -- npm --prefix frontend/miniprograms/flip-zoo run build:wechat -- --debug
+npm --prefix miniprograms/flip-zoo run build:web -- --debug
+python3 scripts/with-env.py --env-file .env -- npm --prefix miniprograms/flip-zoo run build:wechat -- --debug
 ```
 
 Node 关卡设计工具统一采用当前的免费原位复位与移出、纠错、重排规则。广告数据需要在固定输入和预算下重新运行，旧规则报告只可作为历史材料。

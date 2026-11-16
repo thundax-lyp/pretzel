@@ -9,7 +9,7 @@
     },
     "overrides": [
         {
-            "files": ["frontend/miniprograms/**/*.ts"],
+            "files": ["miniprograms/**/*.ts"],
             "globals": {
                 "wx": "readonly"
             }

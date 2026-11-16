@@ -26,7 +26,7 @@
 
 | scope       | 范围                             | module 及含义                                                                                                                                                 |
 | ----------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| miniprogram | frontend/miniprograms 微信小游戏 | start、home、game：三个页面及其页面内能力；auth：客户端认证；http：网络请求；ui：共享界面能力；app：应用入口与全局生命周期；build：开发者工具及构建配置       |
+| miniprogram | miniprograms 微信小游戏 | start、home、game：三个页面及其页面内能力；auth：客户端认证；http：网络请求；ui：共享界面能力；app：应用入口与全局生命周期；build：开发者工具及构建配置       |
 | docs        | 文档                             | governance：稳定工程规则；requirements：产品需求；interfaces：接口与事件契约；design：技术与专项设计；readiness：验收和发布证据；guide：README 及开发使用说明 |
 | ci          | .github 自动验证                 | verify：跨工程统一验证；pr：PR 模板及 PR 自动化                                                                                                               |
 | tooling     | scripts 开发工具                 | env：环境加载；tunnel：基础环境隧道；verify：本地检查编排                                                                                                     |

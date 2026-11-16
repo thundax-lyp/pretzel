@@ -16,7 +16,7 @@ npm run preview
 
 打开 [难度后台](http://127.0.0.1:8874/admin) 可调整第二关的命门组数和直接叠压组数。设置保存在本地预览目录 `local/difficulty.json`，重开第二关或切换 A/B/C 后生效。Creator 直接预览在本地生成牌局。
 
-玩法、道具及难度设置范围见「设计方案」下的「《翻翻动物园》玩法与道具」。[工程文档导航](../../../docs/README.md)
+玩法、道具及难度设置范围见「设计方案」下的「《翻翻动物园》玩法与道具」。[工程文档导航](../../docs/README.md)
 
 ## 微信小游戏
 
@@ -29,7 +29,7 @@ npm run preview
 本地模拟器调试在仓库根目录的私有 `dev.env` 中设置 `FLIP_ZOO_WECHAT_TEST_APP_ID`，使用当前微信开发者工具账号可用的小游戏测试号。从仓库根目录执行以下命令，再把 `build/wechatgame-test` 作为小游戏项目导入微信开发者工具。
 
 ```bash
-python3 scripts/with-env.py --env-file dev.env -- npm --prefix frontend/miniprograms/flip-zoo run build:wechat -- --test
+python3 scripts/with-env.py --env-file dev.env -- npm --prefix miniprograms/flip-zoo run build:wechat -- --test
 ```
 
 首页和失败结算页可以直接转发。胜利结算时可从微信菜单转发通关卡片。第二关每种道具开局未领取，成功调用微信分享后领取一次，用完后本局不能再领。Web Demo 提供模拟分享。通过私有环境的 `FLIP_ZOO_SHARE_DEFAULT_*` 和 `FLIP_ZOO_SHARE_VICTORY_*` 配置普通卡片和通关卡片。审核图片的 ID 与 URL 必须成对提供。设置页可以打开微信客服和原生问题反馈。
@@ -72,7 +72,7 @@ python3 scripts/with-env.py --env-file dev.env -- npm --prefix frontend/miniprog
 
 ## 难度推演
 
-实现、指标口径和布局级评估设计见 [FLIP ZOO 难度推演说明](../../../docs/30-designs/FLIP-ZOO-DIFFICULTY-SIMULATION.md)。
+实现、指标口径和布局级评估设计见 [FLIP ZOO 难度推演说明](../../docs/30-designs/FLIP-ZOO-DIFFICULTY-SIMULATION.md)。
 
 在本目录使用 Node.js 22 运行：
 

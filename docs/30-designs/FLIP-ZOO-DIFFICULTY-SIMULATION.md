@@ -70,7 +70,7 @@
 
 ## 批量运行与输出
 
-从 `frontend/miniprograms/flip-zoo` 运行：
+从 `miniprograms/flip-zoo` 运行：
 
 ```sh
 npm run simulate:win-rate -- --rounds 100 --seed 42 --error-rate 0.1 --json
