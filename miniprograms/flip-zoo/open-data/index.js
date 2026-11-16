@@ -148,64 +148,16 @@ const podiumColors = [
     {
         face: "#F7C94B",
         edge: "#B87916",
-        ribbon: "#D87528",
-        shine: "#FFF0A3",
     },
     {
         face: "#D9E1EC",
         edge: "#78869B",
-        ribbon: "#7889A6",
-        shine: "#FFFFFF",
     },
     {
         face: "#D98A55",
         edge: "#8E4D2B",
-        ribbon: "#B95E45",
-        shine: "#FFD1A4",
     },
 ];
-
-function drawRankBadge(context, rank, x, y, size) {
-    const colors = podiumColors[rank - 1];
-    const radius = size * 0.34;
-    context.save();
-
-    context.fillStyle = colors.ribbon;
-    context.beginPath();
-    context.moveTo(x - radius * 0.7, y + radius * 0.35);
-    context.lineTo(x - radius * 0.55, y + size * 0.48);
-    context.lineTo(x, y + size * 0.36);
-    context.lineTo(x + radius * 0.55, y + size * 0.48);
-    context.lineTo(x + radius * 0.7, y + radius * 0.35);
-    context.closePath();
-    context.fill();
-
-    context.beginPath();
-    context.arc(x, y, radius, 0, Math.PI * 2);
-    context.fillStyle = colors.face;
-    context.fill();
-    context.lineWidth = Math.max(2, size * 0.06);
-    context.strokeStyle = colors.edge;
-    context.stroke();
-
-    context.beginPath();
-    context.arc(
-        x - radius * 0.28,
-        y - radius * 0.3,
-        radius * 0.15,
-        0,
-        Math.PI * 2,
-    );
-    context.fillStyle = colors.shine;
-    context.fill();
-
-    drawArtNumber(context, rank, x, y, size * 0.5, radius, {
-        ...rankNumberStyle,
-        outline: colors.edge,
-        fill: colors.shine,
-    });
-    context.restore();
-}
 
 function drawNickname(context, name, x, y, maxWidth) {
     if (context.measureText(name).width <= maxWidth) {
@@ -273,25 +225,31 @@ function draw(
         );
     };
 
+    const podiumColumns = [0.5, 0.19, 0.81];
     entries.forEach((entry, index) => {
+        const first = index === 0;
         const y = preview
-            ? height * 0.52
+            ? height * (first ? 0.32 : 0.43)
             : height * (rowStart + index * rowStep);
-        const x = preview ? width * ((index + 0.5) / 3) : avatarX;
+        const x = preview ? width * podiumColumns[index] : avatarX;
         const size = preview
-            ? Math.min(width * 0.2, height * 0.38)
+            ? Math.min(
+                  width * (first ? 0.23 : 0.18),
+                  height * (first ? 0.55 : 0.4),
+              )
             : avatarSize;
         const rank = offset + index + 1;
-        const badgeSize = Math.min(width * 0.13, height * 0.24);
         if (preview) {
-            drawRankBadge(context, rank, x, height * 0.13, badgeSize);
-            drawNickname(context, entry.name, x, height * 0.78, width * 0.3);
+            context.save();
+            context.font = `${Math.round(bodyFontSize * 0.58)}px sans-serif`;
+            drawNickname(context, entry.name, x, height * 0.76, width * 0.27);
+            context.restore();
             drawArtNumber(
                 context,
                 entry.score,
                 x,
-                height * 0.93,
-                bodyFontSize,
+                height * 0.92,
+                bodyFontSize * 0.78,
                 width * 0.24,
                 scoreNumberStyle,
             );
