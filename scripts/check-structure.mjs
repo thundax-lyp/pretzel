@@ -30,22 +30,15 @@ function files(directory) {
 function fail(file, message) {
     errors.push(`${path.relative(root, file)}: ${message}`);
 }
-for (const retired of [
-    "admin-web",
-    "frontend/admin",
-    "miniprogram",
-    "frontend/miniprogram",
-]) {
+for (const retired of ["admin-web", "frontend", "miniprogram"]) {
     const directory = path.join(root, retired);
     if (fs.existsSync(directory))
-        fail(
-            directory,
-            "place game applications in miniprograms/<game>",
-        );
+        fail(directory, "place game applications in miniprograms/<game>");
 }
 const all = files(root);
 const docsRoot = path.join(root, "docs");
-const parents = new Map();
+const docsIndex = path.join(docsRoot, "README.md");
+const indexedDocs = new Set();
 for (const file of all.filter(
     (name) => name.endsWith(".md") && name.startsWith(docsRoot + path.sep),
 )) {
@@ -61,24 +54,13 @@ for (const file of all.filter(
         const target = path.resolve(path.dirname(file), link.split("#")[0]);
         if (!fs.existsSync(target))
             fail(file, `missing document target: ${link}`);
-        const navigation = ["README.md"].includes(path.basename(file));
-        if (!navigation)
+        if (file !== docsIndex) {
             fail(
                 file,
                 "leaf documents must not maintain cross-document navigation",
             );
-        if (target.startsWith(docsRoot + path.sep)) {
-            if (
-                file !== path.join(docsRoot, "README.md") &&
-                path.dirname(target) !== path.dirname(file)
-            )
-                fail(file, "category index must link only to its own children");
-            if (parents.has(target) && parents.get(target) !== file)
-                fail(
-                    file,
-                    `document already has a navigation parent: ${path.relative(root, parents.get(target))}`,
-                );
-            parents.set(target, file);
+        } else if (target.startsWith(docsRoot + path.sep)) {
+            indexedDocs.add(target);
         }
     }
 }
@@ -86,10 +68,10 @@ for (const file of all.filter(
     (name) =>
         name.startsWith(docsRoot + path.sep) &&
         name.endsWith(".md") &&
-        name !== path.join(docsRoot, "README.md"),
+        name !== docsIndex,
 )) {
-    if (!parents.has(file))
-        fail(file, "document is missing from the navigation tree");
+    if (!indexedDocs.has(file))
+        fail(file, "document is missing from docs/README.md");
 }
 if (errors.length) {
     console.error(errors.join("\n"));

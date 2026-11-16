@@ -6,7 +6,6 @@
 
 ```sh
 npm ci
-npm --prefix miniprograms/flip-zoo ci
 ```
 
 ## 格式与 lint
@@ -22,12 +21,9 @@ check-format 根据 .prettierrc.json 处理前端、小程序、配置及 Markdo
 
 check-structure 检查小游戏目录与文档导航。
 
-## 测试与构建
+## 小游戏脚本
 
-```sh
-npm --prefix miniprograms/flip-zoo run typecheck
-npm --prefix miniprograms/flip-zoo run lint
-```
+游戏专用脚本随各自工程维护。Flip Zoo 的构建、Web 预览、难度模拟和云函数打包均位于 `miniprograms/flip-zoo/scripts/`，具体命令见 [Flip Zoo 工程说明](../miniprograms/flip-zoo/README.md#脚本索引)。麻将消消通过自身的 npm scripts 和 Creator 运行，命令见 [麻将消消工程说明](../miniprograms/mahjong-match/README.md)。
 
 ## 私有环境加载
 
@@ -44,14 +40,3 @@ CI 比较 PR 与目标分支的共同祖先，按改动目录选择 Flip Zoo 和
 ## main 分支保护
 
 node scripts/configure-branch-protection.mjs 将 .github/main-protection.json 应用到 GitHub main 分支，需要 gh 登录、仓库管理员权限和支持私有分支保护的套餐。当前账号的 API 请求被套餐限制拒绝，升级后可重新执行；仓库保持 private。脚本失败返回非零，不冒充配置成功。
-
-## Cocos 构建
-
-`miniprograms/flip-zoo/scripts/build-cocos.mjs` 调用本机 Cocos Creator 3.8.8。微信构建从私有环境读取 `FLIP_ZOO_WECHAT_GAME_APP_ID`，生成的项目目录导入微信开发者工具。
-
-```sh
-npm --prefix miniprograms/flip-zoo run build:web -- --debug
-node scripts/with-env.mjs --env-file .env -- npm --prefix miniprograms/flip-zoo run build:wechat -- --debug
-```
-
-Node 关卡设计工具统一采用当前的免费原位复位与移出、纠错、重排规则。广告数据需要在固定输入和预算下重新运行，旧规则报告只可作为历史材料。

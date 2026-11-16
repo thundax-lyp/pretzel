@@ -1,13 +1,27 @@
 # 工程文档导航
 
-本文件是项目文档目录树的根节点。只沿当前任务所需分支读取，不通过叶子文档交叉扩散上下文。
+## 工程规范
 
-- [工程规范](00-governance/README.md)：架构、命名、前端、文档、提交与 PR 规则。
-- [设计方案](30-designs/README.md)：领域、客户端、生成算法和数据设计。
-- [人工业务文档](60-human/README.md)：家园碎片与后续兑换设计。
-- [项目技能](../.agents/skills/README.md)：PR 评审、评论修复与游戏界面审核。
-- [开发检查](../scripts/README.md)：格式化、lint 与验证命令。
+- [架构边界](00-governance/ARCHITECTURE.md)
+- [目录与命名](00-governance/NAMING-RULES.md)
+- [文档规则](00-governance/DOCUMENT-RULES.md)
+- [提交规则](00-governance/COMMIT-RULES.md)
+- [PR 交付规则](00-governance/PR-RULES.md)
 
-各分支的 README 只链接本分支子文档。叶子文档直接定义自身职责内的内容，不维护其他分支导航；必要的代码路径和协议名称使用普通文本说明。
+## 产品需求
 
-需求、设计和验收分开：已确认需求不等于已实现，设计默认值不冒充产品确认，自动化通过不等于生产或微信真机验收。backup 是归档资料，不作为当前需求来源或默认读取对象。
+- [Flip Zoo 玩法与产品需求](01-requirements/FLIP-ZOO-REQUIREMENTS.md)
+- [麻将消消玩法与产品需求](01-requirements/MAHJONG-MATCH-REQUIREMENTS.md)
+
+## 设计
+
+- [Flip Zoo 游戏设计](30-designs/FLIP-ZOO-DESIGN.md)
+- [Flip Zoo 难度推演](30-designs/FLIP-ZOO-DIFFICULTY-SIMULATION.md)
+- [Flip Zoo 改版待办](30-designs/FLIP-ZOO-REDESIGN-TODO.md)
+- [休闲消除类游戏 UI 与 UE 设计原则](30-designs/GAME-UI-UE-PRINCIPLES.md)
+
+## 开发工具
+
+- [开发检查](../scripts/README.md)：安装、格式、lint 与验证命令。
+
+需求、设计和验收分别维护。已确认需求可能尚未实现，离线验证与真机验收分别记录。`backup/` 保存历史归档。

@@ -12,7 +12,7 @@
 
 `miniprograms/<工程名>/` 使用独立的 Cocos Creator 工程结构。场景放在 assets/scenes，组件和纯 TypeScript 模块放在 assets/scripts，动态加载资源放在 assets/resources。资源及对应 .meta 文件一起维护。
 
-文档使用大写英文和连字符，按治理、需求、契约、设计、验收分类；章节顺序由目录 README 决定，不给每个文件添加容易失效的序号前缀。
+文档使用大写英文和连字符，按治理、需求、契约、设计、验收分类；导航顺序由 docs/README.md 维护，不给每个文件添加容易失效的序号前缀。
 
 ## 自动检查
 
