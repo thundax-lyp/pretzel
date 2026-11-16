@@ -22,6 +22,7 @@ import {
     type SpriteFrame,
     Tween,
 } from "cc";
+import { leaderboardScale } from "../ui/leaderboard-layout";
 import { ButtonPress, scaleButton } from "../ui/button-press";
 import { drawButtonIcon } from "../ui/button-icon";
 import { WECHAT } from "cc/env";
@@ -1540,6 +1541,7 @@ export class FlipZooStartScreen extends Component {
             "#8F552B",
         );
         this.heading(card, "好友排行榜", 654, "#A66532", "#63381D", "small");
+        this.fitLeaderboardCard(card);
         const week = this.button(
             "本周榜",
             -117,
@@ -1564,6 +1566,19 @@ export class FlipZooStartScreen extends Component {
         else this.showWeekRanking(card);
         const close = this.button("◀ 返回", 0, -586, 244, back, card, 72);
         this.paintButton(close, true);
+    }
+
+    private fitLeaderboardCard(card: Node): void {
+        const bounds = card.getComponent(UITransform)!;
+        const heading = card.getChildByName("Heading")!;
+        const headingTop =
+            heading.position.y + heading.getComponent(UITransform)!.height / 2;
+        const scale = leaderboardScale(
+            this.screenSize(),
+            bounds.width,
+            headingTop,
+        );
+        card.setScale(scale, scale, 1);
     }
 
     private addAdBadge(parent: Node, width: number, height: number): void {
@@ -1896,6 +1911,8 @@ export class FlipZooStartScreen extends Component {
         this.fitScreenArtwork(this.welcome?.getChildByName("WelcomeArtwork"));
         const version = this.welcome?.getChildByName("ReleaseVersion");
         if (version) this.positionWelcomeVersion(version);
+        const leaderboard = this.overlay?.getChildByName("LeaderboardCard");
+        if (leaderboard) this.fitLeaderboardCard(leaderboard);
         this.fitScreenArtwork(this.overlay?.getChildByName("SettingsArtwork"));
         this.fitScreenArtwork(
             this.overlay?.getChildByName("CollectionArtwork"),

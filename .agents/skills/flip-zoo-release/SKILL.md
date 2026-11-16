@@ -16,7 +16,7 @@ description: 用户显式调用时，从云数据库读取并递增《翻翻动�
 ## 确定版本
 
 1. 从目标 AppID 对应的云环境读取 `flipZooRelease` 集合及 `_id: "version-<AppID>"` 文档。集合不存在时先创建空集合。
-2. 若文档含 `pendingVersion`，先查明对应 IDE 上传任务：成功则将其提交为 `version`；失败或取消则清除该字段；仍待确认时暂停，不启动新发布。
+2. 若文档含 `pendingVersion`，先查明对应 IDE 上传任务：成功则将其提交为 `version`；失败或取消则清除该字段；能确认从未创建上传任务时，按下文清理预留值；任务仍待确认或无法确定是否已创建时暂停，不启动新发布。
 3. 如果文档不存在、`version` 缺失、格式无效或数据库读失败，暂停流程并向用户询问当前基线版本或本次目标版本。用户提供基线时按下条递增；用户直接给出目标版本时使用指定值。未取得版本前不构建、不上传。
 4. 版本必须符合 `主版本.次版本.补丁版本`。默认保留主版本、次版本，将补丁号加一，例如 `0.1.1` → `0.1.2`。
 5. 构建前写入候选 `pendingVersion`，保留已知的 `version` 不变。已有文档使用 `$set` 更新；首次创建时写入 `_id`、`appId` 和候选 `pendingVersion`，如果用户提供了基线版本，也写入该 `version`。更新失败时停止，不上传。
@@ -29,7 +29,7 @@ description: 用户显式调用时，从云数据库读取并递增《翻翻动�
     python3 scripts/with-env.py --env-file dev.env -- npm --prefix frontend/miniprograms/flip-zoo run build:wechat -- --test
     ```
 
-2. 使用本次生成的 `frontend/miniprograms/flip-zoo/build/wechatgame-test`。确认构建成功、主包和整包检查通过、`project.config.json` 的 `compileType` 为 `game`，且 AppID 与目标一致。构建或核验失败时先处理具体失败，避免上传旧产物。
+2. 使用本次生成的 `frontend/miniprograms/flip-zoo/build/wechatgame-test`。确认构建成功、主包和整包检查通过、`project.config.json` 的 `compileType` 为 `game`，且 AppID 与目标一致。构建或核验失败、或流程取消时，若已确认尚未创建 IDE 上传任务，按 AppID 对应文档和本次候选 `pendingVersion` 做条件更新，只清除该候选字段，保留原 `version`。清理失败须报告并停止；修复后重新从确定版本开始，避免上传旧产物。
 3. 按项目的 [微信开发者工具上传技能](../wechatide-skill/skills/previewer/SKILL.md) 使用 `wechatide -c Codex upload --project <构建产物绝对路径> --upload-version <候选版本> --desc <本次变更摘要>`。摘要根据本次实际变更填写。IDE 返回等待确认时，保存 `taskId` 并提示用户在弹窗确认。用户确认后，用 `polling_task_result` 查询原任务。
 4. 仅以原任务 `status: success` 且上传结果成功为准。成功后更新版本文档：把 `pendingVersion` 设为 `version`，清除 `pendingVersion`。失败或取消时清除 `pendingVersion` 并保留原 `version`；等待确认时保留预留值，查明原任务结果后再处理。
 5. 若上传成功但版本提交失败，不要重复上传；报告上传已成功和数据库提交失败，并先修复版本记录。向用户报告版本、上传状态、数据库提交状态及微信返回的主包、分包和整包大小。流程交付是 IDE 代码上传；提审和正式上线需要用户另行明确要求。
