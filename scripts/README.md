@@ -17,7 +17,7 @@ node --test scripts/check-structure.test.mjs
 npm run lint
 ```
 
-check-format 根据 .prettierrc.json 处理前端、小程序、配置及 Markdown，尊重 Git 忽略规则，跳过产物、备份和私有文件。
+check-format 根据 .prettierrc.json 处理前端、小程序、配置及 Markdown。Cocos Creator 的 `.meta` 文件使用 `json-stringify` parser，非空数组逐项换行。检查尊重 Git 忽略规则，跳过产物、备份和私有文件。
 
 check-structure 检查小游戏目录与文档导航。仓库和各小游戏的 `npm run lint` 共用根目录的 `eslint.config.mjs`。
 
