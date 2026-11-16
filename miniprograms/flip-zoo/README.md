@@ -72,7 +72,7 @@ node scripts/with-env.mjs --env-file dev.env -- npm --prefix miniprograms/flip-z
 
 ## 难度推演
 
-实现、指标口径和布局级评估设计见 [FLIP ZOO 难度推演说明](../../docs/30-designs/FLIP-ZOO-DIFFICULTY-SIMULATION.md)。
+实现、指标口径和布局级评估设计见 [FLIP ZOO 难度推演说明](../../docs/30-designs/FLIP-ZOO-DESIGN.md#难度推演)。
 
 在本目录使用 Node.js 22 运行：
 
