@@ -15,34 +15,36 @@ import { FULL_EXPOSURE } from "./round";
 export const MATCH_DURATION = 0.36;
 const SLOT_MOVE_DURATION = 0.18;
 
-interface CardDimensions {
-    readonly width: number;
-    readonly height: number;
-}
-
 export function flyCardToSlot(
     layer: Node,
     art: ZooArtwork,
     source: Node,
     target: Node,
     kind: number,
-    dimensions: CardDimensions,
     onLanded: () => void,
 ): void {
-    const { width, height } = dimensions;
+    const { width, height } = target.getComponent(UITransform)!;
     const layerTransform = layer.getComponent(UITransform)!;
-    const start = layerTransform.convertToNodeSpaceAR(source.worldPosition);
+    const start = layerTransform.convertToNodeSpaceAR(
+        source.getChildByName("Drawing")?.worldPosition ?? source.worldPosition,
+    );
     const end = layerTransform.convertToNodeSpaceAR(target.worldPosition);
     const position = new Vec3();
     const sourceScale = source.worldScale;
+    const targetScale = target.worldScale;
     const layerScale = layer.worldScale;
     const startScale = new Vec3(
-        sourceScale.x / layerScale.x,
+        (sourceScale.x * source.getComponent(UITransform)!.width) /
+            (layerScale.x * width),
         (sourceScale.y * source.getComponent(UITransform)!.height) /
             (layerScale.y * height),
         1,
     );
-    const endScale = new Vec3(1, 1, 1);
+    const endScale = new Vec3(
+        targetScale.x / layerScale.x,
+        targetScale.y / layerScale.y,
+        1,
+    );
     const scale = new Vec3();
     const flight = new CardView(layer, "FlyingCard", width, height, art);
     flight.show(kind, FULL_EXPOSURE, true);
@@ -80,11 +82,12 @@ export function slideSlotCard(
     source: Node,
     target: Node,
     kind: number,
-    { width, height }: CardDimensions,
 ): void {
+    const { width, height } = source.getComponent(UITransform)!;
     const card = new CardView(tray, "SlidingCard", width, height, art);
     card.show(kind, FULL_EXPOSURE, true);
     card.node.setPosition(source.position);
+    card.node.setScale(source.scale);
     tween(card.node)
         .to(
             SLOT_MOVE_DURATION,
@@ -107,7 +110,6 @@ export function playMatch(
     art: ZooArtwork,
     kind: number,
     indices: readonly number[],
-    dimensions: CardDimensions,
 ): void {
     const cue = titleLine(
         layer,
@@ -123,11 +125,13 @@ export function playMatch(
         .to(MATCH_DURATION - 0.12, { opacity: 0 })
         .call(() => cue.node.destroy())
         .start();
-    const { width, height } = dimensions;
     for (const index of indices) {
-        const slot = slots[index].node.position;
+        const slot = slots[index].node;
+        const { width, height } = slot.getComponent(UITransform)!;
+        const { x: scaleX, y: scaleY } = slot.scale;
         const effect = uiNode(layer, "MatchFlash");
-        effect.setPosition(slot.x, tray.position.y + slot.y);
+        effect.setPosition(slot.position.x, tray.position.y + slot.position.y);
+        effect.setScale(scaleX, scaleY, 1);
         const glow = effect.addComponent(Graphics);
         glow.fillColor = new Color(255, 220, 115, 170);
         glow.roundRect(
@@ -168,11 +172,15 @@ export function playMatch(
         tile.show(kind, FULL_EXPOSURE, true);
         const opacity = effect.addComponent(UIOpacity);
         tween(effect)
-            .to(0.08, { scale: new Vec3(1.12, 1.12, 1) }, { easing: "quadOut" })
+            .to(
+                0.08,
+                { scale: new Vec3(scaleX * 1.12, scaleY * 1.12, 1) },
+                { easing: "quadOut" },
+            )
             .to(
                 MATCH_DURATION - 0.08,
                 {
-                    scale: new Vec3(0.6, 0.6, 1),
+                    scale: new Vec3(scaleX * 0.6, scaleY * 0.6, 1),
                     position: new Vec3(
                         effect.position.x,
                         effect.position.y + 24,

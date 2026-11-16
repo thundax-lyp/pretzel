@@ -442,7 +442,7 @@ export class FlipZooStartScreen extends Component {
         const { width, height } = TABLE[level];
         const slotPitch = width + (level === 2 && WECHAT ? 7 : 5);
         const tutorial = level === 1;
-        const trayHeight = tutorial ? height + 54 : height + 36;
+        const trayHeight = height + (tutorial ? 54 : WECHAT ? 52 : 36);
         const tray = this.panel(
             this.gameRoot,
             "SlotTray",
@@ -734,6 +734,7 @@ export class FlipZooStartScreen extends Component {
             return view;
         });
         this.createSlotTray();
+        if (level === 2 && !WECHAT) this.matchSlotSizeToBoard();
         if (this.matchLayer) {
             this.matchLayer.removeFromParent();
             this.matchLayer.destroy();
@@ -803,7 +804,6 @@ export class FlipZooStartScreen extends Component {
                 this.slots[index].node,
                 this.slots[index + 1].node,
                 previous[index],
-                TABLE[this.round.level],
             );
         }
         this.refreshSlots(previous.slice(0, insertionIndex));
@@ -838,7 +838,6 @@ export class FlipZooStartScreen extends Component {
             this.cards[card.id].node,
             this.slots[slotIndex].node,
             card.kind,
-            TABLE[this.round.level],
             onLanded,
         );
     }
@@ -852,7 +851,6 @@ export class FlipZooStartScreen extends Component {
             this.art,
             kind,
             indices,
-            TABLE[this.round.level],
         );
     }
 
@@ -2086,6 +2084,18 @@ export class FlipZooStartScreen extends Component {
         this.board.node.setPosition(0, center);
         if (!tutorial) this.resizeMainTiles(matBounds.width, boardHeight);
         this.fitBoard(this.board.node, matBounds.width, boardHeight);
+        if (!tutorial) this.matchSlotSizeToBoard();
+    }
+
+    private matchSlotSizeToBoard(): void {
+        const board = this.board!;
+        for (const slot of this.slots) {
+            slot.setHeight(board.tileHeight);
+            slot.node.setScale(board.node.scale);
+        }
+        if (!this.animatingCards) {
+            this.refreshSlots(this.round.slots.map((card) => card.kind));
+        }
     }
 
     private resizeMainTiles(width: number, height: number): void {
