@@ -708,13 +708,23 @@ export class FlipZooStartScreen extends Component {
         this.fitBoard(board, mat.width, mat.height);
         this.board = { node: board, left, top, tileHeight: table.height };
         board.on(Node.EventType.TOUCH_END, this.onBoardTouch, this);
+        const layerNumbers = Array.from(
+            new Set(this.round.cards.map((card) => card.layer)),
+        ).sort((a, b) => a - b);
+        const layers = new Map(
+            layerNumbers.map((layer) => [
+                layer,
+                uiNode(board, `Layer-${layer}`),
+            ]),
+        );
         this.cards = this.round.cards.map((card) => {
             const view = new CardView(
-                board,
+                layers.get(card.layer)!,
                 `Card-${card.id}`,
                 table.width,
                 table.height,
                 this.art,
+                level === 2 ? card.layer : 0,
             );
             view.node.setPosition(
                 (card.left - left + 0.5) * table.width - width / 2,
@@ -1852,13 +1862,14 @@ export class FlipZooStartScreen extends Component {
     private refreshBoard(): void {
         const { round } = this;
         for (const card of round.cards) {
-            const exposure = round.isOnBoard(card) ? round.exposure(card) : 0;
+            const view = this.cards[card.id];
+            if (!round.isOnBoard(card)) {
+                view.node.active = false;
+                continue;
+            }
+            const exposure = round.exposure(card);
             const kind = round.isFaceUp(card, exposure) ? card.kind : null;
-            this.cards[card.id].show(
-                kind,
-                exposure,
-                round.isSelectable(exposure),
-            );
+            view.show(kind, exposure, round.isSelectable(exposure));
         }
     }
 
@@ -2088,12 +2099,8 @@ export class FlipZooStartScreen extends Component {
                 view.node.position.x,
                 bounds.height / 2 - (card.top - board.top + 0.5) * tileHeight,
             );
-            const exposure = this.round.isOnBoard(card)
-                ? this.round.exposure(card)
-                : 0;
-            const kind = this.round.isFaceUp(card, exposure) ? card.kind : null;
-            view.show(kind, exposure, this.round.isSelectable(exposure));
         }
+        this.refreshBoard();
     }
 
     private pageScale(height: number): number {

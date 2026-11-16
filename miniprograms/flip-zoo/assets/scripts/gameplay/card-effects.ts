@@ -34,10 +34,12 @@ export function flyCardToSlot(
     const start = layerTransform.convertToNodeSpaceAR(source.worldPosition);
     const end = layerTransform.convertToNodeSpaceAR(target.worldPosition);
     const position = new Vec3();
+    const sourceScale = source.worldScale;
+    const layerScale = layer.worldScale;
     const startScale = new Vec3(
-        source.parent!.scale.x,
-        (source.parent!.scale.y * source.getComponent(UITransform)!.height) /
-            height,
+        sourceScale.x / layerScale.x,
+        (sourceScale.y * source.getComponent(UITransform)!.height) /
+            (layerScale.y * height),
         1,
     );
     const endScale = new Vec3(1, 1, 1);

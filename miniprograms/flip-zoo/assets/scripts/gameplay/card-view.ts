@@ -4,6 +4,16 @@ import { FULL_EXPOSURE } from "./round";
 
 import { color, label, picture, uiNode } from "../ui/nodes";
 
+const ELEVATION_SIDES = [
+    "#83B55A",
+    "#78A857",
+    "#67974C",
+    "#588647",
+    "#47743D",
+    "#355C31",
+];
+const ELEVATION_OFFSET = 2;
+
 export class CardView {
     readonly node: Node;
     private readonly body: Graphics;
@@ -12,6 +22,8 @@ export class CardView {
     private readonly portraitSize: UITransform;
     private readonly mark: Label;
     private readonly width: number;
+    private readonly elevation: number;
+    private readonly drawingOffset: number;
     private height: number;
     private lastAppearance = "";
 
@@ -21,15 +33,23 @@ export class CardView {
         width: number,
         height: number,
         art: ZooArtwork,
+        elevation = 0,
     ) {
         this.art = art;
         this.width = width;
         this.height = height;
+        this.elevation = Math.min(elevation, ELEVATION_SIDES.length - 1);
+        this.drawingOffset = elevation * ELEVATION_OFFSET;
         this.node = uiNode(parent, name, width, height);
-        this.body = this.node.addComponent(Graphics);
-        this.portrait = picture(this.node, "Portrait", art.paw, width);
+        const drawing =
+            elevation > 0 ? uiNode(this.node, "Drawing") : this.node;
+        if (drawing !== this.node) {
+            drawing.setPosition(this.drawingOffset, this.drawingOffset);
+        }
+        this.body = drawing.addComponent(Graphics);
+        this.portrait = picture(drawing, "Portrait", art.paw, width);
         this.portraitSize = this.portrait.node.getComponent(UITransform)!;
-        this.mark = label(this.node, "", 36);
+        this.mark = label(drawing, "", 36);
         this.mark.isBold = true;
     }
 
@@ -41,16 +61,18 @@ export class CardView {
     }
 
     show(kind: number | null, exposure: number, selectable: boolean): void {
-        this.node.active = exposure !== 0;
-        if (!this.node.active) return;
+        this.node.active = true;
         const appearance = `${kind}/${exposure}/${selectable}`;
         if (this.lastAppearance === appearance) return;
         this.lastAppearance = appearance;
 
         this.mark.string = "";
-        const faceDown = kind === null;
+        const faceDown = kind === null || exposure === 0;
         this.paintTile(faceDown, selectable);
-        this.portrait.node.active = true;
+        // A fully covered tile can still contribute a visible strip after
+        // the drawing offset. Show its body without exposing its portrait.
+        this.portrait.node.active = exposure !== 0;
+        if (exposure === 0) return;
         if (kind === null) {
             const size = (Math.min(this.width, this.height) - 12) * 0.56;
             this.portrait.spriteFrame = this.art.paw;
@@ -74,15 +96,20 @@ export class CardView {
     }
 
     private paintTile(faceDown: boolean, selectable: boolean): void {
-        const { body, width, height } = this;
+        const { body, width, height, elevation } = this;
         const x = -width / 2 + 2;
         const y = -height / 2 + 2;
         const edge = 6;
+        const summit = elevation === ELEVATION_SIDES.length - 1;
         body.clear();
         body.lineWidth = 2;
         body.strokeColor = color(selectable ? "#49763F" : "#648056");
 
-        body.fillColor = color(selectable ? "#83B55A" : "#88A577");
+        body.fillColor = color(
+            selectable || elevation > 0
+                ? ELEVATION_SIDES[elevation]
+                : "#88A577",
+        );
         body.roundRect(x, y, width - 4, height - 4, 7);
         body.fill();
         body.stroke();
@@ -100,8 +127,11 @@ export class CardView {
         body.fill();
         body.stroke();
         if (selectable) {
-            body.fillColor = new Color(255, 255, 255, 145);
-            body.roundRect(x + 8, y + height - 11, width - 20, 3, 1.5);
+            body.fillColor = summit
+                ? color("#FFF0A6")
+                : new Color(255, 255, 255, 145);
+            const rim = summit ? 4 : 3;
+            body.roundRect(x + 8, y + height - 11, width - 20, rim, rim / 2);
             body.fill();
         }
     }
