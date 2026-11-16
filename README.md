@@ -15,4 +15,4 @@ Pretzel 仓库维护多个微信小游戏。各游戏使用 Cocos Creator 3.8.8 
 
 仓库工具依赖在根目录执行 `npm ci` 安装。游戏客户端通过 Cocos Creator 3.8.8 打开 miniprograms/flip-zoo，构建微信小游戏后将生成目录导入微信开发者工具。
 
-公开配置模板为 .env.example，真实配置放在 .env 或 dev.env，二者都不提交。所有人工维护的代码和配置统一为 4 个空格缩进。
+公开配置模板为 .env.example，真实配置放在私有 .env 中。所有人工维护的代码和配置统一为 4 个空格缩进。

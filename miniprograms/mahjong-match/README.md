@@ -4,6 +4,8 @@
 
 使用 Node.js 22 安装依赖并执行检查。
 
+先在仓库根目录运行 `npm ci` 安装共享 ESLint，再在本工程目录执行。
+
 ```sh
 npm ci
 npm run typecheck

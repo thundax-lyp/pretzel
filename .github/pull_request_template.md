@@ -11,7 +11,7 @@
 记录实际执行命令、结果与远端 CI 状态；不适用项说明原因。
 
 - 小程序（逐个受影响的工程记录）：npm ci / npm run typecheck / npm run lint / npm run format:check；工程有测试入口时运行 npm test。
-- 工具：结构检查、格式、Oxlint 与工具测试。
+- 工具：结构检查、格式、ESLint 与工具测试。
 - 人工或运行时冒烟：
 
 ## Not Covered

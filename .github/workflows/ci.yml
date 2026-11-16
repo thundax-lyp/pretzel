@@ -37,7 +37,7 @@ jobs:
                           printf '%s=true\n' "$check" >> "$GITHUB_OUTPUT"
                       fi
                   }
-                  shared=(.github/workflows/ .editorconfig .oxlintrc.json .prettierrc.json .prettierignore)
+                  shared=(package.json package-lock.json .github/workflows/ .editorconfig eslint.config.mjs .prettierrc.json .prettierignore)
                   changed flip-zoo miniprograms/flip-zoo/ "${shared[@]}"
                   changed mahjong-match miniprograms/mahjong-match/ "${shared[@]}"
     tooling:
@@ -77,7 +77,11 @@ jobs:
               with:
                   node-version: "22"
                   cache: npm
-                  cache-dependency-path: miniprograms/flip-zoo/package-lock.json
+                  cache-dependency-path: |
+                      package-lock.json
+                      miniprograms/flip-zoo/package-lock.json
+            - run: npm ci
+              working-directory: .
             - run: npm ci
             - run: npm run typecheck
             - run: npm test
@@ -97,7 +101,11 @@ jobs:
               with:
                   node-version: "22"
                   cache: npm
-                  cache-dependency-path: miniprograms/mahjong-match/package-lock.json
+                  cache-dependency-path: |
+                      package-lock.json
+                      miniprograms/mahjong-match/package-lock.json
+            - run: npm ci
+              working-directory: .
             - run: npm ci
             - run: npm run typecheck
             - run: npm run lint
