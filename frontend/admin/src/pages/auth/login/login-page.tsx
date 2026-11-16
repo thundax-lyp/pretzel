@@ -113,7 +113,7 @@ export const LoginPage = () => {
                         aria-label="Pretzel"
                     />
                     <Title level={1} className="login-hero-title">
-                        腿了个腿 · 管理后台
+                        Pretzel · 管理后台
                     </Title>
                     <Paragraph className="login-hero-description">
                         使用后台账号和验证码进入工作区。

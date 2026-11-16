@@ -3,12 +3,11 @@
 本文件是项目文档目录树的根节点。只沿当前任务所需分支读取，不通过叶子文档交叉扩散上下文。
 
 - [工程规范](00-governance/README.md)：架构、命名、前端、文档、提交与 PR 规则。
-- [产品需求](10-requirements/README.md)：已确认的游戏与管理端需求，明确待确认事项。
-- [接口契约](20-interfaces/README.md)：认证协议和游戏交互契约。
+- [产品需求](10-requirements/README.md)：已确认的管理端需求，明确待确认事项。
+- [接口契约](20-interfaces/README.md)：管理端认证与权限契约。
 - [设计方案](30-designs/README.md)：领域、客户端、生成算法和数据设计。
-- [验收记录](40-readiness/README.md)：实现与验证证据。
 - [人工业务文档](60-human/README.md)：家园碎片与后续兑换设计。
-- [项目技能](../.agents/skills/README.md)：PR 评审、评论修复、关卡设计与游戏界面审核。
+- [项目技能](../.agents/skills/README.md)：PR 评审、评论修复与游戏界面审核。
 - [开发检查](../scripts/README.md)：格式化、lint 与验证命令。
 
 各分支的 README 只链接本分支子文档。叶子文档直接定义自身职责内的内容，不维护其他分支导航；必要的代码路径和协议名称使用普通文本说明。

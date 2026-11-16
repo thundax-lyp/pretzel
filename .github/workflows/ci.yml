@@ -41,8 +41,6 @@ jobs:
               run: frontend/admin/node_modules/.bin/oxlint --config .oxlintrc.json --deny-warnings scripts .agents
             - name: Structure and review helper tests
               run: node --test scripts/*.test.mjs
-            - name: Level design skill tests
-              run: node --test .agents/skills/pretzel-level-design/scripts/*.test.mjs
             - uses: actions/setup-python@v5
               with:
                   python-version: "3.12"
