@@ -1,4 +1,87 @@
-import { _decorator, Color, Component, Graphics, type Node } from "cc";
+import {
+    _decorator,
+    Color,
+    Component,
+    Graphics,
+    UIOpacity,
+    Vec3,
+    tween,
+    type Node,
+} from "cc";
+import { uiNode } from "../ui/nodes";
+
+export function shatterMirror(
+    overlay: Node,
+    width: number,
+    height: number,
+    onFinished: () => void,
+): void {
+    const impact = new Vec3(width * 0.04, height * 0.08);
+    const rim = [
+        [-0.5, -0.5],
+        [-0.19, -0.5],
+        [0.16, -0.5],
+        [0.5, -0.5],
+        [0.5, -0.22],
+        [0.5, 0.17],
+        [0.5, 0.5],
+        [0.18, 0.5],
+        [-0.18, 0.5],
+        [-0.5, 0.5],
+        [-0.5, 0.23],
+        [-0.5, -0.16],
+    ].map(([x, y]) => new Vec3(x * width, y * height));
+    const inner = rim.map((point, index) =>
+        Vec3.lerp(new Vec3(), impact, point, 0.37 + (index % 3) * 0.1),
+    );
+    const shades = ["#A4C7DC", "#D8F1F7", "#769EBB", "#B9D9E7", "#E9FAFF"].map(
+        (hex) => new Color().fromHEX(hex),
+    );
+    const duration = 0.42;
+    const crackTime = 0.09;
+
+    const addShard = (points: readonly Vec3[], index: number): void => {
+        const center = points
+            .reduce((sum, point) => sum.add(point), new Vec3())
+            .multiplyScalar(1 / points.length);
+        const shard = uiNode(overlay, "MirrorShard");
+        shard.setPosition(center);
+        const graphic = shard.addComponent(Graphics);
+        const [first, ...rest] = points;
+        graphic.moveTo(first.x - center.x, first.y - center.y);
+        for (const point of rest)
+            graphic.lineTo(point.x - center.x, point.y - center.y);
+        graphic.close();
+        graphic.fillColor = shades[index % shades.length];
+        graphic.fill();
+        graphic.strokeColor = new Color(240, 253, 255, 220);
+        graphic.lineWidth = 2;
+        graphic.stroke();
+        const destination = center
+            .clone()
+            .add(center.clone().subtract(impact).multiplyScalar(0.8))
+            .add(new Vec3(0, -height * 0.32));
+        tween(shard)
+            .delay(crackTime)
+            .to(
+                duration,
+                { position: destination, angle: index % 2 === 0 ? 28 : -32 },
+                { easing: "quadIn" },
+            )
+            .start();
+    };
+
+    rim.forEach((point, index) => {
+        const next = (index + 1) % rim.length;
+        addShard([impact, inner[index], inner[next]], index * 2);
+        addShard([inner[index], point, rim[next], inner[next]], index * 2 + 1);
+    });
+    tween(overlay.addComponent(UIOpacity))
+        .delay(crackTime)
+        .to(duration, { opacity: 0 }, { easing: "quadIn" })
+        .call(onFinished)
+        .start();
+}
 
 const COLORS = [
     [255, 200, 74],

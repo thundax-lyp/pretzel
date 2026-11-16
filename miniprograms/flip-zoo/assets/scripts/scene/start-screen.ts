@@ -58,7 +58,7 @@ import {
     titleLine,
     uiNode,
 } from "../ui/nodes";
-import { ClearCelebration } from "../gameplay/clear-celebration";
+import { ClearCelebration, shatterMirror } from "../gameplay/clear-celebration";
 import { showWelcome } from "../home/welcome-view";
 import { SettingsView } from "../settings/settings-view";
 import { ZooAudio } from "../services/zoo-audio";
@@ -188,6 +188,10 @@ export class FlipZooStartScreen extends Component {
             this.overlay?.name === "RoundResult" && this.round.status === "won",
         );
     private readonly boardApi = createBoardApi(WECHAT);
+    private nextBoard?: {
+        requestedAt: number;
+        deal: Promise<(MainBoardDeal & { roundId?: string }) | undefined>;
+    };
     private fragmentRound?: { id: string; actions: RoundAction[] };
     private requestVersion = 0;
     private failedBoardGroup?: Group;
@@ -607,19 +611,40 @@ export class FlipZooStartScreen extends Component {
         }
     }
 
+    private loadMainBoard(): Promise<MainBoardDeal & { roundId?: string }> {
+        return WECHAT && hasCloudEnvironment()
+            ? startFragmentRound()
+            : this.boardApi.loadMainBoard();
+    }
+
+    private preloadMainBoard(): void {
+        if (this.nextBoard) return;
+        this.nextBoard = {
+            requestedAt: Date.now(),
+            deal: this.loadMainBoard().catch(() => undefined),
+        };
+    }
+
     private async startMainBoard(group: Group): Promise<void> {
-        if (this.overlay || this.animatingCards) return;
+        if (this.overlay || this.animatingCards || this.loadingBoard) return;
         this.unschedule(this.advanceToMainBoard);
         const version = ++this.requestVersion;
+        const fromTutorial = this.round.level === 1;
+        const prefetched = this.nextBoard;
+        this.nextBoard = undefined;
         this.loadingBoard = true;
         this.failedBoardGroup = undefined;
         this.message.string = "读取第二关牌局…";
         let deal: MainBoardDeal & { roundId?: string };
         try {
-            deal =
-                WECHAT && hasCloudEnvironment()
-                    ? await startFragmentRound()
-                    : await this.boardApi.loadMainBoard();
+            // Cloud deals expire after 24 hours. Leave time to finish the round.
+            const ready =
+                prefetched &&
+                Date.now() - prefetched.requestedAt < 60 * 60 * 1000
+                    ? await prefetched.deal
+                    : undefined;
+            if (!this.isValid || version !== this.requestVersion) return;
+            deal = ready ?? (await this.loadMainBoard());
         } catch {
             if (this.isValid && version === this.requestVersion) {
                 this.loadingBoard = false;
@@ -637,6 +662,13 @@ export class FlipZooStartScreen extends Component {
             );
             if (deal.roundId)
                 this.fragmentRound = { id: deal.roundId, actions: [] };
+            if (fromTutorial) {
+                const mirror = this.openOverlay("MirrorTransition");
+                const { width, height } = this.screenSize();
+                shatterMirror(mirror, width, height, () => {
+                    if (this.overlay === mirror) this.closeOverlay();
+                });
+            }
         }
     }
 
@@ -753,6 +785,7 @@ export class FlipZooStartScreen extends Component {
         }
 
         this.fragmentRound?.actions.push(card.id);
+        if (this.round.level === 1) this.preloadMainBoard();
         this.animatingCards = true;
         for (let index = insertionIndex; index < previous.length; index += 1) {
             slideSlotCard(
@@ -958,6 +991,7 @@ export class FlipZooStartScreen extends Component {
                     welcome.destroy();
                     this.gameRoot.active = true;
                     this.audio.startMusic();
+                    this.preloadMainBoard();
                 },
                 home: () => this.showHomeCollection(),
                 share: () => this.share(),
@@ -1260,7 +1294,7 @@ export class FlipZooStartScreen extends Component {
             0,
             -34,
         );
-        this.scheduleOnce(this.advanceToMainBoard, 1.25);
+        this.scheduleOnce(this.advanceToMainBoard, 0.55);
     }
 
     private showResult(won: boolean, feedback?: string): void {
