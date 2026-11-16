@@ -47,7 +47,11 @@ python3 scripts/with-env.py --env-file dev.env -- npm --prefix frontend/miniprog
 `FLIP_ZOO_WECHAT_TEST_CLOUD_ENV`。将 `cloudfunctions/flipZooHealth` 部署到对应环境，并安装云端依赖。
 
 配置环境 ID 后，小游戏启动时调用 `flipZooHealth`。云函数通过微信调用上下文验证身份，
-只返回验证结果。接通时，开发者工具控制台显示 `FLIP ZOO cloud connection verified`。
+接通时开发者工具控制台显示 `FLIP ZOO cloud connection verified`。首页优先使用
+`wx.getAccountInfoSync().miniProgram.version`。取不到时通过云函数读取 `flipZooRelease` 集合，
+仍取不到时显示 `0.0.1`。集合文档按 AppID 保存，文档 ID 为
+`version-<AppID>`，字段 `version` 使用 `主版本.次版本.补丁版本`，`pendingVersion` 仅供发布流程
+暂存候选版本。集合权限设为仅云端可读写。发布技能负责创建集合并维护版本文档。
 
 运行 `node scripts/package-fragments.mjs` 生成 `build/cloudfunctions/flipZooFragments`，然后将该目录部署到同一云环境并安装云端依赖。云函数使用 `flipZooFragments` 集合保存牌局、发放记录和余额。集合权限应设为仅云端可读写。
 

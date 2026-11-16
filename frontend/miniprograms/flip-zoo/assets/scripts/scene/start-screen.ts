@@ -29,6 +29,7 @@ import { loadZooArtwork, type ZooArtwork } from "../services/artwork";
 import {
     checkCloudConnection,
     hasCloudEnvironment,
+    readReleaseVersion,
 } from "../services/cloud-health";
 import {
     FRAGMENT_ANIMALS,
@@ -962,13 +963,31 @@ export class FlipZooStartScreen extends Component {
             },
         );
         this.fitScreenArtwork(artwork);
-        const version = this.releaseVersion();
-        if (version) {
-            const caption = label(welcome, `版本 ${version}`, 21, "#FFFFFF");
-            caption.node.name = "ReleaseVersion";
-            caption.node.getComponent(UITransform)!.setAnchorPoint(1, 0.5);
-            caption.node.addComponent(UIOpacity).opacity = 155;
-            this.positionWelcomeVersion(caption.node);
+        void this.loadWelcomeVersion(welcome);
+    }
+
+    private addWelcomeVersion(welcome: Node, version: string): void {
+        const caption = label(welcome, `v ${version}`, 21, "#FFFFFF");
+        caption.node.name = "ReleaseVersion";
+        const transform = caption.node.getComponent(UITransform)!;
+        transform.setContentSize(180, 32);
+        caption.horizontalAlign = Label.HorizontalAlign.RIGHT;
+        caption.overflow = Label.Overflow.SHRINK;
+        caption.node.addComponent(UIOpacity).opacity = Math.round(255 * 0.7);
+        this.positionWelcomeVersion(caption.node);
+    }
+
+    private async loadWelcomeVersion(welcome: Node): Promise<void> {
+        let version = this.releaseVersion();
+        if (!version && WECHAT && hasCloudEnvironment()) {
+            try {
+                version = await readReleaseVersion();
+            } catch {
+                console.warn("FLIP ZOO release version could not be loaded");
+            }
+        }
+        if (this.isValid && this.welcome === welcome) {
+            this.addWelcomeVersion(welcome, version ?? "0.0.1");
         }
     }
 
@@ -987,17 +1006,10 @@ export class FlipZooStartScreen extends Component {
     private positionWelcomeVersion(node: Node): void {
         const { width, height } = this.screenSize();
         const window = WECHAT ? wx.getWindowInfo?.() : undefined;
-        const bottomInset =
-            window?.windowHeight && window.safeArea
-                ? (Math.max(
-                      0,
-                      window.windowHeight -
-                          (window.safeArea.bottom ?? window.windowHeight),
-                  ) *
-                      height) /
-                  window.windowHeight
-                : 0;
-        node.setPosition(width / 2 - 24, -height / 2 + bottomInset + 28);
+        const bottomMargin = window?.windowHeight
+            ? (24 * height) / window.windowHeight
+            : 24;
+        node.setPosition(width / 2 - 24 - 90, -height / 2 + bottomMargin + 18);
     }
 
     private showHomeCollection(): void {
