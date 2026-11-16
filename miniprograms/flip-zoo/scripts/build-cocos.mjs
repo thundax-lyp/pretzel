@@ -141,11 +141,25 @@ try {
         );
         const gameConfigPath = path.join(output, "game.json");
         const gameConfig = JSON.parse(fs.readFileSync(gameConfigPath, "utf8"));
+        const settingsPath = path.join(output, "src/settings.json");
+        const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
+        const mainBundle = JSON.parse(
+            fs.readFileSync(
+                path.join(output, "assets/main/config.json"),
+                "utf8",
+            ),
+        );
+        if (
+            !Object.hasOwn(
+                mainBundle.scenes ?? {},
+                settings.launch?.launchScene,
+            )
+        ) {
+            throw new Error("Cocos did not package the WeChat launch scene");
+        }
         // The Cocos WeChat adapter resolves bundles listed in settings.assets.subpackages from this directory.
         fs.mkdirSync(path.join(output, "subpackages"), { recursive: true });
         gameConfig.subpackages ??= [];
-        const settingsPath = path.join(output, "src/settings.json");
-        const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
         for (const name of ["music", "screens"]) {
             const root = `subpackages/${name}`;
             fs.renameSync(
