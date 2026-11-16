@@ -50,7 +50,7 @@ import {
 import { CardView } from "../gameplay/card-view";
 import {
     artworkButton,
-    screenArtwork,
+    dialogArtwork,
     shadedButton,
     color,
     label,
@@ -490,13 +490,12 @@ export class FlipZooStartScreen extends Component {
         )
             return;
         const dialog = this.openOverlay("AudioSettings");
-        this.gameRoot.active = false;
         this.settingsView ??= new SettingsView(
             this.controls,
             this.audio,
             this.art.screens.settings,
         );
-        this.feedbackControl = this.settingsView.show(dialog, fromWelcome, {
+        this.feedbackControl = this.settingsView.show(dialog, {
             version: this.releaseVersion(),
             contact: () => {
                 if (!WECHAT || !wx.openCustomerServiceConversation) {
@@ -514,7 +513,7 @@ export class FlipZooStartScreen extends Component {
                         : "请在微信小游戏内提交反馈",
                 ),
             privacy: () => this.showPrivacy(fromWelcome),
-            abandon: () => this.confirmAbandon(),
+            abandon: fromWelcome ? undefined : () => this.confirmAbandon(),
             back: () => {
                 if (fromWelcome) this.showWelcome();
                 else this.closeOverlay();
@@ -526,7 +525,6 @@ export class FlipZooStartScreen extends Component {
 
     private showPrivacy(fromWelcome: boolean): void {
         const dialog = this.openOverlay("ChildPrivacy");
-        this.gameRoot.active = false;
         const card = this.panel(
             dialog,
             "PrivacyCard",
@@ -663,7 +661,7 @@ export class FlipZooStartScreen extends Component {
             if (deal.roundId)
                 this.fragmentRound = { id: deal.roundId, actions: [] };
             if (fromTutorial) {
-                const mirror = this.openOverlay("MirrorTransition");
+                const mirror = this.openOverlay("MirrorTransition", false);
                 const { width, height } = this.screenSize();
                 shatterMirror(mirror, width, height, () => {
                     if (this.overlay === mirror) this.closeOverlay();
@@ -945,14 +943,31 @@ export class FlipZooStartScreen extends Component {
         );
     }
 
-    private openOverlay(name: string): Node {
+    private openOverlay(name: string, dimBackground = true): Node {
         this.closeOverlay();
         const overlay = uiNode(this.node, name, 750, 1334);
         this.overlay = overlay;
         const { width, height } = this.screenSize();
         overlay.getComponent(UITransform)!.setContentSize(width, height);
         overlay.addComponent(BlockInputEvents);
+        if (dimBackground) {
+            const backdrop = uiNode(overlay, "DialogBackdrop");
+            backdrop.addComponent(Graphics);
+            this.drawDialogBackdrop(backdrop, width, height);
+        }
         return overlay;
+    }
+
+    private drawDialogBackdrop(
+        node: Node,
+        width: number,
+        height: number,
+    ): void {
+        const graphic = node.getComponent(Graphics)!;
+        graphic.clear();
+        graphic.fillColor = color("#00000080");
+        graphic.rect(-width / 2, -height / 2, width, height);
+        graphic.fill();
     }
 
     private closeOverlay(): void {
@@ -963,7 +978,6 @@ export class FlipZooStartScreen extends Component {
         this.overlay.removeFromParent();
         this.overlay.destroy();
         this.overlay = undefined;
-        this.gameRoot.active = true;
     }
 
     private returnHome(): void {
@@ -1050,11 +1064,15 @@ export class FlipZooStartScreen extends Component {
 
     private showHomeCollection(): void {
         const overlay = this.openOverlay("HomeCollection");
-        this.gameRoot.active = false;
-        const artwork = screenArtwork(
+        const artwork = dialogArtwork(
             overlay,
             "CollectionArtwork",
             this.art.screens.collection,
+            [
+                [181, 416, 792, 1290, 60],
+                [341, 361, 482, 124, 53],
+                [875, 400, 98, 95, 23],
+            ],
         );
         this.fitScreenArtwork(artwork);
         artworkButton(artwork, "关闭家园", 922, 446, 98, 98, () =>
@@ -1299,7 +1317,6 @@ export class FlipZooStartScreen extends Component {
 
     private showResult(won: boolean, feedback?: string): void {
         const result = this.openOverlay("RoundResult");
-        this.gameRoot.active = false;
         const canRevive = !WECHAT && this.round.canRevive;
         const illustration = won ? this.art.winPanda : this.art.sadPanda;
         const panda = picture(
@@ -1565,7 +1582,6 @@ export class FlipZooStartScreen extends Component {
         back = () => this.showWelcome(),
     ): void {
         const overlay = this.openOverlay("Leaderboard");
-        this.gameRoot.active = false;
         const card = this.panel(
             overlay,
             "LeaderboardCard",
@@ -1634,7 +1650,6 @@ export class FlipZooStartScreen extends Component {
     private showPropClaim(prop: Prop): void {
         const round = this.round;
         const dialog = this.openOverlay("PropClaim");
-        this.gameRoot.active = false;
         const [fill, border, height] = (
             {
                 undo: ["#66BFF6", "#307FBF", 510],
@@ -1945,8 +1960,11 @@ export class FlipZooStartScreen extends Component {
                         y * this.pageScale(height),
                     );
             }
-            if (root === this.overlay)
+            if (root === this.overlay) {
                 root.getComponent(UITransform)!.setContentSize(width, height);
+                const backdrop = root.getChildByName("DialogBackdrop");
+                if (backdrop) this.drawDialogBackdrop(backdrop, width, height);
+            }
         }
         this.fitScreenArtwork(this.welcome?.getChildByName("WelcomeArtwork"));
         const version = this.welcome?.getChildByName("ReleaseVersion");
