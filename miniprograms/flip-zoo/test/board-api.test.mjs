@@ -5,6 +5,7 @@ import {
     MAIN_BOARD_POOL,
 } from "../assets/scripts/services/main-board-pool.ts";
 import { createBoardApi } from "../assets/scripts/services/board-api.ts";
+import { isInsideCardOutline } from "../assets/scripts/gameplay/card-outline.ts";
 import {
     ANIMAL_KIND_COUNT,
     MAIN_LAYOUTS,
@@ -22,6 +23,29 @@ function usePreviewOrigin(context) {
     });
     context.after(() => delete globalThis.location);
 }
+
+test("the visible right edge of an elevated card extends past its logical footprint", () => {
+    const deal = MAIN_BOARD_POOL.find(({ name }) => name === "T 型峰顶 A");
+    const round = new Round(2, "C", deal.kinds, undefined, deal.layout);
+    const summit = round.cards[188];
+    const width = 88;
+    const height = 92;
+    const offset = summit.layer * 2;
+    const rightEdge = summit.left + 1 + 6 / width;
+    const middle = summit.top + 0.5;
+    assert.equal(round.cardAt(rightEdge, middle).id, 162);
+    assert.ok(round.isSelectable(round.exposure(summit)));
+    assert.ok(
+        isInsideCardOutline(
+            (rightEdge - summit.left - 0.5) * width - offset,
+            (summit.top + 0.5 - middle) * height - offset,
+            width,
+            height,
+        ),
+    );
+    assert.equal(isInsideCardOutline(44, 0, width, height), false);
+    assert.equal(isInsideCardOutline(43, 45, width, height), false);
+});
 
 test("WeChat draws each saved board without contacting the preview server", async (context) => {
     usePreviewOrigin(context);

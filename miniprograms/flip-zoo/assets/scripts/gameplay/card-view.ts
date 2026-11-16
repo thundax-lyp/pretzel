@@ -1,5 +1,6 @@
 import { Color, Graphics, Label, Node, Sprite, UITransform } from "cc";
 import type { ZooArtwork } from "../services/artwork";
+import { CARD_INSET, CARD_RADIUS, isInsideCardOutline } from "./card-outline";
 import { FULL_EXPOSURE } from "./round";
 
 import { color, label, picture, uiNode } from "../ui/nodes";
@@ -23,7 +24,7 @@ export class CardView {
     private readonly mark: Label;
     private readonly width: number;
     private readonly elevation: number;
-    private readonly drawingOffset: number;
+    readonly drawingOffset: number;
     private height: number;
     private lastAppearance = "";
 
@@ -58,6 +59,16 @@ export class CardView {
         this.height = height;
         this.node.getComponent(UITransform)!.setContentSize(this.width, height);
         this.lastAppearance = "";
+    }
+
+    containsBoardPoint(x: number, y: number): boolean {
+        const { position } = this.node;
+        return isInsideCardOutline(
+            x - position.x - this.drawingOffset,
+            y - position.y - this.drawingOffset,
+            this.width,
+            this.height,
+        );
     }
 
     show(
@@ -106,8 +117,10 @@ export class CardView {
         upperCards: readonly CardView[],
     ): void {
         const { body, width, height, elevation } = this;
-        const x = -width / 2 + 2;
-        const y = -height / 2 + 2;
+        const x = -width / 2 + CARD_INSET;
+        const y = -height / 2 + CARD_INSET;
+        const faceWidth = -2 * x;
+        const tileHeight = -2 * y;
         const edge = 6;
         const summit = elevation === ELEVATION_SIDES.length - 1;
         body.clear();
@@ -119,7 +132,7 @@ export class CardView {
                 ? ELEVATION_SIDES[elevation]
                 : "#88A577",
         );
-        body.roundRect(x, y, width - 4, height - 4, 7);
+        body.roundRect(x, y, faceWidth, tileHeight, CARD_RADIUS);
         body.fill();
         body.stroke();
 
@@ -132,7 +145,7 @@ export class CardView {
                   ? "#FFF7D9"
                   : "#E7E7C4",
         );
-        body.roundRect(x, y + edge, width - 4, height - 4 - edge, 7);
+        body.roundRect(x, y + edge, faceWidth, tileHeight - edge, CARD_RADIUS);
         body.fill();
         body.stroke();
         if (selectable) {
@@ -171,10 +184,10 @@ export class CardView {
             const offset = upper.drawingOffset - drawingOffset;
             const x = upper.node.position.x - node.position.x + offset;
             const y = upper.node.position.y - node.position.y + offset;
-            const l = x - upper.width / 2 + 2;
-            const r = x + upper.width / 2 - 2;
-            const b = y - upper.height / 2 + 2;
-            const t = y + upper.height / 2 - 2;
+            const l = x - upper.width / 2 + CARD_INSET;
+            const r = x + upper.width / 2 - CARD_INSET;
+            const b = y - upper.height / 2 + CARD_INSET;
+            const t = y + upper.height / 2 - CARD_INSET;
             body.fillColor = color("#304B2929");
             strip(r, b, r + 5, t);
             strip(l, b - 5, r, b);

@@ -158,6 +158,7 @@ export class FlipZooStartScreen extends Component {
         left: number;
         top: number;
         tileHeight: number;
+        touchArea?: UITransform;
     };
     private matchLayer?: Node;
     private animatingCards = false;
@@ -708,7 +709,6 @@ export class FlipZooStartScreen extends Component {
         const mat = this.playMats[level].getComponent(UITransform)!;
         this.fitBoard(board, mat.width, mat.height);
         this.board = { node: board, left, top, tileHeight: table.height };
-        board.on(Node.EventType.TOUCH_END, this.onBoardTouch, this);
         const layerNumbers = Array.from(
             new Set(this.round.cards.map((card) => card.layer)),
         ).sort((a, b) => a - b);
@@ -733,6 +733,23 @@ export class FlipZooStartScreen extends Component {
             );
             return view;
         });
+        if (level === 2) {
+            // Include the right and top overhang of elevated drawings.
+            const lift = Math.max(
+                ...this.cards.map((card) => card.drawingOffset),
+            );
+            const touchArea = uiNode(
+                board,
+                "BoardTouch",
+                width + lift,
+                height + lift,
+            );
+            touchArea.setPosition(lift / 2, lift / 2);
+            touchArea.on(Node.EventType.TOUCH_END, this.onBoardTouch, this);
+            this.board.touchArea = touchArea.getComponent(UITransform)!;
+        } else {
+            board.on(Node.EventType.TOUCH_END, this.onBoardTouch, this);
+        }
         this.createSlotTray();
         if (level === 2 && !WECHAT) this.matchSlotSizeToBoard();
         if (this.matchLayer) {
@@ -778,11 +795,13 @@ export class FlipZooStartScreen extends Component {
         const local = transform.convertToNodeSpaceAR(
             new Vec3(point.x, point.y),
         );
-        const table = TABLE[this.round.level];
-        const card = this.round.cardAt(
-            left + (local.x + transform.width / 2) / table.width,
-            top + (transform.height / 2 - local.y) / tileHeight,
-        );
+        const card =
+            this.round.level === 2
+                ? this.drawnCardAt(local.x, local.y)
+                : this.round.cardAt(
+                      left + (local.x + transform.width / 2) / TABLE[1].width,
+                      top + (transform.height / 2 - local.y) / tileHeight,
+                  );
         if (!card) return;
         const insertionIndex = this.round.slotInsertionIndex(card.kind);
         const previous = this.round.slots.map((tile) => tile.kind);
@@ -825,6 +844,20 @@ export class FlipZooStartScreen extends Component {
             this.finishAction(matched > 0);
         });
         this.refreshBoard();
+    }
+
+    private drawnCardAt(x: number, y: number): Card | undefined {
+        const { round } = this;
+        for (let index = round.cards.length - 1; index >= 0; index -= 1) {
+            const card = round.cards[index];
+            if (
+                round.isOnBoard(card) &&
+                this.cards[card.id].containsBoardPoint(x, y)
+            ) {
+                return card;
+            }
+        }
+        return undefined;
     }
 
     private flyCardToSlot(
@@ -2108,8 +2141,10 @@ export class FlipZooStartScreen extends Component {
             Math.min(TABLE[2].height * 1.24, (height - 20) / rows / widthScale),
         );
         if (Math.abs(tileHeight - board.tileHeight) < 0.01) return;
+        const heightChange = rows * (tileHeight - board.tileHeight);
         board.tileHeight = tileHeight;
         bounds.setContentSize(bounds.width, rows * tileHeight);
+        if (board.touchArea) board.touchArea.height += heightChange;
         for (const card of this.round.cards) {
             const view = this.cards[card.id];
             view.setHeight(tileHeight);
