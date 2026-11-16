@@ -60,15 +60,20 @@ export class CardView {
         this.lastAppearance = "";
     }
 
-    show(kind: number | null, exposure: number, selectable: boolean): void {
+    show(
+        kind: number | null,
+        exposure: number,
+        selectable: boolean,
+        upperCards: readonly CardView[] = [],
+    ): void {
         this.node.active = true;
-        const appearance = `${kind}/${exposure}/${selectable}`;
+        const appearance = `${kind}/${exposure}/${selectable}/${upperCards.map((card) => card.node.name).join(",")}`;
         if (this.lastAppearance === appearance) return;
         this.lastAppearance = appearance;
 
         this.mark.string = "";
         const faceDown = kind === null || exposure === 0;
-        this.paintTile(faceDown, selectable);
+        this.paintTile(faceDown, selectable, upperCards);
         // A fully covered tile can still contribute a visible strip after
         // the drawing offset. Show its body without exposing its portrait.
         this.portrait.node.active = exposure !== 0;
@@ -95,7 +100,11 @@ export class CardView {
         );
     }
 
-    private paintTile(faceDown: boolean, selectable: boolean): void {
+    private paintTile(
+        faceDown: boolean,
+        selectable: boolean,
+        upperCards: readonly CardView[],
+    ): void {
         const { body, width, height, elevation } = this;
         const x = -width / 2 + 2;
         const y = -height / 2 + 2;
@@ -133,6 +142,48 @@ export class CardView {
             const rim = summit ? 4 : 3;
             body.roundRect(x + 8, y + height - 11, width - 20, rim, rim / 2);
             body.fill();
+        }
+        if (upperCards.length > 0) {
+            this.paintOverlapEdges(upperCards, x, y + edge, -x, -y);
+        }
+    }
+
+    private paintOverlapEdges(
+        upperCards: readonly CardView[],
+        left: number,
+        bottom: number,
+        right: number,
+        top: number,
+    ): void {
+        const { body, node, drawingOffset } = this;
+        const strip = (x: number, y: number, endX: number, endY: number) => {
+            const leftEdge = Math.max(left, x);
+            const bottomEdge = Math.max(bottom, y);
+            const width = Math.min(right, endX) - leftEdge;
+            const height = Math.min(top, endY) - bottomEdge;
+            if (width <= 0 || height <= 0) return;
+            body.rect(leftEdge, bottomEdge, width, height);
+            body.fill();
+        };
+        for (const upper of upperCards) {
+            // Both tile outlines are inset by two units. Work in the lower
+            // drawing's coordinates, including the difference in lift.
+            const offset = upper.drawingOffset - drawingOffset;
+            const x = upper.node.position.x - node.position.x + offset;
+            const y = upper.node.position.y - node.position.y + offset;
+            const l = x - upper.width / 2 + 2;
+            const r = x + upper.width / 2 - 2;
+            const b = y - upper.height / 2 + 2;
+            const t = y + upper.height / 2 - 2;
+            body.fillColor = color("#304B2929");
+            strip(r, b, r + 5, t);
+            strip(l, b - 5, r, b);
+
+            body.fillColor = color("#3D592D60");
+            strip(l - 2, b, l, t);
+            strip(r, b, r + 2, t);
+            strip(l, b - 2, r, b);
+            strip(l, t, r, t + 2);
         }
     }
 

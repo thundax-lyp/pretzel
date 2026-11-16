@@ -181,7 +181,7 @@ export const DEFAULT_BOARD_KINDS: readonly number[] = MAIN_DECK.map(
     (card) => card.kind,
 );
 
-function covers(upper: Card, lower: Card): boolean {
+export function covers(upper: Card, lower: Card): boolean {
     return (
         upper.layer > lower.layer &&
         Math.abs(upper.left - lower.left) < 1 &&

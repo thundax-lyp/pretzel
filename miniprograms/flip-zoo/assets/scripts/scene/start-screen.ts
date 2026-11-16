@@ -66,6 +66,7 @@ import {
     FULL_EXPOSURE,
     GROUPS,
     PROPS,
+    covers,
     Round,
     type Card,
     type Group,
@@ -1861,6 +1862,7 @@ export class FlipZooStartScreen extends Component {
 
     private refreshBoard(): void {
         const { round } = this;
+        const onBoard = round.cards.filter((card) => round.isOnBoard(card));
         for (const card of round.cards) {
             const view = this.cards[card.id];
             if (!round.isOnBoard(card)) {
@@ -1869,7 +1871,13 @@ export class FlipZooStartScreen extends Component {
             }
             const exposure = round.exposure(card);
             const kind = round.isFaceUp(card, exposure) ? card.kind : null;
-            view.show(kind, exposure, round.isSelectable(exposure));
+            const upperCards =
+                exposure !== FULL_EXPOSURE
+                    ? onBoard
+                          .filter((upper) => covers(upper, card))
+                          .map((upper) => this.cards[upper.id])
+                    : [];
+            view.show(kind, exposure, round.isSelectable(exposure), upperCards);
         }
     }
 
