@@ -175,19 +175,21 @@ try {
         const firstScreenPath = path.join(output, "first-screen.js");
         let firstScreen = fs.readFileSync(firstScreenPath, "utf8");
         const artPath = (filename) => {
+            const source = path.join(project, "assets/resources/art", filename);
             const { uuid } = JSON.parse(
-                fs.readFileSync(
-                    path.join(
-                        project,
-                        "assets/resources/art",
-                        filename + ".meta",
-                    ),
-                    "utf8",
-                ),
+                fs.readFileSync(source + ".meta", "utf8"),
             );
             const nativePath = `assets/resources/native/${uuid.slice(0, 2)}/${uuid}${path.extname(filename)}`;
-            fs.accessSync(path.join(output, nativePath), fs.constants.R_OK);
-            return JSON.stringify(nativePath);
+            if (fs.existsSync(path.join(output, nativePath))) {
+                return JSON.stringify(nativePath);
+            }
+            // The bootstrap needs the original image even when Creator packs it differently.
+            const bootstrapPath = `first-screen/${filename}`;
+            fs.mkdirSync(path.join(output, "first-screen"), {
+                recursive: true,
+            });
+            fs.copyFileSync(source, path.join(output, bootstrapPath));
+            return JSON.stringify(bootstrapPath);
         };
         // The WeChat bootstrap draws before Cocos loads the game scene.
         const appearance = {
