@@ -782,6 +782,7 @@ export class FlipZooStartScreen extends Component {
                       : "找三张同款";
             this.finishAction(matched > 0);
         });
+        this.refreshBoard();
     }
 
     private flyCardToSlot(
@@ -1799,7 +1800,7 @@ export class FlipZooStartScreen extends Component {
         });
     }
 
-    private refresh(): void {
+    private refreshBoard(): void {
         const { round } = this;
         for (const card of round.cards) {
             const exposure = round.isOnBoard(card) ? round.exposure(card) : 0;
@@ -1810,6 +1811,11 @@ export class FlipZooStartScreen extends Component {
                 round.isSelectable(exposure),
             );
         }
+    }
+
+    private refresh(): void {
+        const { round } = this;
+        this.refreshBoard();
         this.refreshSlots(round.slots.map((card) => card.kind));
         for (const [prop, { button, count }] of this.propButtons) {
             button.node.active = round.level === 2;
