@@ -11,7 +11,6 @@ jobs:
     changes:
         runs-on: ubuntu-latest
         outputs:
-            admin: ${{ steps.paths.outputs.admin }}
             flip-zoo: ${{ steps.paths.outputs.flip-zoo }}
             mahjong-match: ${{ steps.paths.outputs.mahjong-match }}
         steps:
@@ -39,28 +38,8 @@ jobs:
                       fi
                   }
                   shared=(.github/workflows/ .editorconfig .oxlintrc.json .prettierrc.json .prettierignore)
-                  changed admin frontend/admin/ "${shared[@]}"
                   changed flip-zoo frontend/miniprograms/flip-zoo/ "${shared[@]}"
                   changed mahjong-match frontend/miniprograms/mahjong-match/ "${shared[@]}"
-    admin:
-        needs: changes
-        if: needs.changes.outputs.admin == 'true'
-        runs-on: ubuntu-latest
-        defaults:
-            run:
-                working-directory: frontend/admin
-        steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-node@v4
-              with:
-                  node-version: "22"
-                  cache: npm
-                  cache-dependency-path: frontend/admin/package-lock.json
-            - run: npm ci
-            - run: npm run format:check
-            - run: npm run lint
-            - run: npm test
-            - run: npm run build
     tooling:
         needs: changes
         if: always() && !cancelled()
@@ -75,14 +54,14 @@ jobs:
               with:
                   node-version: "22"
                   cache: npm
-                  cache-dependency-path: frontend/admin/package-lock.json
-            - run: npm ci --prefix frontend/admin
+                  cache-dependency-path: package-lock.json
+            - run: npm ci
             - name: Repository format (4 spaces)
-              run: node scripts/check-format.mjs
+              run: npm run format:check
             - name: Tool lint
-              run: frontend/admin/node_modules/.bin/oxlint --config .oxlintrc.json --deny-warnings scripts .agents
+              run: npm run lint
             - name: Structure and review helper tests
-              run: node --test scripts/*.test.mjs
+              run: npm test
             - uses: actions/setup-python@v5
               with:
                   python-version: "3.12"

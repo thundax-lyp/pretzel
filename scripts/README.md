@@ -5,7 +5,7 @@
 ## 安装
 
 ```sh
-npm --prefix frontend/admin ci
+npm ci
 npm --prefix frontend/miniprograms/flip-zoo ci
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements-dev.txt
@@ -16,24 +16,21 @@ python3 -m venv .venv
 ```sh
 # 检查；需要应用统一格式时追加 --write。
 node scripts/check-format.mjs
-npm --prefix frontend/admin run lint
 node --test scripts/check-structure.test.mjs
-frontend/admin/node_modules/.bin/oxlint --config .oxlintrc.json --deny-warnings frontend/miniprograms/flip-zoo scripts
+npm run lint
 .venv/bin/ruff check scripts
 .venv/bin/ruff format --check scripts
 ```
 
 check-format 根据 .prettierrc.json 处理前端、小程序、配置及 Markdown，尊重 Git 忽略规则，跳过产物、备份和私有文件。Python 由 Ruff 维护。
 
-check-structure 检查前端文件命名、服务依赖方向、HTTP 归属、官方 UI 组件使用与文档目录树。它不代替 TypeScript 编译 或运行时验证。
+check-structure 检查小游戏目录与文档导航。
 
 ## 测试与构建
 
 ```sh
 npm --prefix frontend/miniprograms/flip-zoo run typecheck
 npm --prefix frontend/miniprograms/flip-zoo run lint
-npm --prefix frontend/admin test
-npm --prefix frontend/admin run build
 ```
 
 ## 私有环境加载
@@ -46,7 +43,7 @@ python3 scripts/with-env.py --env-file .env -- <命令>
 
 ## PR 检查触发范围
 
-CI 比较 PR 与目标分支的共同祖先，按改动目录选择管理端、Flip Zoo 和 Mahjong Match 检查。涉及多个应用时，各应用任务并行执行。修改工作流或根目录共享的格式与 lint 配置时，运行所有应用检查。仓库级工具检查每个 PR 都运行；应用任务保留分支保护登记的检查名称。
+CI 比较 PR 与目标分支的共同祖先，按改动目录选择 Flip Zoo 和 Mahjong Match 检查。涉及多个应用时，各应用任务并行执行。修改工作流或根目录共享的格式与 lint 配置时，运行所有应用检查。仓库级工具检查每个 PR 都运行；应用任务保留分支保护登记的检查名称。
 
 ## main 分支保护
 

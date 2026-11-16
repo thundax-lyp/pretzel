@@ -98,7 +98,7 @@ You have reached your Codex usage limits for code reviews.
     - `accept-as-proposed` 或 `accept-with-smaller-fix`：thread finding 先对原评论添加 👍；summary finding 记录 reaction `Not Applicable`。随后实现最小安全修复和回归测试。
     - `reject`：thread finding 添加 👎；summary finding 记录 reaction `Not Applicable`。不修改代码，并在对应回复中说明 finding 不成立或明确超出当前范围的具体依据。
     - `defer-or-decision`：thread finding 添加 👎；summary finding 记录 reaction `Not Applicable`。不修改代码，回复 blocker、缺失决策或 follow-up 条件；thread 保持 unresolved，summary 标记为 `deferred`。
-4. 对修复运行与改动匹配的最窄验证；共享边界、状态机、协议或生命周期变化时扩大到受影响工程：Java 使用 Maven verify/ArchUnit，管理端使用格式、lint、测试与构建，小程序使用 typecheck、lint 和适用行为验证；检查四项 CI 的最新 head。
+4. 对修复运行与改动匹配的最窄验证；共享边界、状态机、协议或生命周期变化时扩大到受影响工程：小程序使用 typecheck、lint 和适用行为验证；检查相关 CI 的最新 head。
 5. 只提交当前任务文件，使用符合 `COMMIT-RULES.md` 的 commit message；不要 amend、rebase、squash 或 reset。
 6. 独立解析 `comment PR` 和当前分支对应的 `fix PR`：如果当前分支有 base 为 `main` 的 open PR，提交后自动 `git push origin <current-branch>`；即使 `comment PR` 是其他 PR，也必须把当前分支的 PR 作为 `fix PR`，不得因为两个 PR 不同而跳过推送。若当前分支没有 `fix PR`，只提交并报告未推送原因；永远不 push `main`。
 7. 回复并回读：thread 只有 reply 成功后才 resolve；summary finding 按“Review Summary Finding”写入并回读带标记的汇总 issue comment，不能 resolve。接受的 actionable finding 回复必须包含处理结论、`comment PR`、`fix PR`、`fix commit` 和实际验证结果；不采纳 finding 的回复必须包含 `comment PR` 和具体依据；暂缓 finding 只能说明 follow-up 状态。`accept-with-smaller-fix` 的回复还必须分别说明原 finding 的触发条件、未采用建议方案的原因，以及更小修复如何消除同一触发条件并保持必要边界。

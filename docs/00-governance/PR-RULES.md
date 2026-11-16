@@ -16,18 +16,17 @@
 
 统一 CI 入口为 .github/workflows/ci.yml，必须显式列出检查，不通过单个脚本隐藏必过项。工作流在面向 main 的 PR 上运行，以 PR 分支与目标分支的共同祖先为起点检测改动。各应用任务独立启动：
 
-- 修改 `frontend/admin/`、`frontend/miniprograms/flip-zoo/` 或 `frontend/miniprograms/mahjong-match/` 时，分别运行对应的检查。改动涉及多个应用时，并行运行。
-- 修改 `.github/workflows/`、`.editorconfig`、`.oxlintrc.json`、`.prettierrc.json` 或 `.prettierignore` 时，运行所有应用检查。
+- 修改 `frontend/miniprograms/flip-zoo/` 或 `frontend/miniprograms/mahjong-match/` 时，分别运行对应的检查。改动涉及多个应用时，并行运行。
+- 修改 `.github/workflows/`、`.editorconfig`、`.oxlintrc.json`、`.prettierrc.json` 或 `.prettierignore` 时，运行所有小游戏检查。
 - 仓库级工具检查在每个 PR 上运行。路径检测失败时，工具检查也会失败。
 
-- 管理端验证使用 Node 22 和 npm 锁文件，执行 npm ci、npm run format:check、npm run lint、npm test、npm run build。
 - `frontend/miniprograms/<工程名>/` 下每款游戏使用 Node 22、独立 npm 锁文件和 Creator 3.8.8 引擎声明。执行 npm ci、npm run typecheck、npm run lint、npm run format:check；有测试入口的工程同时执行 npm test。场景预览和微信小游戏构建使用 Creator，构建输出导入微信开发者工具验收。
 - Python 工具使用 requirements-dev.txt 固定的 Ruff，显式执行 ruff check 与 ruff format --check；Shell 工具执行 sh -n。
 - 目录结构检查与 4 空格格式检查必须通过；检查器自身的回归测试由 CI 执行。
 - 修改共享配置、workflow 或治理契约时检查前端与工具验证是否仍符合规则；仅声明本项目已落地的验证，不将尚未实现的检查列为必过门禁。
 - 新增可自动化验证能力时同步 CI；没有构建或测试入口的模块不得伪造通过。
 - 微信小程序真机、微信登录与分享、广告奖励、生产部署等未自动化事项，明确记录验证缺口。
-- 本地运行最小相关验证；共享前端组件迁移运行全量管理端测试与构建。
+- 本地运行最小相关验证。
 
 ## Description And Review
 
@@ -37,7 +36,7 @@ Code Review 的覆盖范围、finding 门槛与 P0–P3 标准统一由根 AGENT
 
 ## Main Branch Protection
 
-目标配置保存在 .github/main-protection.json：main 必须通过 PR 合并，分支需更新到最新基线，admin、miniprogram、miniprogram (mahjong-match)、tooling 四个检查名称保持稳定。未受影响的应用由任务条件跳过，受影响的应用和工具检查必须通过。管理员也遵守规则，禁止强推和删除，合并前解决讨论。单人仓库暂不要求额外审批人数，不绕过 PR 与 CI。
+目标配置保存在 .github/main-protection.json：main 必须通过 PR 合并，分支需更新到最新基线，miniprogram、miniprogram (mahjong-match)、tooling 三个检查名称保持稳定。未受影响的应用由任务条件跳过，受影响的应用和工具检查必须通过。管理员也遵守规则，禁止强推和删除，合并前解决讨论。单人仓库暂不要求额外审批人数，不绕过 PR 与 CI。
 
 GitHub 私有仓库分支保护依赖账号套餐。当前套餐不支持本仓库分支保护，远端保护尚未生效；仓库保持私有。规则文件不是 GitHub 自动执行的配置，不能把已提交配置当作已启用保护。
 

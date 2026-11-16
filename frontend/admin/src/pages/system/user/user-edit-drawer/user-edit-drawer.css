@@ -1,7 +1,0 @@
-.user-edit-drawer-form {
-    display: grid;
-    gap: 0;
-    --pretzel-form-label-color: var(--user-copy);
-    --pretzel-form-label-font-size: 12px;
-    --pretzel-form-label-font-weight: 700;
-}
