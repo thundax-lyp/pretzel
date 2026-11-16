@@ -427,12 +427,30 @@ test("clear slots completes every group in first-entry order", () => {
     assert.equal(round.use("remove"), false);
 });
 
-test("clear slots preserves the board and use when any group cannot be completed", () => {
+test("clear slots completes a group across layers in highest-first order", () => {
     const round = new Round(
         2,
         "A",
         buildBoardKinds({ keyGroups: 3, overlapGroups: 1 }),
     );
+    assert.equal(round.take(173), 0);
+    const matches = [110, 0].map((id) => round.cards[id]);
+    assert.notEqual(matches[0].layer, matches[1].layer);
+    assert.ok(
+        matches.every((card) => !round.isSelectable(round.exposure(card))),
+    );
+    assert.deepEqual(round.clearSlots(), [
+        { kind: round.cards[173].kind, heldCount: 1, boardCards: matches },
+    ]);
+    assert.deepEqual(round.slots, []);
+    assert.ok(matches.every((card) => !round.isOnBoard(card)));
+    assert.equal(round.propUsesLeft("remove"), 0);
+});
+
+test("clear slots preserves the board and use when any group cannot be completed", () => {
+    const kinds = buildBoardKinds({ keyGroups: 3, overlapGroups: 1 });
+    kinds[0] = kinds[1];
+    const round = new Round(2, "A", kinds);
     assert.equal(round.take(128), 0);
     assert.equal(round.take(173), 0);
     const blocked = [0, 110].map((id) => round.cards[id]);

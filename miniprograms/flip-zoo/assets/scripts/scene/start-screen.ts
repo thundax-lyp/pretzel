@@ -1678,7 +1678,7 @@ export class FlipZooStartScreen extends Component {
         const descriptions: Record<Prop, string> = {
             undo: "最后一张入槽且未消除的牌回到桌面原位，保持正面。已触发三消时不能撤回。",
             peek: "翻开所有无遮挡暗牌。不足三张时从高层受压暗牌补，受压牌仍需移开上层牌才能入槽。",
-            remove: "给槽内每组牌从桌面同一层补齐同款。所有组都能补齐时逐组消除，否则保留原状。",
+            remove: "从桌面优先取高层同款，可跨层补齐槽内牌。所有组都能补齐时逐组消除，否则保留原状。",
         };
         this.heading(
             card,
