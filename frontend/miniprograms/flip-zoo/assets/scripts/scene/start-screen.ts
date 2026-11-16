@@ -1476,28 +1476,36 @@ export class FlipZooStartScreen extends Component {
     }
 
     private showWeekRanking(parent: Node, preview = false): void {
-        const height = preview ? 226 : 515;
-        const list = uiNode(parent, "WeeklyLeaderboard", 550, height);
+        const height = preview ? 226 : 1064;
+        const width = preview
+            ? 550
+            : parent.getComponent(UITransform)!.width - 42;
+        const list = uiNode(parent, "WeeklyLeaderboard", width, height);
         list.setPosition(0, preview ? 12 : -13);
         if (WECHAT && wx.getOpenDataContext?.()) {
-            list.addComponent(SubContextView).fps = 12;
+            list.active = false;
+            const subContext = list.addComponent(SubContextView);
+            subContext.designResolutionSize.set(width, height);
+            subContext.fps = 12;
+            list.active = true;
             if (!preview) {
+                const rowDragDistance = Math.round(height * 0.105);
                 let distance = 0;
                 list.on(Node.EventType.TOUCH_START, () => {
                     distance = 0;
                 });
                 list.on(Node.EventType.TOUCH_MOVE, (event: EventTouch) => {
                     distance += event.getUIDelta().y;
-                    const rows = Math.trunc(distance / 48);
+                    const rows = Math.trunc(distance / rowDragDistance);
                     if (!rows) return;
-                    distance -= rows * 48;
+                    distance -= rows * rowDragDistance;
                     this.postRankMessage("scroll-week", rows);
                 });
             }
             const refresh = this.button(
                 "刷新",
                 preview ? -230 : 233,
-                preview ? -145 : -350,
+                preview ? -145 : -586,
                 98,
                 () =>
                     this.postRankMessage(
@@ -1526,16 +1534,16 @@ export class FlipZooStartScreen extends Component {
             overlay,
             "LeaderboardCard",
             0,
-            642,
-            840,
+            682,
+            1312,
             "#FFF1D4",
             "#8F552B",
         );
-        this.heading(card, "好友排行榜", 418, "#A66532", "#63381D", "small");
+        this.heading(card, "好友排行榜", 654, "#A66532", "#63381D", "small");
         const week = this.button(
             "本周榜",
             -117,
-            333,
+            569,
             226,
             () => this.showLeaderboard(false, back),
             card,
@@ -1544,17 +1552,17 @@ export class FlipZooStartScreen extends Component {
         const previous = this.button(
             "历史榜",
             117,
-            333,
+            569,
             226,
             () => this.showLeaderboard(true, back),
             card,
             58,
         );
         this.paintButton(week, !history, true, "cream");
-        this.paintButton(previous, history, true, "cream");
+        this.paintButton(previous, false, false, "cream");
         if (history) label(card, "历史榜暂未开放", 32, "#56351C");
         else this.showWeekRanking(card);
-        const close = this.button("◀ 返回", 0, -350, 244, back, card, 72);
+        const close = this.button("◀ 返回", 0, -586, 244, back, card, 72);
         this.paintButton(close, true);
     }
 
