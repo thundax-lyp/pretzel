@@ -26,7 +26,7 @@ description: 用户显式调用时，从云数据库读取并递增《翻翻动�
 1. 从 pretzel 仓库根目录执行本地微信构建。当前本地目标从私有 `dev.env` 读取 `FLIP_ZOO_WECHAT_TEST_APP_ID`。用户指定其他目标时，使用该目标对应的已授权构建配置。
 
     ```bash
-    python3 scripts/with-env.py --env-file dev.env -- npm --prefix miniprograms/flip-zoo run build:wechat -- --test
+    node scripts/with-env.mjs --env-file dev.env -- npm --prefix miniprograms/flip-zoo run build:wechat -- --test
     ```
 
 2. 使用本次生成的 `miniprograms/flip-zoo/build/wechatgame-test`。确认构建成功、主包和整包检查通过、`project.config.json` 的 `compileType` 为 `game`，且 AppID 与目标一致。构建或核验失败、或流程取消时，若已确认尚未创建 IDE 上传任务，按 AppID 对应文档和本次候选 `pendingVersion` 做条件更新，只清除该候选字段，保留原 `version`。清理失败须报告并停止；修复后重新从确定版本开始，避免上传旧产物。

@@ -16,4 +16,4 @@
 
 ## 自动检查
 
-EditorConfig 约束编辑器缩进；Prettier 检查前端、小程序和配置；Ruff 检查 Python 格式与静态规范；结构 lint 检查小游戏目录和文档链接。
+EditorConfig 约束编辑器缩进；Prettier 检查前端、小程序和配置；结构 lint 检查小游戏目录和文档链接。

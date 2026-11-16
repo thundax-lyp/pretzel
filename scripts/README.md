@@ -1,14 +1,12 @@
 # 开发工具与检查
 
-从项目根目录执行下列命令。Node 使用 22，Python 工具使用 3.10 或以上。不要将实际凭据写入命令参数或输出。
+从项目根目录执行下列命令。工具统一使用 Node.js 22。不要将实际凭据写入命令参数或输出。
 
 ## 安装
 
 ```sh
 npm ci
 npm --prefix miniprograms/flip-zoo ci
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements-dev.txt
 ```
 
 ## 格式与 lint
@@ -18,11 +16,9 @@ python3 -m venv .venv
 node scripts/check-format.mjs
 node --test scripts/check-structure.test.mjs
 npm run lint
-.venv/bin/ruff check scripts
-.venv/bin/ruff format --check scripts
 ```
 
-check-format 根据 .prettierrc.json 处理前端、小程序、配置及 Markdown，尊重 Git 忽略规则，跳过产物、备份和私有文件。Python 由 Ruff 维护。
+check-format 根据 .prettierrc.json 处理前端、小程序、配置及 Markdown，尊重 Git 忽略规则，跳过产物、备份和私有文件。
 
 check-structure 检查小游戏目录与文档导航。
 
@@ -36,7 +32,7 @@ npm --prefix miniprograms/flip-zoo run lint
 ## 私有环境加载
 
 ```sh
-python3 scripts/with-env.py --env-file .env -- <命令>
+node scripts/with-env.mjs --env-file .env -- <命令>
 ```
 
 环境加载器按字面读取 KEY=VALUE，不执行 Shell 展开。
@@ -55,7 +51,7 @@ node scripts/configure-branch-protection.mjs 将 .github/main-protection.json �
 
 ```sh
 npm --prefix miniprograms/flip-zoo run build:web -- --debug
-python3 scripts/with-env.py --env-file .env -- npm --prefix miniprograms/flip-zoo run build:wechat -- --debug
+node scripts/with-env.mjs --env-file .env -- npm --prefix miniprograms/flip-zoo run build:wechat -- --debug
 ```
 
 Node 关卡设计工具统一采用当前的免费原位复位与移出、纠错、重排规则。广告数据需要在固定输入和预算下重新运行，旧规则报告只可作为历史材料。
