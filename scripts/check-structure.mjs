@@ -39,6 +39,7 @@ const all = files(root);
 const docsRoot = path.join(root, "docs");
 const docsIndex = path.join(docsRoot, "README.md");
 const indexedDocs = new Set();
+const humanDocs = path.join(docsRoot, "60-human") + path.sep;
 for (const file of all.filter(
     (name) => name.endsWith(".md") && name.startsWith(docsRoot + path.sep),
 )) {
@@ -59,6 +60,8 @@ for (const file of all.filter(
                 file,
                 "leaf documents must not maintain cross-document navigation",
             );
+        } else if (target.startsWith(humanDocs)) {
+            fail(file, "human work materials must stay out of docs/README.md");
         } else if (target.startsWith(docsRoot + path.sep)) {
             indexedDocs.add(target);
         }
@@ -68,7 +71,8 @@ for (const file of all.filter(
     (name) =>
         name.startsWith(docsRoot + path.sep) &&
         name.endsWith(".md") &&
-        name !== docsIndex,
+        name !== docsIndex &&
+        !name.startsWith(humanDocs),
 )) {
     if (!indexedDocs.has(file))
         fail(file, "document is missing from docs/README.md");

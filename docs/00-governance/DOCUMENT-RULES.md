@@ -14,7 +14,7 @@
 
 ## Navigation
 
-根 AGENTS 只指向 docs/README.md。docs/README.md 按主题直接链接各份文档，分类目录不再单独建立导航 README。其他文档只维护自身内容。
+根 AGENTS 只指向 docs/README.md。docs/README.md 按主题直接链接各份文档，分类目录不再单独建立导航 README。其他文档只维护自身内容。`docs/60-human/` 存放人工工作资料，独立于工程文档导航。
 
 现有归档资料不恢复为现行文档；当前需求与设计重新编写并独立维护。
 

@@ -50,3 +50,15 @@ test("rejects cross references in document leaves", (t) => {
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /leaf documents/);
 });
+
+test("keeps human work materials outside the navigation", (t) => {
+    const draft = { "docs/60-human/DRAFT.md": "# Draft\n" };
+    assert.equal(fixture(t, draft).status, 0);
+    const indexed = fixture(t, {
+        ...draft,
+        "docs/README.md":
+            "[命名](00-governance/NAMING-RULES.md)\n[草稿](60-human/DRAFT.md)\n",
+    });
+    assert.notEqual(indexed.status, 0);
+    assert.match(indexed.stderr, /human work materials must stay out/);
+});

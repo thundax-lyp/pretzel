@@ -18,10 +18,6 @@
 - [Flip Zoo 游戏设计](30-designs/FLIP-ZOO-DESIGN.md)
 - [休闲消除类游戏 UI 与 UE 设计原则](30-designs/GAME-UI-UE-PRINCIPLES.md)
 
-## 人工工作资料
-
-- [Flip Zoo 改版待办](60-human/FLIP-ZOO-REDESIGN-TODO.md)：参考稿和待验收事项。
-
 ## 开发工具
 
 - [开发检查](../scripts/README.md)：安装、格式、lint 与验证命令。
