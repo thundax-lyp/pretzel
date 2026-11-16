@@ -181,7 +181,7 @@ export const DEFAULT_BOARD_KINDS: readonly number[] = MAIN_DECK.map(
     (card) => card.kind,
 );
 
-function covers(upper: Card, lower: Card): boolean {
+export function covers(upper: Card, lower: Card): boolean {
     return (
         upper.layer > lower.layer &&
         Math.abs(upper.left - lower.left) < 1 &&
@@ -714,11 +714,9 @@ export class Round {
     clearSlots(): readonly SlotClearGroup[] | undefined {
         if (!this.canUse("remove")) return undefined;
 
-        const layers: Card[][] = [];
-        for (const card of this.cards) {
-            if (!this.isOnBoard(card)) continue;
-            (layers[card.layer] ??= []).push(card);
-        }
+        const board = this.cards
+            .filter((card) => this.isOnBoard(card))
+            .sort((a, b) => b.layer - a.layer);
         const groups: SlotClearGroup[] = [];
         for (const { kind } of this.slotted) {
             if (groups.some((group) => group.kind === kind)) continue;
@@ -726,17 +724,10 @@ export class Round {
                 (card) => card.kind === kind,
             ).length;
             const needed = 3 - heldCount;
-            let boardCards: Card[] | undefined;
-            for (let layer = layers.length - 1; layer >= 0; layer -= 1) {
-                const matches = layers[layer]?.filter(
-                    (card) => card.kind === kind,
-                );
-                if (matches && matches.length >= needed) {
-                    boardCards = matches.slice(0, needed);
-                    break;
-                }
-            }
-            if (!boardCards) return undefined;
+            const boardCards = board
+                .filter((card) => card.kind === kind)
+                .slice(0, needed);
+            if (boardCards.length !== needed) return undefined;
             groups.push({ kind, heldCount, boardCards });
         }
 

@@ -42,7 +42,7 @@ const privateFiles = new Set(ignoreResult.stdout.split("\0"));
 for (const file of candidates) {
     if (privateFiles.has(file)) continue;
     if (
-        !/\.(?:[cm]?js|tsx?|css|wxss|wxml|json|ya?ml|md)$/.test(file) ||
+        !/\.(?:[cm]?js|tsx?|css|wxss|wxml|json|meta|ya?ml|md)$/.test(file) ||
         file.endsWith("package-lock.json")
     )
         continue;

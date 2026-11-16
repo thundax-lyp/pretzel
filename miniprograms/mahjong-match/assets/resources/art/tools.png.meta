@@ -1,42 +1,42 @@
 {
-  "ver": "1.0.27",
-  "importer": "image",
-  "imported": true,
-  "uuid": "09416b30-ebf3-4018-9325-daa96845ff8e",
-  "files": [
-    ".json",
-    ".png"
-  ],
-  "subMetas": {
-    "6c48a": {
-      "importer": "texture",
-      "uuid": "09416b30-ebf3-4018-9325-daa96845ff8e@6c48a",
-      "displayName": "tools",
-      "id": "6c48a",
-      "name": "texture",
-      "userData": {
-        "wrapModeS": "clamp-to-edge",
-        "wrapModeT": "clamp-to-edge",
-        "minfilter": "linear",
-        "magfilter": "linear",
-        "mipfilter": "none",
-        "anisotropy": 0,
-        "isUuid": true,
-        "imageUuidOrDatabaseUri": "09416b30-ebf3-4018-9325-daa96845ff8e",
-        "visible": false
-      },
-      "ver": "1.0.22",
-      "imported": true,
-      "files": [
-        ".json"
-      ],
-      "subMetas": {}
+    "ver": "1.0.27",
+    "importer": "image",
+    "imported": true,
+    "uuid": "09416b30-ebf3-4018-9325-daa96845ff8e",
+    "files": [
+        ".json",
+        ".png"
+    ],
+    "subMetas": {
+        "6c48a": {
+            "importer": "texture",
+            "uuid": "09416b30-ebf3-4018-9325-daa96845ff8e@6c48a",
+            "displayName": "tools",
+            "id": "6c48a",
+            "name": "texture",
+            "userData": {
+                "wrapModeS": "clamp-to-edge",
+                "wrapModeT": "clamp-to-edge",
+                "minfilter": "linear",
+                "magfilter": "linear",
+                "mipfilter": "none",
+                "anisotropy": 0,
+                "isUuid": true,
+                "imageUuidOrDatabaseUri": "09416b30-ebf3-4018-9325-daa96845ff8e",
+                "visible": false
+            },
+            "ver": "1.0.22",
+            "imported": true,
+            "files": [
+                ".json"
+            ],
+            "subMetas": {}
+        }
+    },
+    "userData": {
+        "type": "texture",
+        "fixAlphaTransparencyArtifacts": false,
+        "hasAlpha": true,
+        "redirect": "09416b30-ebf3-4018-9325-daa96845ff8e@6c48a"
     }
-  },
-  "userData": {
-    "type": "texture",
-    "fixAlphaTransparencyArtifacts": false,
-    "hasAlpha": true,
-    "redirect": "09416b30-ebf3-4018-9325-daa96845ff8e@6c48a"
-  }
 }

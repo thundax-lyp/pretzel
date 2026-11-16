@@ -66,6 +66,7 @@ import {
     FULL_EXPOSURE,
     GROUPS,
     PROPS,
+    covers,
     Round,
     type Card,
     type Group,
@@ -157,6 +158,7 @@ export class FlipZooStartScreen extends Component {
         left: number;
         top: number;
         tileHeight: number;
+        touchArea?: UITransform;
     };
     private matchLayer?: Node;
     private animatingCards = false;
@@ -441,7 +443,7 @@ export class FlipZooStartScreen extends Component {
         const { width, height } = TABLE[level];
         const slotPitch = width + (level === 2 && WECHAT ? 7 : 5);
         const tutorial = level === 1;
-        const trayHeight = tutorial ? height + 54 : height + 36;
+        const trayHeight = height + (tutorial ? 54 : WECHAT ? 52 : 36);
         const tray = this.panel(
             this.gameRoot,
             "SlotTray",
@@ -707,14 +709,23 @@ export class FlipZooStartScreen extends Component {
         const mat = this.playMats[level].getComponent(UITransform)!;
         this.fitBoard(board, mat.width, mat.height);
         this.board = { node: board, left, top, tileHeight: table.height };
-        board.on(Node.EventType.TOUCH_END, this.onBoardTouch, this);
+        const layerNumbers = Array.from(
+            new Set(this.round.cards.map((card) => card.layer)),
+        ).sort((a, b) => a - b);
+        const layers = new Map(
+            layerNumbers.map((layer) => [
+                layer,
+                uiNode(board, `Layer-${layer}`),
+            ]),
+        );
         this.cards = this.round.cards.map((card) => {
             const view = new CardView(
-                board,
+                layers.get(card.layer)!,
                 `Card-${card.id}`,
                 table.width,
                 table.height,
                 this.art,
+                level === 2 ? card.layer : 0,
             );
             view.node.setPosition(
                 (card.left - left + 0.5) * table.width - width / 2,
@@ -722,7 +733,25 @@ export class FlipZooStartScreen extends Component {
             );
             return view;
         });
+        if (level === 2) {
+            // Include the right and top overhang of elevated drawings.
+            const lift = Math.max(
+                ...this.cards.map((card) => card.drawingOffset),
+            );
+            const touchArea = uiNode(
+                board,
+                "BoardTouch",
+                width + lift,
+                height + lift,
+            );
+            touchArea.setPosition(lift / 2, lift / 2);
+            touchArea.on(Node.EventType.TOUCH_END, this.onBoardTouch, this);
+            this.board.touchArea = touchArea.getComponent(UITransform)!;
+        } else {
+            board.on(Node.EventType.TOUCH_END, this.onBoardTouch, this);
+        }
         this.createSlotTray();
+        if (level === 2 && !WECHAT) this.matchSlotSizeToBoard();
         if (this.matchLayer) {
             this.matchLayer.removeFromParent();
             this.matchLayer.destroy();
@@ -766,11 +795,13 @@ export class FlipZooStartScreen extends Component {
         const local = transform.convertToNodeSpaceAR(
             new Vec3(point.x, point.y),
         );
-        const table = TABLE[this.round.level];
-        const card = this.round.cardAt(
-            left + (local.x + transform.width / 2) / table.width,
-            top + (transform.height / 2 - local.y) / tileHeight,
-        );
+        const card =
+            this.round.level === 2
+                ? this.drawnCardAt(local.x, local.y)
+                : this.round.cardAt(
+                      left + (local.x + transform.width / 2) / TABLE[1].width,
+                      top + (transform.height / 2 - local.y) / tileHeight,
+                  );
         if (!card) return;
         const insertionIndex = this.round.slotInsertionIndex(card.kind);
         const previous = this.round.slots.map((tile) => tile.kind);
@@ -792,7 +823,6 @@ export class FlipZooStartScreen extends Component {
                 this.slots[index].node,
                 this.slots[index + 1].node,
                 previous[index],
-                TABLE[this.round.level],
             );
         }
         this.refreshSlots(previous.slice(0, insertionIndex));
@@ -816,6 +846,20 @@ export class FlipZooStartScreen extends Component {
         this.refreshBoard();
     }
 
+    private drawnCardAt(x: number, y: number): Card | undefined {
+        const { round } = this;
+        for (let index = round.cards.length - 1; index >= 0; index -= 1) {
+            const card = round.cards[index];
+            if (
+                round.isOnBoard(card) &&
+                this.cards[card.id].containsBoardPoint(x, y)
+            ) {
+                return card;
+            }
+        }
+        return undefined;
+    }
+
     private flyCardToSlot(
         card: Card,
         slotIndex: number,
@@ -827,7 +871,6 @@ export class FlipZooStartScreen extends Component {
             this.cards[card.id].node,
             this.slots[slotIndex].node,
             card.kind,
-            TABLE[this.round.level],
             onLanded,
         );
     }
@@ -841,7 +884,6 @@ export class FlipZooStartScreen extends Component {
             this.art,
             kind,
             indices,
-            TABLE[this.round.level],
         );
     }
 
@@ -1669,7 +1711,7 @@ export class FlipZooStartScreen extends Component {
         const descriptions: Record<Prop, string> = {
             undo: "最后一张入槽且未消除的牌回到桌面原位，保持正面。已触发三消时不能撤回。",
             peek: "翻开所有无遮挡暗牌。不足三张时从高层受压暗牌补，受压牌仍需移开上层牌才能入槽。",
-            remove: "给槽内每组牌从桌面同一层补齐同款。所有组都能补齐时逐组消除，否则保留原状。",
+            remove: "从桌面优先取高层同款，可跨层补齐槽内牌。所有组都能补齐时逐组消除，否则保留原状。",
         };
         this.heading(
             card,
@@ -1851,14 +1893,22 @@ export class FlipZooStartScreen extends Component {
 
     private refreshBoard(): void {
         const { round } = this;
+        const onBoard = round.cards.filter((card) => round.isOnBoard(card));
         for (const card of round.cards) {
-            const exposure = round.isOnBoard(card) ? round.exposure(card) : 0;
+            const view = this.cards[card.id];
+            if (!round.isOnBoard(card)) {
+                view.node.active = false;
+                continue;
+            }
+            const exposure = round.exposure(card);
             const kind = round.isFaceUp(card, exposure) ? card.kind : null;
-            this.cards[card.id].show(
-                kind,
-                exposure,
-                round.isSelectable(exposure),
-            );
+            const upperCards =
+                exposure !== FULL_EXPOSURE
+                    ? onBoard
+                          .filter((upper) => covers(upper, card))
+                          .map((upper) => this.cards[upper.id])
+                    : [];
+            view.show(kind, exposure, round.isSelectable(exposure), upperCards);
         }
     }
 
@@ -2067,6 +2117,18 @@ export class FlipZooStartScreen extends Component {
         this.board.node.setPosition(0, center);
         if (!tutorial) this.resizeMainTiles(matBounds.width, boardHeight);
         this.fitBoard(this.board.node, matBounds.width, boardHeight);
+        if (!tutorial) this.matchSlotSizeToBoard();
+    }
+
+    private matchSlotSizeToBoard(): void {
+        const board = this.board!;
+        for (const slot of this.slots) {
+            slot.setHeight(board.tileHeight);
+            slot.node.setScale(board.node.scale);
+        }
+        if (!this.animatingCards) {
+            this.refreshSlots(this.round.slots.map((card) => card.kind));
+        }
     }
 
     private resizeMainTiles(width: number, height: number): void {
@@ -2079,8 +2141,10 @@ export class FlipZooStartScreen extends Component {
             Math.min(TABLE[2].height * 1.24, (height - 20) / rows / widthScale),
         );
         if (Math.abs(tileHeight - board.tileHeight) < 0.01) return;
+        const heightChange = rows * (tileHeight - board.tileHeight);
         board.tileHeight = tileHeight;
         bounds.setContentSize(bounds.width, rows * tileHeight);
+        if (board.touchArea) board.touchArea.height += heightChange;
         for (const card of this.round.cards) {
             const view = this.cards[card.id];
             view.setHeight(tileHeight);
@@ -2088,12 +2152,8 @@ export class FlipZooStartScreen extends Component {
                 view.node.position.x,
                 bounds.height / 2 - (card.top - board.top + 0.5) * tileHeight,
             );
-            const exposure = this.round.isOnBoard(card)
-                ? this.round.exposure(card)
-                : 0;
-            const kind = this.round.isFaceUp(card, exposure) ? card.kind : null;
-            view.show(kind, exposure, this.round.isSelectable(exposure));
         }
+        this.refreshBoard();
     }
 
     private pageScale(height: number): number {
