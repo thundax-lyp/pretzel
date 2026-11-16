@@ -1,0 +1,13 @@
+{
+    "name": "pretzel-tooling",
+    "private": true,
+    "scripts": {
+        "format:check": "node scripts/check-format.mjs",
+        "lint": "node scripts/check-structure.mjs && oxlint --config .oxlintrc.json --deny-warnings scripts .agents",
+        "test": "node --test scripts/*.test.mjs"
+    },
+    "devDependencies": {
+        "oxlint": "1.90.0",
+        "prettier": "3.9.3"
+    }
+}
