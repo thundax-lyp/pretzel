@@ -17,15 +17,7 @@ client.env
 
 /backup/
 
-__pycache__/
-
-*.pyc
-
 dev.env
 .environment
-
-# Local lint and Python environments
-.ruff_cache/
-.venv/
 
 /.agents/skills/wechatide-skill/

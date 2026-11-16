@@ -5,7 +5,7 @@
     "type": "module",
     "scripts": {
         "typecheck": "tsc --noEmit",
-        "lint": "oxlint --config ../../../.oxlintrc.json --deny-warnings assets",
+        "lint": "oxlint --config ../../.oxlintrc.json --deny-warnings assets",
         "format:check": "prettier --check assets/scripts package.json tsconfig.json \"settings/**/*.json\""
     },
     "devDependencies": {
