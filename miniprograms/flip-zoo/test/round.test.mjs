@@ -503,3 +503,78 @@ test("each claim-mode prop can be acquired and used once per round", () => {
     assert.equal(round.claimProp("remove"), false);
     assert.equal(new Round(1, "A").claimProp("peek"), false);
 });
+
+test("bound tiles reveal together, require both tiles clear, and undo as one move", () => {
+    const layout = [[[0, 0, 5, 2]], [[1, 0, 1, 1]]];
+    const round = new Round(
+        2,
+        "A",
+        [2, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+        undefined,
+        layout,
+        false,
+        [[0, 1]],
+    );
+    assert.equal(round.take(0), null);
+    assert.equal(round.take(5), 0);
+    assert.equal(round.isFaceUp(round.cards[0]), true);
+    assert.equal(round.isFaceUp(round.cards[1]), true);
+    assert.equal(round.take(0), null);
+    assert.equal(round.take(10), 0);
+    assert.equal(round.take(1), 0);
+    assert.deepEqual(
+        round.slots.map(({ id }) => id),
+        [5, 10, 1, 0],
+    );
+    assert.equal(round.moves, 3);
+    assert.equal(round.use("undo"), true);
+    assert.deepEqual(
+        round.slots.map(({ id }) => id),
+        [5, 10],
+    );
+    assert.ok(
+        round.bindings.flat().every((id) => round.isOnBoard(round.cards[id])),
+    );
+});
+
+test("one empty slot rejects a bound pair even when it would make a match", () => {
+    const layout = [[[0, 0, 5, 2]]];
+    const round = new Round(
+        2,
+        "A",
+        [2, 2, 2, 3, 4, 5, 6, 7, 8, 9],
+        undefined,
+        layout,
+        false,
+        [[0, 1]],
+    );
+    for (const id of [2, 3, 4, 5, 6, 7]) assert.equal(round.take(id), 0);
+    assert.equal(round.take(0), null);
+    assert.equal(round.take(1), null);
+    assert.equal(round.slots.length, 6);
+    assert.equal(round.moves, 6);
+    assert.ok(
+        round.bindings.flat().every((id) => round.isOnBoard(round.cards[id])),
+    );
+});
+
+test("taking a bound pair into two matching held tiles removes only three", () => {
+    const round = new Round(
+        2,
+        "A",
+        [1, 1, 1, 1, 2],
+        undefined,
+        [[[0, 0, 5, 1]]],
+        false,
+        [[0, 1]],
+    );
+    assert.equal(round.take(2), 0);
+    assert.equal(round.take(3), 0);
+    assert.equal(round.take(0), 3);
+    assert.deepEqual(
+        round.slots.map(({ id }) => id),
+        [1],
+    );
+    assert.equal(round.remaining, 2);
+    assert.equal(round.use("undo"), false);
+});

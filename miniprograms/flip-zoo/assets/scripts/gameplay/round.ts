@@ -3,12 +3,14 @@ export const C_OPENING_CARD_COUNT = 12;
 export const PROPS = ["undo", "peek", "remove"] as const;
 export const INITIAL_SLOTS = 5;
 export const SLOT_LIMIT = 7;
+export const SHARE_SLOT_ACTION = "unlock:share-slot";
 export const ANIMAL_KIND_COUNT = 20;
 export const FULL_EXPOSURE = 0b1111;
 
 export type Group = (typeof GROUPS)[number];
 export type Prop = (typeof PROPS)[number];
 export type Level = 1 | 2;
+export type Binding = readonly [number, number];
 
 export interface Card {
     readonly id: number;
@@ -412,6 +414,9 @@ export class Round {
     readonly level: Level;
     readonly group: Group;
     readonly layout?: BoardLayout;
+    readonly bindings: readonly Binding[];
+    readonly initialCapacity: number;
+    private readonly partners = new Map<number, number>();
     status: "playing" | "won" | "lost" = "playing";
     moves = 0;
     firstMatchAt: number | "prop" | null = null;
@@ -422,7 +427,7 @@ export class Round {
     private readonly board: readonly Card[];
     private slotted: Card[] = [];
     private capacity: number;
-    private lastTaken: Card | null = null;
+    private lastTaken: readonly Card[] | null = null;
     private readonly requirePropClaim: boolean;
     private readonly random: () => number;
 
@@ -433,11 +438,26 @@ export class Round {
         random = Math.random,
         layout?: BoardLayout,
         requirePropClaim = false,
+        bindings: readonly Binding[] = [],
+        shareLockedSlot = false,
     ) {
         this.requirePropClaim = requirePropClaim;
         this.level = level;
         this.group = group;
         this.layout = layout;
+        this.bindings = bindings;
+        for (const [first, second] of bindings) {
+            this.partners.set(first, second);
+            this.partners.set(second, first);
+        }
+        this.initialCapacity =
+            level === 1
+                ? INITIAL_SLOTS
+                : shareLockedSlot
+                  ? SLOT_LIMIT - 1
+                  : layout
+                    ? SLOT_LIMIT
+                    : INITIAL_SLOTS;
         this.capacity = this.initialCapacity;
         this.random = random;
         const mainDeck =
@@ -488,10 +508,6 @@ export class Round {
 
     get cards(): readonly Card[] {
         return this.board;
-    }
-
-    get initialCapacity(): number {
-        return this.level === 2 && this.layout ? SLOT_LIMIT : INITIAL_SLOTS;
     }
 
     get slotCapacity(): number {
@@ -578,10 +594,11 @@ export class Round {
         if (!this.canUse(prop)) return false;
         switch (prop) {
             case "undo": {
-                const card = this.lastTaken!;
-                this.slotted.splice(this.slotted.indexOf(card), 1);
-                this.onBoard.add(card.id);
-                this.revealed.add(card.id);
+                for (const card of this.lastTaken!) {
+                    this.slotted.splice(this.slotted.indexOf(card), 1);
+                    this.onBoard.add(card.id);
+                    this.revealed.add(card.id);
+                }
                 this.lastTaken = null;
                 break;
             }
@@ -645,11 +662,33 @@ export class Round {
     }
 
     isFaceUp(card: Card, exposure = this.exposure(card)): boolean {
+        const partner = this.boundPartner(card.id);
         return (
             this.revealed.has(card.id) ||
+            (partner !== undefined && this.revealed.has(partner.id)) ||
             (this.level === 2 &&
                 this.group === "B" &&
                 this.isSelectable(exposure))
+        );
+    }
+
+    boundPartner(id: number): Card | undefined {
+        const other = this.partners.get(id);
+        return other === undefined ? undefined : this.cards[other];
+    }
+
+    canTake(id: number): boolean {
+        const card = this.cards[id];
+        const partner = this.boundPartner(id);
+        return (
+            this.status === "playing" &&
+            !!card &&
+            this.isOnBoard(card) &&
+            this.isSelectable(this.exposure(card)) &&
+            (!partner ||
+                (this.slotted.length + 2 <= this.capacity &&
+                    this.isOnBoard(partner) &&
+                    this.isSelectable(this.exposure(partner))))
         );
     }
 
@@ -671,45 +710,48 @@ export class Round {
 
     take(id: number): 0 | 3 | null {
         const card = this.cards[id];
-        if (
-            this.status !== "playing" ||
-            !card ||
-            !this.isOnBoard(card) ||
-            !this.isSelectable(this.exposure(card))
-        ) {
-            return null;
-        }
+        if (!this.canTake(id)) return null;
 
+        const partner = this.boundPartner(id);
+        const taken = partner ? [card, partner] : [card];
+        const insertion = this.slotInsertionIndex(card.kind);
         const matching =
-            1 + this.slotted.filter((tile) => tile.kind === card.kind).length;
-        this.onBoard.delete(id);
+            taken.length +
+            this.slotted.filter((tile) => tile.kind === card.kind).length;
+        for (const tile of taken) this.onBoard.delete(tile.id);
         for (const neighbor of this.cards) {
             if (
                 (this.level === 1 || this.group !== "B") &&
                 this.isOnBoard(neighbor) &&
-                neighbor.layer === card.layer &&
-                Math.abs(neighbor.x - card.x) +
-                    Math.abs(neighbor.y - card.y) ===
-                    1
+                taken.some(
+                    (tile) =>
+                        neighbor.layer === tile.layer &&
+                        Math.abs(neighbor.x - tile.x) +
+                            Math.abs(neighbor.y - tile.y) ===
+                            1,
+                )
             ) {
                 this.revealed.add(neighbor.id);
             }
         }
         this.moves += 1;
-        this.slotted.splice(this.slotInsertionIndex(card.kind), 0, card);
-        this.lastTaken = matching < 3 ? card : null;
-        if (matching === 3) {
-            this.slotted = this.slotted.filter(
-                (tile) => tile.kind !== card.kind,
-            );
+        this.slotted.splice(insertion, 0, ...taken);
+        this.lastTaken = matching < 3 ? taken : null;
+        if (matching >= 3) {
+            this.slotted.splice(insertion - matching + taken.length, 3);
             this.firstMatchAt ??= this.moves;
         }
         if (this.remaining === 0) {
             this.status = "won";
-        } else if (this.slotted.length === this.capacity) {
+        } else if (
+            this.slotted.length === this.capacity ||
+            (this.bindings.length > 0 &&
+                this.slotted.length === this.capacity - 1 &&
+                !this.cards.some((tile) => this.canTake(tile.id)))
+        ) {
             this.status = "lost";
         }
-        return matching === 3 ? 3 : 0;
+        return matching >= 3 ? 3 : 0;
     }
 
     clearSlots(): readonly SlotClearGroup[] | undefined {
@@ -726,8 +768,25 @@ export class Round {
             ).length;
             const needed = 3 - heldCount;
             const boardCards = board
-                .filter((card) => card.kind === kind)
+                .filter(
+                    (card) => card.kind === kind && !this.boundPartner(card.id),
+                )
                 .slice(0, needed);
+            if (boardCards.length < needed && needed === 2) {
+                const pair = this.bindings.find((ids) =>
+                    ids.every(
+                        (id) =>
+                            this.cards[id].kind === kind &&
+                            this.isOnBoard(this.cards[id]),
+                    ),
+                );
+                if (pair)
+                    boardCards.splice(
+                        0,
+                        boardCards.length,
+                        ...pair.map((id) => this.cards[id]),
+                    );
+            }
             if (boardCards.length !== needed) return undefined;
             groups.push({ kind, heldCount, boardCards });
         }

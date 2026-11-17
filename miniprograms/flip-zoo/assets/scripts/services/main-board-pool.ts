@@ -14,9 +14,10 @@ export const MAIN_BOARD_CONFIG: readonly FixedBoardConfig[] = [
 ];
 
 export const MAIN_BOARD_POOL = MAIN_BOARD_CONFIG.map(
-    ({ name, layout, kinds }) => ({
+    ({ name, layout, kinds, bindings }) => ({
         name,
         layout,
+        bindings,
         kinds: Array.from(kinds, (kind) =>
             Number.parseInt(kind, ANIMAL_KIND_COUNT),
         ),

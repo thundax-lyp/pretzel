@@ -3,6 +3,14 @@ import type { FixedBoardConfig } from "./types.ts";
 export const VARIANT_A: readonly FixedBoardConfig[] = [
     {
         name: "T 型峰顶 A",
+        bindings: [
+            [170, 168],
+            [104, 98],
+            [127, 128],
+            [6, 5],
+            [14, 20],
+            [138, 137],
+        ],
         layout: [
             [
                 [5, 0, 2, 1],
@@ -66,11 +74,22 @@ export const VARIANT_A: readonly FixedBoardConfig[] = [
                 [3, 3, 1, 1],
             ],
         ],
-        layerKindCounts: [1, 4, 5, 13, 17, 15],
-        kinds: "5idi7d60d36ag647hd3g17h728h4d4g91241846639234ad264837344i19a17166eegc6c82dg2621f86hh60cb6258gb6636ccfgch6fg2331g1ed6b8ccia6699a88bibeefii8a3dia9683ibae83afc05fe17b7b771e74e7414b2hhff2fh9299",
+        layerKindCounts: [1, 5, 4, 11, 6, 5],
+        kinds: "ccaa9ddf99dcada9ccccacac9c9c9ccc9cc99a999cdd9accacadaac9ccaac4a244428282aaac4224284a2f4a4844a42c8884224284a28c228848a246a65326cddcbb5d5c26634bb93539bc553cc9fdb171073717000711710e99de0e9e6ee",
     },
     {
         name: "单峰 A",
+        bindings: [
+            [166, 170],
+            [43, 36],
+            [123, 117],
+            [75, 76],
+            [71, 72],
+            [146, 140],
+            [68, 67],
+            [115, 116],
+            [104, 103],
+        ],
         layout: [
             [[0, 0, 7, 9]],
             [[0.5, 0, 6, 9]],
@@ -110,11 +129,21 @@ export const VARIANT_A: readonly FixedBoardConfig[] = [
             ],
             [[1, 1, 1, 1]],
         ],
-        layerKindCounts: [1, 4, 6, 12, 12, 13],
-        kinds: "77dc60e564bce664edd455bc97367aae45995ecd6371745d114e3eed3aec4bcd8a2d28285375ad91182b15b3904825d243737223292a33382b552a619da17868a6ce9b976e518561c5b1edcc1cc70b6b1baa1134399ba3942644882844662",
+        layerKindCounts: [1, 5, 5, 10, 9, 7],
+        kinds: "iaaa172ia7377iaf7fffiaf7fff1iii73aaf7fff77a7f173a1fifi7a722a13aaff266223342ii333g42g3gg4gf3gg241fi1242igg31faf121i411ci9ca9cahia9i0ecich0ee9da060ad9hheh70ehae0656bbbb585b56b598d588ffdf88dcd",
     },
     {
         name: "双峰 A",
+        bindings: [
+            [160, 164],
+            [89, 83],
+            [33, 32],
+            [57, 50],
+            [27, 34],
+            [82, 76],
+            [139, 133],
+            [132, 131],
+        ],
         layout: [
             [[0, 0, 7, 9]],
             [[0.5, 0, 6, 9]],
@@ -156,11 +185,18 @@ export const VARIANT_A: readonly FixedBoardConfig[] = [
                 [6, 7, 1, 1],
             ],
         ],
-        layerKindCounts: [1, 5, 6, 10, 14, 14],
-        kinds: "08b7464c13caade1b5eb61444283453168ab442366bea5b648b63d286d6aa3c3c2d3989e8d3c5edc1830419195171e5b99e61e4e21b8611623413a512bc2b429b2cbb2b52bc5bb952524b4259b7ab0a5ed853663e65d3ed9cca88a99cdadd",
+        layerKindCounts: [1, 7, 7, 17, 17, 18],
+        kinds: "2ac1c334ac7ah257gg5fafg7bd67aggg997bfffee81de00a8643b2hh64d508f0e11hd2b00hdea82e3gab2bh99bbggff198d933a81c006446f565592gg3ah66h7c5bffe3ca42e19ad5dhc161cgd0923c827a8200475844700a0gfag02g3e33",
     },
     {
         name: "三峰 A",
+        bindings: [
+            [162, 169],
+            [101, 95],
+            [153, 154],
+            [97, 98],
+            [17, 24],
+        ],
         layout: [
             [[0, 0, 7, 9]],
             [[0.5, 0, 6, 9]],
@@ -202,11 +238,16 @@ export const VARIANT_A: readonly FixedBoardConfig[] = [
                 [6, 1, 1, 1],
             ],
         ],
-        layerKindCounts: [1, 4, 4, 9, 10, 10],
-        kinds: "065a1543698558451526998a158a4954984516a955652111a144a5652548412179a525a52aa74154237505a66999495559277777122265555a5254282877826884168a712186a227877674166038a11868994986949964525752711172aaa",
+        layerKindCounts: [1, 4, 6, 10, 8, 9],
+        kinds: "eae57a8c1cee581ca780c4ea714cc4c875ca81ecc80c85aee780cc51e8c8c58e1e8e8e0ce087eebe887beb88be80008c0ee00cc8e6668b7eb8c8048b82e2abbb849a2911897b9aa1821a149ab668921ddc0554dd4024d5d36663033336555",
     },
     {
         name: "四峰 A",
+        bindings: [
+            [159, 165],
+            [89, 83],
+            [144, 150],
+        ],
         layout: [
             [[0, 0, 7, 9]],
             [[0.5, 0, 6, 9]],
@@ -248,11 +289,12 @@ export const VARIANT_A: readonly FixedBoardConfig[] = [
                 [1, 7, 1, 1],
             ],
         ],
-        layerKindCounts: [2, 4, 4, 10, 11, 11],
-        kinds: "0895aa34a399871991111338231a311923121221a96222998113a2aa2866a82618811628119986a825371126822406a9911199336131291911a296a883639693969319a8a33391969333333935076341999a9a339139a1666218121828333",
+        layerKindCounts: [1, 6, 4, 9, 7, 7],
+        kinds: "5a15652c6a21aa11a12522aa159aa661225225a2a1a1196a166aa999a9166a56586616a16688a558865a85565a8c21a585a8a8885826161518a5a75167750008470154111757b1bb680b886b08868bc69999a644a64a96292322232a43333",
     },
     {
         name: "五峰 A",
+        bindings: [],
         layout: [
             [[0, 0, 7, 9]],
             [[0.5, 0, 6, 9]],
@@ -294,11 +336,12 @@ export const VARIANT_A: readonly FixedBoardConfig[] = [
                 [3, 4, 1, 1],
             ],
         ],
-        layerKindCounts: [2, 3, 5, 10, 11, 11],
-        kinds: "39439b41796024a34a47a3713b884143988a4931b81444a873977bb974714a77114a11b1bb7bb34184171160412111b9474a7a4918994b33319784a471445513341375a7a15518433151481814630429b5454b99b48555aa5555588a11155",
+        layerKindCounts: [2, 5, 4, 5, 4, 5],
+        kinds: "116181151666166611615166160550616601016650811111611051101168856006680008008088868618611810601600080886161811880186608686525822600060868280226655555686665556500934749797779344319143497311113",
     },
     {
         name: "六峰 A",
+        bindings: [],
         layout: [
             [[0, 0, 7, 9]],
             [[0.5, 0, 6, 9]],
@@ -340,11 +383,22 @@ export const VARIANT_A: readonly FixedBoardConfig[] = [
                 [6, 4, 1, 1],
             ],
         ],
-        layerKindCounts: [2, 3, 4, 10, 10, 10],
-        kinds: "7419925064678a949a667a26a4696a9296a4299a722a76a6946626a262449762a7266627a2a662722aa2154728a0a767622226277447aa924a46a9933a23626233aaa36a4229a6a333a36336452a180773742442332aa66966669a9223332",
+        layerKindCounts: [4, 5, 6, 10, 10, 10],
+        kinds: "661406981741611208837474200830026703880778880544006610016866818786724205264405270275292672607811868833007660552677228447262206523870545673315268670453867942120401058118338071741676467435551",
     },
     {
         name: "左右斜面 A",
+        bindings: [
+            [159, 166],
+            [158, 157],
+            [106, 100],
+            [47, 46],
+            [71, 77],
+            [131, 137],
+            [37, 36],
+            [128, 122],
+            [83, 84],
+        ],
         layout: [
             [[0, 0, 7, 9]],
             [[0.5, 0, 6, 9]],
@@ -386,11 +440,17 @@ export const VARIANT_A: readonly FixedBoardConfig[] = [
                 [1, 4, 1, 1],
             ],
         ],
-        layerKindCounts: [2, 4, 5, 13, 12, 14],
-        kinds: "e95e72hehhg097gd49eh88h82df128h41617fd1266d61e18ge25h6dd56hf4h2gg3447653736138bi37b33fb576b017g46b6i76if77f155f55733bc81ad4gg85229fd8afcc144b8b82a558aa1dabg9093c2eic3c3ciicc229a9e44ae94aiii",
+        layerKindCounts: [2, 5, 7, 16, 18, 19],
+        kinds: "915f581e83i51feb1i91ffbhh8dbfg3ei5gfaa00c3e49d7714e0266c4e226cdde1119806258c164i71088bf0b8i50fe42f0cd0ig2edc333h19b94b3ci94hhe544f725g7fb29ec58eif339gg7ciahbdd3a579b63ba99ba55dg67g2676g3hhh",
     },
     {
         name: "上下斜面 A",
+        bindings: [
+            [163, 162],
+            [133, 139],
+            [89, 90],
+            [62, 61],
+        ],
         layout: [
             [[0, 0, 7, 9]],
             [[0.5, 0, 6, 9]],
@@ -432,11 +492,19 @@ export const VARIANT_A: readonly FixedBoardConfig[] = [
                 [6, 1, 1, 1],
             ],
         ],
-        layerKindCounts: [1, 4, 5, 13, 13, 16],
-        kinds: "e75h6fbb9a706178hhb879c729ehah41h1ebbag77c9c765a44g59ga782b92a711a83c57g38ab5agga3c59049f1b1a393118b144a158785c198359d3a3da34ca66e2e24ccbb5be4e5523363ed92fe2026686a8662aa82ddd26g4d4gd4dghhh",
+        layerKindCounts: [1, 5, 7, 11, 9, 8],
+        kinds: "f25defe5112i21e22ef57fe7fff1fe25d52f27e5e522755d2275e7e51215277bb886b2ee68ebe8ee8e8bdib2dggbeb25b58b5dd8b28edeb6d2d22f10f3133a01aeahhf1a990fe7h33af11de3ehdhhia44600g906996c555c444gc4fgg9ccc",
     },
     {
         name: "两头高中间低 A",
+        bindings: [
+            [163, 161],
+            [134, 140],
+            [64, 65],
+            [94, 100],
+            [141, 147],
+            [5, 12],
+        ],
         layout: [
             [[0, 0, 7, 9]],
             [[0.5, 0, 6, 9]],
@@ -478,7 +546,7 @@ export const VARIANT_A: readonly FixedBoardConfig[] = [
                 [3, 7, 1, 1],
             ],
         ],
-        layerKindCounts: [2, 4, 4, 13, 14, 13],
-        kinds: "b0d9ffac3c362cf8f83ae22f3af3c2efe28af21efacc2ca8c2cf222e3ef8eef221f2c54e825f5f8ff60d824efb795414275c5fc271182fef2414275e338ae874882487a283758a87e87588e82d60b947ee1ee117aa7ee143a343141115515",
+        layerKindCounts: [3, 7, 8, 16, 16, 16],
+        kinds: "5b059925557e9c16c38d78d1d743c87a83d2d30752aa3576accac8384313bfa6bb04802736607a3aaebf362755596614c87c1dc485463905427444c9c08126a3500305d0dcccda4576ba64280fe000889929644877c63b1d6d4d81755bb51",
     },
 ];

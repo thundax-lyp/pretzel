@@ -31,6 +31,13 @@ export function createLookahead(cards) {
     );
 
     return (round) => {
+        const partners = new Map(
+            round.bindings.flatMap(([first, second]) => [
+                [first, second],
+                [second, first],
+            ]),
+        );
+        const partner = (id) => partners.get(id);
         const revealsNeighbors = round.level === 1 || round.group !== "B";
         const active = new Set();
         for (const card of cards) {
@@ -51,23 +58,42 @@ export function createLookahead(cards) {
         }
         const startingSlots = round.slots.map(({ kind }) => kind);
         const capacity = round.slotCapacity;
+        const canPick = (id, slots) => {
+            const other = partner(id);
+            return (
+                active.has(id) &&
+                selectable(id) &&
+                (other === undefined ||
+                    (slots.length + 2 <= capacity &&
+                        active.has(other) &&
+                        selectable(other)))
+            );
+        };
 
         function evaluate(id, slots, choices, remainingDepth) {
-            const kind = known.get(id);
+            const other = partner(id);
+            const picked = other === undefined ? [id] : [id, other];
+            const kind = known.get(id) ?? known.get(other);
             const held = slots.filter((animal) => animal === kind).length;
-            const match = held === 2;
-            const nextSlots = match
-                ? slots.filter((animal) => animal !== kind)
-                : [...slots, kind];
+            const match = kind !== undefined && held + picked.length >= 3;
+            const nextSlots =
+                kind === undefined
+                    ? [...slots, ...picked.map(() => undefined)]
+                    : [
+                          ...slots.filter((animal) => animal !== kind),
+                          ...Array((held + picked.length) % 3).fill(kind),
+                      ];
             if (nextSlots.length === capacity)
                 return kind === undefined ? -800 : -1000;
 
-            active.delete(id);
-            const newChoices = blockedBy[id].filter(
-                (other) => active.has(other) && selectable(other),
-            );
+            for (const tile of picked) active.delete(tile);
+            const newChoices = [
+                ...new Set(picked.flatMap((tile) => blockedBy[tile])),
+            ].filter((other) => active.has(other) && selectable(other));
             const unknownNeighbors = revealsNeighbors
-                ? neighbors[id].filter(
+                ? [
+                      ...new Set(picked.flatMap((tile) => neighbors[tile])),
+                  ].filter(
                       (other) =>
                           active.has(other) &&
                           !known.has(other) &&
@@ -85,9 +111,9 @@ export function createLookahead(cards) {
             // Stop at an unknown pick. Its face and any subsequent revelations
             // will enter the observation after applying the real move.
             if (kind !== undefined && remainingDepth > 1) {
-                const nextChoices = choices
-                    .filter((other) => other !== id)
-                    .concat(newChoices);
+                const nextChoices = [
+                    ...new Set([...choices, ...newChoices, ...partners.keys()]),
+                ].filter((tile) => canPick(tile, nextSlots));
                 const candidates = nextChoices.filter((other) =>
                     known.has(other),
                 );
@@ -110,18 +136,18 @@ export function createLookahead(cards) {
                     );
                 }
             }
-            active.add(id);
+            for (const tile of picked) active.add(tile);
             return score + Math.max(-40, future) * 0.75;
         }
 
-        const choices = [...active].filter(selectable);
+        const choices = [...active].filter((id) => canPick(id, startingSlots));
         return choices.map((id) => ({
             id,
             score: evaluate(id, startingSlots, choices, depth),
             completesMatch:
                 known.has(id) &&
-                startingSlots.filter((kind) => kind === known.get(id))
-                    .length === 2,
+                startingSlots.filter((kind) => kind === known.get(id)).length >=
+                    (partner(id) === undefined ? 2 : 1),
         }));
     };
 }

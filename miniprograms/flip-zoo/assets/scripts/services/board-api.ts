@@ -2,12 +2,14 @@ import { MAIN_BOARD_POOL } from "./main-board-pool.ts";
 import {
     generateMainBoard,
     isBoardKinds,
+    type Binding,
     type BoardLayout,
 } from "../gameplay/round.ts";
 
 export interface MainBoardDeal {
     readonly kinds: readonly number[];
     readonly layout?: BoardLayout;
+    readonly bindings?: readonly Binding[];
 }
 
 export interface BoardApi {

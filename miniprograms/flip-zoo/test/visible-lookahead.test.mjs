@@ -18,6 +18,7 @@ test("lookahead avoids a full tray without reading dark or fully covered faces",
     const round = {
         level: 2,
         group: "C",
+        bindings: [],
         slots: [1, 1, 2, 3].map((kind) => ({ kind })),
         slotCapacity: 5,
         isOnBoard: () => true,

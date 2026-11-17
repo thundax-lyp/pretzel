@@ -63,15 +63,57 @@ test("WeChat draws each saved board without contacting the preview server", asyn
         draw = 0;
         const deal = await api.loadMainBoard();
         assert.deepEqual(deal, expected);
-        const { kinds, layout } = deal;
+        const { kinds, layout, bindings } = deal;
         boards.add(kinds.join(","));
         const counts = Map.groupBy(kinds, (kind) => kind);
         assert.ok(counts.size >= 10 && counts.size <= ANIMAL_KIND_COUNT);
         assert.ok(
             [...counts.values()].every((cards) => cards.length % 3 === 0),
         );
-        const round = new Round(2, "C", kinds, undefined, layout);
+        const keyKinds = [...counts].filter(([, cards]) => cards.length === 3);
+        assert.ok(keyKinds.length <= 3, expected.name);
+        assert.ok(bindings.length <= 10, expected.name);
+        const round = new Round(
+            2,
+            "C",
+            kinds,
+            undefined,
+            layout,
+            false,
+            bindings,
+            true,
+        );
+        assert.equal(round.slotCapacity, 6);
+        for (const [kind] of keyKinds) {
+            assert.deepEqual(
+                round.cards
+                    .filter((card) => card.kind === kind)
+                    .map((card) => card.layer),
+                [0, 1, 2],
+                expected.name,
+            );
+        }
         const faceUp = round.cards.filter((card) => round.isFaceUp(card));
+        const boundIds = bindings.flat();
+        assert.equal(new Set(boundIds).size, boundIds.length, expected.name);
+        const lowerBindings = bindings.filter(
+            ([first]) => round.cards[first].layer < 3,
+        ).length;
+        assert.ok(
+            bindings.length === 0 || lowerBindings > bindings.length / 2,
+            expected.name,
+        );
+        for (const [first, second] of bindings) {
+            const a = round.cards[first];
+            const b = round.cards[second];
+            assert.equal(a.kind, b.kind, expected.name);
+            assert.equal(a.layer, b.layer, expected.name);
+            assert.equal(
+                Math.abs(a.x - b.x) + Math.abs(a.y - b.y),
+                1,
+                expected.name,
+            );
+        }
         assert.equal(faceUp.length, 12, expected.name);
         assert.ok(
             faceUp.every((card) => round.isSelectable(round.exposure(card))),
@@ -116,11 +158,30 @@ test("WeChat draws each saved board without contacting the preview server", asyn
             expected.name,
         );
         for (const id of clearOrders[index]) {
+            if (
+                bindings.some((pair) => pair.includes(id)) &&
+                !round.isOnBoard(round.cards[id])
+            )
+                continue;
+            const card = round.cards[id];
+            const partner = round.boundPartner(id);
+            const matching = round.slots.filter(
+                (held) => held.kind === card.kind,
+            );
+            matching.push(card);
+            if (partner) matching.push(partner);
             assert.notEqual(round.take(id), null, expected.name);
+            if (matching.length === 3) {
+                const layers = matching.map(({ layer }) => layer);
+                assert.ok(
+                    Math.max(...layers) - Math.min(...layers) <= 2,
+                    expected.name,
+                );
+            }
         }
         assert.equal(round.status, "won", expected.name);
         assert.equal(round.firstMatchAt, 3);
-        assert.equal(round.slotCapacity, 7);
+        assert.equal(round.slotCapacity, 6);
     }
     const last = [...boards].at(-1);
     const nextCycle = new Set();
