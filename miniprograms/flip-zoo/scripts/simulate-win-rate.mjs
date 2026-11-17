@@ -13,13 +13,14 @@ const { values } = parseArgs({
         "overlap-groups": { type: "string" },
         "max-binding-groups": { type: "string" },
         "unlock-slot": { type: "boolean" },
+        omniscient: { type: "boolean" },
         json: { type: "boolean" },
         help: { type: "boolean" },
     },
 });
 if (values.help) {
     console.log(
-        "npm run simulate:win-rate -- [--source wechat|web|tutorial] [--rounds N] [--seed N] [--error-rate 0..1] [--key-groups N --overlap-groups N] [--max-binding-groups N] [--unlock-slot] [--json]",
+        "npm run simulate:win-rate -- [--source wechat|web|tutorial] [--rounds N] [--seed N] [--error-rate 0..1] [--key-groups N --overlap-groups N] [--max-binding-groups N] [--unlock-slot] [--omniscient] [--json]",
     );
     process.exit(0);
 }
@@ -80,6 +81,7 @@ const results = cases.map(({ name, ...board }) => {
             seed: seed + index,
             errorRate,
             shareLockedSlot,
+            omniscient: values.omniscient,
         });
         if (result.won) wins += 1;
         if (result.reached30) reached30 += 1;
@@ -107,7 +109,7 @@ const summary = {
 };
 const settings = {
     source,
-    strategy: "visible-lookahead",
+    strategy: values.omniscient ? "omniscient-lookahead" : "visible-lookahead",
     group: "C",
     slots: source === "wechat" ? (shareLockedSlot ? 6 : 7) : 5,
     seed,

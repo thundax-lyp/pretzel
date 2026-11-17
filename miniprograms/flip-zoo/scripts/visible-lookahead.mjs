@@ -3,7 +3,7 @@ import { FULL_EXPOSURE } from "../assets/scripts/gameplay/round.ts";
 const depth = 3;
 const beamWidth = 4;
 
-export function createLookahead(cards) {
+export function createLookahead(cards, omniscient = false) {
     // Geometry is independent of the animals printed on the cards.
     const blockers = cards.map((card) =>
         cards
@@ -48,6 +48,10 @@ export function createLookahead(cards) {
         const known = new Map();
         for (const id of active) {
             const card = cards[id];
+            if (omniscient) {
+                known.set(id, card.kind);
+                continue;
+            }
             const unobstructed = selectable(id);
             if (
                 round.isFaceUp(card, unobstructed ? FULL_EXPOSURE : 0) &&

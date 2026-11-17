@@ -20,6 +20,7 @@ export function play({
     level = 2,
     errorRate,
     shareLockedSlot = false,
+    omniscient = false,
 }) {
     const round = new Round(
         level,
@@ -33,7 +34,7 @@ export function play({
     );
     const tieBreak = random(Math.imul(seed, 1299709));
     const noise = random(Math.imul(seed, 179424673));
-    const lookahead = createLookahead(round.cards);
+    const lookahead = createLookahead(round.cards, omniscient);
     while (round.status === "playing") {
         const scored = lookahead(round);
         if (!scored.length) throw new Error("No action on an unfinished board");
