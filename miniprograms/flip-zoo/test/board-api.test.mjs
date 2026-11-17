@@ -134,6 +134,15 @@ test("WeChat draws each saved board without contacting the preview server", asyn
         for (const [layer, cards] of layers) {
             for (const card of cards) {
                 assert.ok(
+                    card.left >= 0 &&
+                        card.left + 1 <= 7 &&
+                        card.top >= 0 &&
+                        card.top + 1 <= 8 &&
+                        Number.isInteger(card.left * 2) &&
+                        Number.isInteger(card.top * 2),
+                    expected.name,
+                );
+                assert.ok(
                     cards.every(
                         (other) => other === card || !overlaps(card, other),
                     ),
