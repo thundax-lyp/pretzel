@@ -7,6 +7,7 @@ import {
     Round,
     isBoardKinds,
 } from "../assets/scripts/gameplay/round.ts";
+import { MAIN_BOARD_POOL } from "../assets/scripts/services/main-board-pool.ts";
 import {
     DEFAULT_DIFFICULTY,
     buildBoardKinds,
@@ -445,6 +446,29 @@ test("clear slots completes a group across layers in highest-first order", () =>
     assert.deepEqual(round.slots, []);
     assert.ok(matches.every((card) => !round.isOnBoard(card)));
     assert.equal(round.propUsesLeft("remove"), 0);
+});
+
+test("clear slots prefers a higher complete binding over lower single tiles", () => {
+    const board = MAIN_BOARD_POOL.find(({ name }) => name === "T 型峰顶 A");
+    const round = new Round(
+        2,
+        "C",
+        board.kinds,
+        undefined,
+        board.layout,
+        false,
+        board.bindings,
+        true,
+    );
+    for (const id of [188, 187, 185, 183, 181]) {
+        assert.notEqual(round.take(id), null);
+    }
+    const group = round.clearSlots().find(({ kind }) => kind === 2);
+    assert.deepEqual(
+        group.boardCards.map(({ id }) => id).sort((a, b) => a - b),
+        [160, 162],
+    );
+    for (const id of [122, 123]) assert.ok(round.isOnBoard(round.cards[id]));
 });
 
 test("clear slots preserves the board and use when any group cannot be completed", () => {

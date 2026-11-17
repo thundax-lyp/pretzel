@@ -772,20 +772,21 @@ export class Round {
                     (card) => card.kind === kind && !this.boundPartner(card.id),
                 )
                 .slice(0, needed);
-            if (boardCards.length < needed && needed === 2) {
-                const pair = this.bindings.find((ids) =>
-                    ids.every(
-                        (id) =>
-                            this.cards[id].kind === kind &&
-                            this.isOnBoard(this.cards[id]),
-                    ),
-                );
-                if (pair)
-                    boardCards.splice(
-                        0,
-                        boardCards.length,
-                        ...pair.map((id) => this.cards[id]),
-                    );
+            if (needed === 2) {
+                for (const card of board) {
+                    if (card.kind !== kind) continue;
+                    const partner = this.boundPartner(card.id);
+                    if (partner?.kind !== kind || !this.isOnBoard(partner))
+                        continue;
+                    if (
+                        boardCards.length < needed ||
+                        (card.layer >= boardCards[0].layer &&
+                            card.layer > boardCards[1].layer)
+                    ) {
+                        boardCards.splice(0, boardCards.length, card, partner);
+                    }
+                    break;
+                }
             }
             if (boardCards.length !== needed) return undefined;
             groups.push({ kind, heldCount, boardCards });
