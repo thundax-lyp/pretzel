@@ -16,6 +16,7 @@
 ## 设计
 
 - [Flip Zoo 游戏设计](30-designs/FLIP-ZOO-DESIGN.md)
+- [Flip Zoo 微信第二关布局配置指南](30-designs/FLIP-ZOO-LAYOUT-GUIDE.md)
 - [休闲消除类游戏 UI 与 UE 设计原则](30-designs/GAME-UI-UE-PRINCIPLES.md)
 
 ## 开发工具
