@@ -65,10 +65,12 @@ import { ZooAudio } from "../services/zoo-audio";
 import {
     FULL_EXPOSURE,
     C_OPENING_CARD_COUNT,
+    SHARE_SLOT_ACTION,
     GROUPS,
     PROPS,
     covers,
     Round,
+    type Binding,
     type Card,
     type Group,
     type Level,
@@ -470,14 +472,27 @@ export class FlipZooStartScreen extends Component {
             );
             const extra = index >= initialCapacity;
             const column = index - (slotLimit - 1) / 2;
-            const offset = initialCapacity === slotLimit ? 0 : extra ? 10 : -6;
+            const offset =
+                WECHAT || initialCapacity === slotLimit ? 0 : extra ? 10 : -6;
             slot.node.setPosition(column * slotPitch + offset, 0);
             if (extra) {
-                if (!WECHAT) this.addAdBadge(slot.node, width, height);
-                const press = shadedButton(slot.node, () =>
-                    this.onSlotTouch(index),
-                );
-                press.available = () => this.canTapSlot(index);
+                const unlock = () => this.onSlotTouch(index);
+                if (WECHAT) {
+                    const icon = uiNode(slot.node, "ShareUnlockIcon");
+                    drawButtonIcon(icon, "share", 0, 13, 38, "#476648");
+                    const press = slot.node.addComponent(ButtonPress);
+                    press.action = unlock;
+                    press.available = () => this.canTapSlot(index);
+                    press.showPressed = (pressed) => {
+                        if (!icon.isValid || !icon.activeInHierarchy) return;
+                        icon.setPosition(0, pressed ? -6 : 0);
+                        slot.showShareUnlock(pressed);
+                    };
+                } else {
+                    this.addAdBadge(slot.node, width, height);
+                    shadedButton(slot.node, unlock).available = () =>
+                        this.canTapSlot(index);
+                }
             }
             this.slots.push(slot);
         }
@@ -660,6 +675,7 @@ export class FlipZooStartScreen extends Component {
                 deal.roundId ? "C" : group,
                 deal.kinds,
                 deal.layout,
+                deal.bindings,
             );
             if (deal.roundId)
                 this.fragmentRound = { id: deal.roundId, actions: [] };
@@ -678,6 +694,7 @@ export class FlipZooStartScreen extends Component {
         group: Group,
         boardKinds?: readonly number[],
         layout?: BoardLayout,
+        bindings?: readonly Binding[],
     ): void {
         this.requestVersion += 1;
         this.fragmentRound = undefined;
@@ -692,6 +709,8 @@ export class FlipZooStartScreen extends Component {
             Math.random,
             layout,
             true,
+            bindings,
+            WECHAT && level === 2,
         );
         if (this.board) {
             this.board.node.removeFromParent();
@@ -806,10 +825,16 @@ export class FlipZooStartScreen extends Component {
         if (!card) return;
         const insertionIndex = this.round.slotInsertionIndex(card.kind);
         const previous = this.round.slots.map((tile) => tile.kind);
+        const partner = this.round.boundPartner(card.id);
+        const taken = partner ? [card, partner] : [card];
         const matched = this.round.take(card.id);
         if (matched === null) {
             if (this.round.status === "playing") {
-                this.message.string = "这张牌还被压着，先移开上层牌";
+                this.message.string = partner
+                    ? this.round.slotCapacity - previous.length < 2
+                        ? "需要两个空槽才能取走绑定牌"
+                        : "两张牌都露出后才能取走"
+                    : "这张牌还被压着，先移开上层牌";
             }
             return;
         }
@@ -822,19 +847,21 @@ export class FlipZooStartScreen extends Component {
                 this.slotTray!,
                 this.art,
                 this.slots[index].node,
-                this.slots[index + 1].node,
+                this.slots[index + taken.length].node,
                 previous[index],
             );
         }
         this.refreshSlots(previous.slice(0, insertionIndex));
-        this.flyCardToSlot(card, insertionIndex, () => {
+        let remainingFlights = taken.length;
+        const onLanded = () => {
+            remainingFlights -= 1;
+            if (remainingFlights > 0) return;
             this.animatingCards = false;
             if (matched) {
-                this.playMatch(card.kind, [
-                    insertionIndex - 2,
-                    insertionIndex - 1,
-                    insertionIndex,
-                ]);
+                const start =
+                    insertionIndex -
+                    previous.filter((kind) => kind === card.kind).length;
+                this.playMatch(card.kind, [start, start + 1, start + 2]);
             }
             this.message.string =
                 WECHAT && this.round.level === 2
@@ -843,7 +870,10 @@ export class FlipZooStartScreen extends Component {
                       ? "三张同款，已消除！"
                       : "找三张同款";
             this.finishAction(matched > 0);
-        });
+        };
+        taken.forEach((tile, index) =>
+            this.flyCardToSlot(tile, insertionIndex + index, onLanded),
+        );
         this.refreshBoard();
     }
 
@@ -891,7 +921,10 @@ export class FlipZooStartScreen extends Component {
     private finishAction(matched: boolean): void {
         this.message.color = color("#F4FFE5");
         if (this.round.status === "lost") {
-            this.message.string = `第 ${this.round.slotCapacity} 格已满 · 本局结束`;
+            this.message.string =
+                this.round.slots.length === this.round.slotCapacity
+                    ? `第 ${this.round.slotCapacity} 格已满 · 本局结束`
+                    : "只剩一个空槽，无法取走绑定牌";
             this.message.color = color("#FFE5A4");
         } else if (this.round.status === "won") {
             this.message.string =
@@ -935,7 +968,14 @@ export class FlipZooStartScreen extends Component {
 
     private onSlotTouch(index: number): void {
         if (WECHAT) {
-            this.message.string = "额外卡槽暂未开放";
+            if (
+                !this.canTapSlot(index) ||
+                !this.share() ||
+                !this.round.unlockNextSlot()
+            )
+                return;
+            this.fragmentRound?.actions.push(SHARE_SLOT_ACTION);
+            this.refresh();
             return;
         }
         if (index > this.round.slotCapacity) {
@@ -1887,12 +1927,71 @@ export class FlipZooStartScreen extends Component {
                 index >= this.round.slotCapacity && kind === undefined;
             const adBadge = slot.node.getChildByName("RewardedAdBadge");
             if (adBadge) adBadge.active = locked;
+            const shareIcon = slot.node.getChildByName("ShareUnlockIcon");
+            if (shareIcon) shareIcon.active = locked;
             if (kind !== undefined) slot.show(kind, FULL_EXPOSURE, true);
+            else if (locked && shareIcon) slot.showShareUnlock();
             else slot.showEmpty(locked ? "锁定" : undefined);
         });
     }
 
+    private refreshBindingMarker(): void {
+        const { round } = this;
+        for (const binding of round.bindings) this.drawBindingMarker(binding);
+    }
+
+    private drawBindingMarker(binding: Binding): void {
+        const { round } = this;
+        const [first, second] = binding.map((id) => this.cards[id]);
+        const layer = first.node.parent!;
+        const marker =
+            layer.getChildByName(`BindingMarker-${binding[0]}`) ??
+            uiNode(layer, `BindingMarker-${binding[0]}`);
+        const [a, b] = binding.map((id) => round.cards[id]);
+        marker.active = round.isOnBoard(a) && round.isOnBoard(b);
+        if (!marker.active) return;
+        marker.setScale(1.2, 1.2);
+        marker.setPosition(
+            (first.node.position.x + second.node.position.x) / 2 +
+                first.drawingOffset,
+            (first.node.position.y + second.node.position.y) / 2 +
+                first.drawingOffset +
+                3,
+        );
+        const graphic =
+            marker.getComponent(Graphics) ?? marker.addComponent(Graphics);
+        const horizontal = a.y === b.y;
+        const open =
+            round.isSelectable(round.exposure(a)) &&
+            round.isSelectable(round.exposure(b));
+        graphic.clear();
+        graphic.strokeColor = color("#48653B");
+        graphic.lineWidth = 3;
+        for (const offset of [-13, 13]) {
+            graphic.ellipse(
+                horizontal ? offset : 0,
+                horizontal ? -2 : offset,
+                horizontal ? 6 : 3,
+                horizontal ? 3 : 6,
+            );
+            graphic.stroke();
+        }
+        graphic.moveTo(-5, 1);
+        graphic.lineTo(-5, 7);
+        graphic.bezierCurveTo(-5, 14, 5, 14, 5, 7);
+        if (!open) graphic.lineTo(5, 1);
+        graphic.stroke();
+        graphic.fillColor = color("#F5CE63");
+        graphic.roundRect(-9, -10, 18, 14, 4);
+        graphic.fill();
+        graphic.stroke();
+        graphic.fillColor = color("#48653B");
+        graphic.circle(0, -3, 2);
+        graphic.fill();
+    }
+
     private refreshBoard(): void {
+        this.refreshBindingMarker();
         const { round } = this;
         const onBoard = round.cards.filter((card) => round.isOnBoard(card));
         for (const card of round.cards) {
@@ -1909,7 +2008,13 @@ export class FlipZooStartScreen extends Component {
                           .filter((upper) => covers(upper, card))
                           .map((upper) => this.cards[upper.id])
                     : [];
-            view.show(kind, exposure, round.isSelectable(exposure), upperCards);
+            view.show(
+                kind,
+                exposure,
+                round.isSelectable(exposure),
+                upperCards,
+                !!round.boundPartner(card.id),
+            );
         }
     }
 

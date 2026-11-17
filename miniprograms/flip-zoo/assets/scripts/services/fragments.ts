@@ -26,7 +26,10 @@ function pendingRounds(): Pending {
 export function startFragmentRound(): Promise<
     MainBoardDeal & { roundId: string }
 > {
-    return callCloud("flipZooFragments", { action: "start" });
+    return callCloud("flipZooFragments", {
+        action: "start",
+        shareLockedSlot: true,
+    });
 }
 
 async function finish(

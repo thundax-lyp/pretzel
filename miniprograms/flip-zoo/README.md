@@ -22,7 +22,7 @@ npm run preview
 
 在仓库根目录的私有 `.env` 中配置 `FLIP_ZOO_WECHAT_GAME_APP_ID` 和 `FLIP_ZOO_WECHAT_CLOUD_ENV`，从仓库根目录执行 `node scripts/with-env.mjs --env-file .env -- npm --prefix miniprograms/flip-zoo run build:wechat`。将 `build/wechatgame` 导入微信开发者工具，使用小游戏项目类型进行预览和真机验证。
 
-微信小游戏第二关开局开放 7 格，槽满失败后可以重试或返回首页。
+微信小游戏第二关开局开放 6 格，第 7 格通过调起微信转发解锁，本局有效。槽满失败后可以重试或返回首页。
 
 背景音乐放在 `music` 分包。首页加载完成后，音乐音量大于零时加载并循环播放；点击「开始游戏」时会再次检查播放状态。消除音效随主包提供。微信构建分别检查主包 4 MB 和整包 30 MB。
 
@@ -65,7 +65,7 @@ node scripts/with-env.mjs --env-file .env -- npm --prefix miniprograms/flip-zoo 
 | `preview-web.mjs`       | 提供本地 Web 试玩、第二关牌局接口和难度设置页面。                             | `npm run preview`                                |
 | `difficulty-admin.html` | 调整 Web 第二关的命门组数和直接叠压组数。                                     | 预览服务启动后访问 `http://127.0.0.1:8874/admin` |
 | `difficulty.mjs`        | 校验难度参数，并按参数构造 Web 第二关的配牌。                                 | 由预览服务和模拟脚本导入                         |
-| `simulate-win-rate.mjs` | 批量运行无道具模拟，默认逐副输出微信第二关固定牌局的通关率和 40% 进度达标率。 | `npm run simulate:win-rate`                      |
+| `simulate-win-rate.mjs` | 批量运行无道具模拟，默认逐副输出微信第二关固定牌局的通关率和 30% 进度达标率。 | `npm run simulate:win-rate`                      |
 | `simulate-round.mjs`    | 复用游戏的 `Round` 规则运行单局，按可见牌推演策略选牌。                       | 由 `simulate-win-rate.mjs` 导入                  |
 | `visible-lookahead.mjs` | 根据可见牌、遮挡和卡槽向前推演，为候选取牌操作打分。                          | 由 `simulate-round.mjs` 导入                     |
 | `package-fragments.mjs` | 生成碎片云函数的本地部署包 `build/cloudfunctions/flipZooFragments`。          | `node scripts/package-fragments.mjs`             |
@@ -81,9 +81,12 @@ npm run simulate:win-rate
 npm run simulate:win-rate -- --rounds 1000 --seed 42 --error-rate 0.1
 npm run simulate:win-rate -- --source web --key-groups 2 --overlap-groups 1
 npm run simulate:win-rate -- --source tutorial
+npm run simulate:win-rate -- --max-binding-groups 2
 ```
 
-默认模拟微信第二关的全部 40 副固定牌局，每副 100 次，使用 C 组翻牌规则和 7 格卡槽。Web 和教学关使用 5 格。模拟沿用游戏的取牌与三消规则，根据当前可见牌面、遮挡关系和卡槽，最多向前看三手（含当前手）。优先考虑能三消腾槽的走法，卡槽越接近满槽，风险扣分越高。碰到未知牌时停止推演，实际取牌后才读取新露出的牌面。同分时随机选择。默认没有随机误选，可通过 `--error-rate` 设置每次有备选牌时改选的概率。各副使用相同种子范围，胜率为清盘次数除以已完成的模拟次数。40% 进度达标率统计累计消除至少开局总牌数 40% 的对局占比，尚未消除的槽内牌不计入消除数。加 `--json` 输出可保存的结构化结果。结果反映该策略和参数下的胜率，真人胜率需实测。
+`--max-binding-groups N` 仅用于微信牌库模拟，每副最多启用前 N 组绑定牌，0 表示关闭绑定。
+
+默认模拟微信第二关的全部 40 副固定牌局，每副 100 次，使用 C 组翻牌规则和全程 6 格卡槽。加 `--unlock-slot` 可对照开局已解锁的 7 格。Web 和教学关使用 5 格。模拟沿用游戏的取牌与三消规则，根据当前可见牌面、遮挡关系和卡槽，最多向前看三手（含当前手）。优先考虑能三消腾槽的走法，卡槽越接近满槽，风险扣分越高。碰到未知牌时停止推演，实际取牌后才读取新露出的牌面。同分时随机选择。默认没有随机误选，可通过 `--error-rate` 设置每次有备选牌时改选的概率。各副使用相同种子范围，胜率为清盘次数除以已完成的模拟次数。30% 进度达标率统计累计消除至少开局总牌数 30% 的对局占比，尚未消除的槽内牌不计入消除数。加 `--json` 输出可保存的结构化结果。结果反映该策略和参数下的胜率，真人胜率需实测。
 
 ## 检查
 

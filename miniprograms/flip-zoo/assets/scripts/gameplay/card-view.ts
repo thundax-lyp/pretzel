@@ -76,15 +76,16 @@ export class CardView {
         exposure: number,
         selectable: boolean,
         upperCards: readonly CardView[] = [],
+        bound = false,
     ): void {
         this.node.active = true;
-        const appearance = `${kind}/${exposure}/${selectable}/${upperCards.map((card) => card.node.name).join(",")}`;
+        const appearance = `${kind}/${exposure}/${selectable}/${bound}/${upperCards.map((card) => card.node.name).join(",")}`;
         if (this.lastAppearance === appearance) return;
         this.lastAppearance = appearance;
 
         this.mark.string = "";
         const faceDown = kind === null || exposure === 0;
-        this.paintTile(faceDown, selectable, upperCards);
+        this.paintTile(faceDown, selectable, upperCards, bound);
         // A fully covered tile can still contribute a visible strip after
         // the drawing offset. Show its body without exposing its portrait.
         this.portrait.node.active = exposure !== 0;
@@ -115,13 +116,14 @@ export class CardView {
         faceDown: boolean,
         selectable: boolean,
         upperCards: readonly CardView[],
+        bound: boolean,
+        edge = 6,
     ): void {
         const { body, width, height, elevation } = this;
         const x = -width / 2 + CARD_INSET;
         const y = -height / 2 + CARD_INSET;
         const faceWidth = -2 * x;
         const tileHeight = -2 * y;
-        const edge = 6;
         const summit = elevation === ELEVATION_SIDES.length - 1;
         body.clear();
         body.lineWidth = 2;
@@ -139,11 +141,19 @@ export class CardView {
         body.fillColor = color(
             faceDown
                 ? selectable
-                    ? "#D6EDAA"
-                    : "#B9CE9A"
+                    ? bound
+                        ? "#ADC975"
+                        : "#D6EDAA"
+                    : bound
+                      ? "#A6B986"
+                      : "#B9CE9A"
                 : selectable
-                  ? "#FFF7D9"
-                  : "#E7E7C4",
+                  ? bound
+                      ? "#F3E7BC"
+                      : "#FFF7D9"
+                  : bound
+                    ? "#DFDBB6"
+                    : "#E7E7C4",
         );
         body.roundRect(x, y + edge, faceWidth, tileHeight - edge, CARD_RADIUS);
         body.fill();
@@ -228,5 +238,18 @@ export class CardView {
         );
         this.body.fill();
         this.body.stroke();
+    }
+
+    showShareUnlock(pressed = false): void {
+        const appearance = pressed ? "shareUnlockPressed" : "shareUnlock";
+        if (this.lastAppearance === appearance) return;
+        this.lastAppearance = appearance;
+        this.paintTile(false, true, [], false, pressed ? 4 : 12);
+        this.portrait.node.active = false;
+        this.mark.string = "解锁";
+        this.mark.fontSize = 19;
+        this.mark.lineHeight = 22;
+        this.mark.color = color("#476648");
+        this.mark.node.setPosition(0, pressed ? -24 : -18);
     }
 }

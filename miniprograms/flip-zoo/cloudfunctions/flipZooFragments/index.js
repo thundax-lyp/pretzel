@@ -1,6 +1,10 @@
 const cloud = require("wx-server-sdk");
 const { createHash, randomInt, randomUUID } = require("node:crypto");
-const { Round, PROPS } = require("./rules/gameplay/round.js");
+const {
+    Round,
+    PROPS,
+    SHARE_SLOT_ACTION,
+} = require("./rules/gameplay/round.js");
 const { MAIN_BOARD_POOL } = require("./rules/services/main-board-pool.js");
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
@@ -9,15 +13,31 @@ const collection = "flipZooFragments";
 const weights = [1176, 1176, 2353, 1765, 1765, 1765];
 const emptyBalances = () => weights.map(() => 0);
 
-function verifyWin(deal, actions) {
-    const round = new Round(2, "C", deal.kinds, Math.random, deal.layout, true);
-    if (!Array.isArray(actions) || actions.length > deal.kinds.length + 6) {
+function verifyWin(deal, actions, shareLockedSlot) {
+    const round = new Round(
+        2,
+        "C",
+        deal.kinds,
+        Math.random,
+        deal.layout,
+        true,
+        deal.bindings,
+        shareLockedSlot,
+    );
+    if (
+        !Array.isArray(actions) ||
+        actions.length >
+            deal.kinds.length + 6 + Number(shareLockedSlot === true)
+    ) {
         return false;
     }
     for (const action of actions) {
         if (round.status !== "playing") return false;
         if (Number.isInteger(action)) {
             if (round.take(action) === null) return false;
+        } else if (action === SHARE_SLOT_ACTION) {
+            if (shareLockedSlot !== true || !round.unlockNextSlot())
+                return false;
         } else if (typeof action === "string") {
             const prop = action.startsWith("claim:") ? action.slice(6) : action;
             if (!PROPS.includes(prop)) return false;
@@ -89,14 +109,24 @@ exports.main = async (event) => {
                 .collection(collection)
                 .doc(roundId)
                 .set({
-                    data: { owner, deal: board, issuedAt },
+                    data: {
+                        owner,
+                        deal: board,
+                        issuedAt,
+                        shareLockedSlot: event.shareLockedSlot === true,
+                    },
                 });
             await doc.update({
                 data: { lastBoard: selected, remainingBoards: remaining },
             });
             return board;
         });
-        return { roundId, kinds: deal.kinds, layout: deal.layout };
+        return {
+            roundId,
+            kinds: deal.kinds,
+            layout: deal.layout,
+            bindings: deal.bindings,
+        };
     }
     if (event.action !== "finish" || !/^[a-f0-9-]{36}$/.test(event.roundId)) {
         return { status: "invalid" };
@@ -108,7 +138,7 @@ exports.main = async (event) => {
     const now = Date.now();
     if (
         now - record.issuedAt > 24 * 60 * 60 * 1000 ||
-        !verifyWin(record.deal, event.actions)
+        !verifyWin(record.deal, event.actions, record.shareLockedSlot)
     ) {
         return { status: "invalid" };
     }
