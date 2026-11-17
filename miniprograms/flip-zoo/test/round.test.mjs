@@ -7,7 +7,6 @@ import {
     Round,
     isBoardKinds,
 } from "../assets/scripts/gameplay/round.ts";
-import { MAIN_BOARD_POOL } from "../assets/scripts/services/main-board-pool.ts";
 import {
     DEFAULT_DIFFICULTY,
     buildBoardKinds,
@@ -104,7 +103,7 @@ test("A/B/C use the same board and expose only their assigned opening tiles", ()
     );
 });
 
-test("A and C reveal four neighbors on the same layer; diagonal and lower tiles stay hidden", () => {
+test("A and C reveal four neighbors while diagonal and still-covered tiles stay hidden", () => {
     for (const group of ["A", "C"]) {
         const round = new Round(2, group);
         const center = round.cards.find(
@@ -151,9 +150,45 @@ test("a tile cannot be taken until all overlapping upper tiles are removed", () 
         assert.equal(round.slots.length, 3);
 
         assert.equal(round.take(above[3].id), 0);
-        assert.equal(round.isFaceUp(below), group === "B");
+        assert.equal(round.isFaceUp(below), true);
         assert.notEqual(round.take(below.id), null);
     }
+});
+
+test("taking a binding reveals all newly uncovered tiles after removing both halves", () => {
+    const round = new Round(
+        2,
+        "A",
+        [0, 0, 1, 2, 3, 3, 4],
+        undefined,
+        [[[0, 0, 4, 1]], [[0.5, 0, 3, 1]]],
+        false,
+        [
+            [0, 1],
+            [4, 5],
+        ],
+    );
+    assert.equal(round.take(5), 0);
+    assert.deepEqual(
+        round.cards.slice(0, 4).map((card) => round.isFaceUp(card)),
+        [true, true, false, false],
+    );
+    assert.equal(round.take(6), 0);
+    assert.ok(round.cards.slice(0, 4).every((card) => round.isFaceUp(card)));
+});
+
+test("clearing slots reveals tiles exposed by the resolved removal", () => {
+    const round = new Round(2, "A", [0, 1, 1, 1], undefined, [
+        [[0, 0, 2, 1]],
+        [
+            [0, 0, 1, 1],
+            [3, 0, 1, 1],
+        ],
+    ]);
+    assert.equal(round.take(3), 0);
+    assert.equal(round.isFaceUp(round.cards[0]), false);
+    assert.ok(round.clearSlots());
+    assert.equal(round.isFaceUp(round.cards[0]), true);
 });
 
 test("the seventh tile can match when both slots have been unlocked", () => {
@@ -449,26 +484,30 @@ test("clear slots completes a group across layers in highest-first order", () =>
 });
 
 test("clear slots prefers a higher complete binding over lower single tiles", () => {
-    const board = MAIN_BOARD_POOL.find(({ name }) => name === "T 型峰顶 A");
+    const layout = [
+        [[0, 0, 6, 1]],
+        [
+            [0, 0, 2, 1],
+            [3, 0, 1, 1],
+        ],
+    ];
     const round = new Round(
         2,
         "C",
-        board.kinds,
+        [0, 0, 0, 1, 1, 1, 0, 0, 0],
         undefined,
-        board.layout,
+        layout,
         false,
-        board.bindings,
+        [[6, 7]],
         true,
     );
-    for (const id of [188, 187, 185, 183, 181]) {
-        assert.notEqual(round.take(id), null);
-    }
-    const group = round.clearSlots().find(({ kind }) => kind === 2);
+    assert.equal(round.take(8), 0);
+    const [group] = round.clearSlots();
     assert.deepEqual(
-        group.boardCards.map(({ id }) => id).sort((a, b) => a - b),
-        [160, 162],
+        group.boardCards.map(({ id }) => id),
+        [6, 7],
     );
-    for (const id of [122, 123]) assert.ok(round.isOnBoard(round.cards[id]));
+    for (const id of [0, 1, 2]) assert.ok(round.isOnBoard(round.cards[id]));
 });
 
 test("clear slots preserves the board and use when any group cannot be completed", () => {

@@ -43,6 +43,7 @@ import { createBoardApi, type MainBoardDeal } from "../services/board-api";
 import type { Control, ScreenControls } from "../ui/screen-controls";
 import {
     flyCardToSlot,
+    liftBoardCards,
     MATCH_DURATION,
     playMatch,
     slideSlotCard,
@@ -87,10 +88,19 @@ const GROUP_LABELS: Record<Group, string> = {
     C: `C  预亮 ${C_OPENING_CARD_COUNT} 张`,
 };
 
+const WECHAT_MAIN_BOARD_SCALE = 1.07;
 const TABLE = {
     1: { width: 134, height: 169, y: 124 },
-    2: { width: 88, height: 92, y: -17 },
+    2: WECHAT
+        ? {
+              width: 94 / WECHAT_MAIN_BOARD_SCALE,
+              height: 98 / WECHAT_MAIN_BOARD_SCALE,
+              y: -17,
+          }
+        : { width: 88, height: 92, y: -17 },
 } as const;
+const WECHAT_MAIN_BOARD_TOP_EXTENSION = 88;
+const WECHAT_MAIN_BOARD_BOTTOM_EXTENSION = 72;
 
 interface ShareCard {
     title: string;
@@ -165,6 +175,11 @@ export class FlipZooStartScreen extends Component {
     };
     private matchLayer?: Node;
     private animatingCards = false;
+    private boardPress?: {
+        touchId: number;
+        card: Card;
+        tiles: { card: Card; lifted: CardView }[];
+    };
     private audio!: ZooAudio;
     private readonly controls: ScreenControls = {
         button: (...args) => this.button(...args),
@@ -178,6 +193,7 @@ export class FlipZooStartScreen extends Component {
     private slotTray?: Node;
     private propTray!: Node;
     private cards: CardView[] = [];
+    private boardDrawOrder: readonly Card[] = [];
     private readonly slots: CardView[] = [];
     private readonly groupButtons = new Map<Group, Control>();
     private readonly propButtons = new Map<
@@ -421,20 +437,29 @@ export class FlipZooStartScreen extends Component {
                 button.icon.node.setPosition(0, 0);
                 button.icon.node.setScale(1.15, 1.15, 1);
             }
-            const badge = uiNode(button.graphic.node, "RemainingUses");
-            badge.setPosition(propWidth / 2 - 6, WECHAT ? 52 : 44);
-            const circle = badge.addComponent(Graphics);
-            circle.fillColor = color("#EC7847");
-            circle.strokeColor = color("#A7432D");
-            circle.lineWidth = 2;
-            circle.circle(0, 0, 17);
-            circle.fill();
-            circle.stroke();
-            const count = label(badge, "", 19, "#1A525C");
-            count.isBold = true;
+            const count = this.addButtonBadge(
+                button,
+                propWidth / 2 - 6,
+                WECHAT ? 52 : 44,
+            );
             this.propButtons.set(prop, { button, count });
         });
         this.openRound(1, "C");
+    }
+
+    private addButtonBadge(button: Control, x: number, y: number): Label {
+        const badge = uiNode(button.graphic.node, "RemainingUses");
+        badge.setPosition(x, y);
+        const circle = badge.addComponent(Graphics);
+        circle.fillColor = color("#EC7847");
+        circle.strokeColor = color("#A7432D");
+        circle.lineWidth = 2;
+        circle.circle(0, 0, 17);
+        circle.fill();
+        circle.stroke();
+        const count = label(badge, "", 19, "#FFFFFF");
+        count.isBold = true;
+        return count;
     }
 
     private createSlotTray(): void {
@@ -469,6 +494,7 @@ export class FlipZooStartScreen extends Component {
                 width,
                 height,
                 this.art,
+                0,
             );
             const extra = index >= initialCapacity;
             const column = index - (slotLimit - 1) / 2;
@@ -478,16 +504,33 @@ export class FlipZooStartScreen extends Component {
             if (extra) {
                 const unlock = () => this.onSlotTouch(index);
                 if (WECHAT) {
-                    const icon = uiNode(slot.node, "ShareUnlockIcon");
-                    drawButtonIcon(icon, "share", 0, 13, 38, "#476648");
-                    const press = slot.node.addComponent(ButtonPress);
-                    press.action = unlock;
+                    const button = this.button(
+                        "解锁",
+                        0,
+                        0,
+                        width,
+                        unlock,
+                        slot.node,
+                        width,
+                    );
+                    button.node.name = "ShareUnlockButton";
+                    button.caption.node.active = false;
+                    drawButtonIcon(
+                        button.graphic.node,
+                        "share",
+                        0,
+                        0,
+                        40,
+                        "#FFFFFF",
+                    );
+                    this.paintButton(button, false, true, "blue", 22);
+                    this.addButtonBadge(
+                        button,
+                        width / 2 - 6,
+                        width / 2 - 4,
+                    ).string = "+";
+                    const press = button.node.getComponent(ButtonPress)!;
                     press.available = () => this.canTapSlot(index);
-                    press.showPressed = (pressed) => {
-                        if (!icon.isValid || !icon.activeInHierarchy) return;
-                        icon.setPosition(0, pressed ? -6 : 0);
-                        slot.showShareUnlock(pressed);
-                    };
                 } else {
                     this.addAdBadge(slot.node, width, height);
                     shadedButton(slot.node, unlock).available = () =>
@@ -696,6 +739,8 @@ export class FlipZooStartScreen extends Component {
         layout?: BoardLayout,
         bindings?: readonly Binding[],
     ): void {
+        this.cancelBoardPress();
+        this.animatingCards = false;
         this.requestVersion += 1;
         this.fragmentRound = undefined;
         this.failedBoardGroup = undefined;
@@ -738,40 +783,50 @@ export class FlipZooStartScreen extends Component {
                 uiNode(board, `Layer-${layer}`),
             ]),
         );
-        this.cards = this.round.cards.map((card) => {
+        this.boardDrawOrder =
+            level === 2
+                ? [...this.round.cards].sort(
+                      (a, b) =>
+                          a.layer - b.layer || a.top - b.top || a.left - b.left,
+                  )
+                : this.round.cards;
+        this.cards = [];
+        for (const card of this.boardDrawOrder) {
             const view = new CardView(
                 layers.get(card.layer)!,
                 `Card-${card.id}`,
                 table.width,
                 table.height,
                 this.art,
-                level === 2 ? card.layer : 0,
+                card.layer,
             );
             view.node.setPosition(
                 (card.left - left + 0.5) * table.width - width / 2,
                 height / 2 - (card.top - top + 0.5) * table.height,
             );
-            return view;
-        });
-        if (level === 2) {
-            // Include the right and top overhang of elevated drawings.
-            const lift = Math.max(
-                ...this.cards.map((card) => card.drawingOffset),
-            );
-            const touchArea = uiNode(
-                board,
-                "BoardTouch",
-                width + lift,
-                height + lift,
-            );
-            touchArea.setPosition(lift / 2, lift / 2);
-            touchArea.on(Node.EventType.TOUCH_END, this.onBoardTouch, this);
-            this.board.touchArea = touchArea.getComponent(UITransform)!;
-        } else {
-            board.on(Node.EventType.TOUCH_END, this.onBoardTouch, this);
+            this.cards[card.id] = view;
         }
+        let touchTarget = board;
+        if (level === 2) {
+            const touchArea = uiNode(board, "BoardTouch");
+            this.board.touchArea = touchArea.getComponent(UITransform)!;
+            this.updateBoardProjection();
+            touchTarget = touchArea;
+        }
+        touchTarget.on(
+            Node.EventType.TOUCH_START,
+            this.onBoardPressStart,
+            this,
+        );
+        touchTarget.on(Node.EventType.TOUCH_MOVE, this.onBoardPressMove, this);
+        touchTarget.on(Node.EventType.TOUCH_END, this.onBoardPressEnd, this);
+        touchTarget.on(
+            Node.EventType.TOUCH_CANCEL,
+            this.cancelBoardPress,
+            this,
+        );
         this.createSlotTray();
-        if (level === 2 && !WECHAT) this.matchSlotSizeToBoard();
+        if (level === 2 && !WECHAT) this.matchSlotScaleToBoard();
         if (this.matchLayer) {
             this.matchLayer.removeFromParent();
             this.matchLayer.destroy();
@@ -801,20 +856,20 @@ export class FlipZooStartScreen extends Component {
         void this.startMainBoard(this.round.group);
     }
 
-    private onBoardTouch(event: EventTouch): void {
+    private onBoardPressStart(event: EventTouch): void {
+        const touchId = event.getID();
         if (
+            touchId === null ||
             !this.board ||
+            this.boardPress ||
             this.overlay ||
             this.loadingBoard ||
             this.animatingCards
         )
             return;
+        const local = this.boardTouchPoint(event);
         const { node, left, top, tileHeight } = this.board;
         const transform = node.getComponent(UITransform)!;
-        const point = event.getUILocation();
-        const local = transform.convertToNodeSpaceAR(
-            new Vec3(point.x, point.y),
-        );
         const card =
             this.round.level === 2
                 ? this.drawnCardAt(local.x, local.y)
@@ -823,19 +878,89 @@ export class FlipZooStartScreen extends Component {
                       top + (transform.height / 2 - local.y) / tileHeight,
                   );
         if (!card) return;
-        const insertionIndex = this.round.slotInsertionIndex(card.kind);
-        const previous = this.round.slots.map((tile) => tile.kind);
         const partner = this.round.boundPartner(card.id);
-        const taken = partner ? [card, partner] : [card];
-        const matched = this.round.take(card.id);
-        if (matched === null) {
+        if (!this.round.canTake(card.id)) {
             if (this.round.status === "playing") {
                 this.message.string = partner
-                    ? this.round.slotCapacity - previous.length < 2
+                    ? this.round.slotCapacity - this.round.slots.length < 2
                         ? "需要两个空槽才能取走绑定牌"
                         : "两张牌都露出后才能取走"
                     : "这张牌还被压着，先移开上层牌";
             }
+            return;
+        }
+
+        const taken = partner ? [card, partner] : [card];
+        const previews = liftBoardCards(
+            this.matchLayer!,
+            this.art,
+            taken.map((tile) => ({
+                source: this.cards[tile.id].node,
+                kind: this.round.isFaceUp(tile) ? tile.kind : null,
+            })),
+            !!partner,
+        );
+        const tiles = taken.map((tile, index) => ({
+            card: tile,
+            lifted: previews[index],
+        }));
+        if (partner && (partner.top < card.top || partner.left < card.left)) {
+            previews[0].node.setSiblingIndex(
+                this.matchLayer!.children.length - 1,
+            );
+        }
+        this.boardPress = { touchId, card, tiles };
+        if (partner) this.refreshBindingMarker();
+    }
+
+    private onBoardPressMove(event: EventTouch): void {
+        const press = this.boardPress;
+        if (!press || event.getID() !== press.touchId) return;
+        const { x, y } = this.boardTouchPoint(event);
+        if (!this.cards[press.card.id].containsBoardPoint(x, y)) {
+            this.cancelBoardPress();
+        }
+    }
+
+    private onBoardPressEnd(event: EventTouch): void {
+        this.onBoardPressMove(event);
+        const press = this.boardPress;
+        if (!press || event.getID() !== press.touchId) return;
+        if (this.overlay || this.loadingBoard || this.animatingCards) {
+            this.cancelBoardPress();
+            return;
+        }
+        this.takeBoardPress(press.card, press.tiles);
+    }
+
+    private cancelBoardPress(event?: EventTouch): void {
+        const press = this.boardPress;
+        if (!press || (event && event.getID() !== press.touchId)) return;
+        this.boardPress = undefined;
+        for (const { card, lifted } of press.tiles) {
+            lifted.node.active = false;
+            lifted.node.destroy();
+            this.cards[card.id].node.active = this.round.isOnBoard(card);
+        }
+        if (press.tiles.length > 1) this.refreshBindingMarker();
+    }
+
+    private boardTouchPoint(event: EventTouch): Vec3 {
+        const point = event.getUILocation();
+        return this.board!.node.getComponent(UITransform)!.convertToNodeSpaceAR(
+            new Vec3(point.x, point.y),
+        );
+    }
+
+    private takeBoardPress(
+        card: Card,
+        taken: readonly { card: Card; lifted: CardView }[],
+    ): void {
+        const insertionIndex = this.round.slotInsertionIndex(card.kind);
+        const previous = this.round.slots.map((tile) => tile.kind);
+        const matched = this.round.take(card.id);
+        if (matched === null) {
+            this.cancelBoardPress();
             return;
         }
 
@@ -871,16 +996,21 @@ export class FlipZooStartScreen extends Component {
                       : "找三张同款";
             this.finishAction(matched > 0);
         };
-        taken.forEach((tile, index) =>
-            this.flyCardToSlot(tile, insertionIndex + index, onLanded),
+        this.boardPress = undefined;
+        taken.forEach(({ card: tile, lifted }, index) =>
+            this.flyCardToSlot(tile, insertionIndex + index, onLanded, lifted),
         );
         this.refreshBoard();
     }
 
     private drawnCardAt(x: number, y: number): Card | undefined {
         const { round } = this;
-        for (let index = round.cards.length - 1; index >= 0; index -= 1) {
-            const card = round.cards[index];
+        for (
+            let index = this.boardDrawOrder.length - 1;
+            index >= 0;
+            index -= 1
+        ) {
+            const card = this.boardDrawOrder[index];
             if (
                 round.isOnBoard(card) &&
                 this.cards[card.id].containsBoardPoint(x, y)
@@ -895,6 +1025,7 @@ export class FlipZooStartScreen extends Component {
         card: Card,
         slotIndex: number,
         onLanded: () => void,
+        lifted?: CardView,
     ): void {
         flyCardToSlot(
             this.matchLayer!,
@@ -903,6 +1034,7 @@ export class FlipZooStartScreen extends Component {
             this.slots[slotIndex].node,
             card.kind,
             onLanded,
+            lifted,
         );
     }
 
@@ -1027,6 +1159,7 @@ export class FlipZooStartScreen extends Component {
     }
 
     private openOverlay(name: string, dimBackground = true): Node {
+        this.cancelBoardPress();
         this.closeOverlay();
         const overlay = uiNode(this.node, name, 750, 1334);
         this.overlay = overlay;
@@ -1927,10 +2060,10 @@ export class FlipZooStartScreen extends Component {
                 index >= this.round.slotCapacity && kind === undefined;
             const adBadge = slot.node.getChildByName("RewardedAdBadge");
             if (adBadge) adBadge.active = locked;
-            const shareIcon = slot.node.getChildByName("ShareUnlockIcon");
-            if (shareIcon) shareIcon.active = locked;
+            const shareButton = slot.node.getChildByName("ShareUnlockButton");
+            if (shareButton) shareButton.active = locked;
+            slot.setArtworkVisible(!(locked && shareButton));
             if (kind !== undefined) slot.show(kind, FULL_EXPOSURE, true);
-            else if (locked && shareIcon) slot.showShareUnlock();
             else slot.showEmpty(locked ? "锁定" : undefined);
         });
     }
@@ -1948,15 +2081,20 @@ export class FlipZooStartScreen extends Component {
             layer.getChildByName(`BindingMarker-${binding[0]}`) ??
             uiNode(layer, `BindingMarker-${binding[0]}`);
         const [a, b] = binding.map((id) => round.cards[id]);
-        marker.active = round.isOnBoard(a) && round.isOnBoard(b);
+        marker.active =
+            round.isOnBoard(a) &&
+            round.isOnBoard(b) &&
+            !this.boardPress?.tiles.some(
+                ({ card }) => card.id === a.id || card.id === b.id,
+            );
         if (!marker.active) return;
-        marker.setScale(1.2, 1.2);
+        const { x: scaleX, y: scaleY } = this.board!.node.scale;
+        marker.setScale(1, scaleX / scaleY);
         marker.setPosition(
-            (first.node.position.x + second.node.position.x) / 2 +
-                first.drawingOffset,
+            (first.node.position.x + second.node.position.x) / 2,
             (first.node.position.y + second.node.position.y) / 2 +
-                first.drawingOffset +
-                3,
+                first.drawingOffsetY +
+                first.faceCenterY,
         );
         const graphic =
             marker.getComponent(Graphics) ?? marker.addComponent(Graphics);
@@ -1965,28 +2103,41 @@ export class FlipZooStartScreen extends Component {
             round.isSelectable(round.exposure(a)) &&
             round.isSelectable(round.exposure(b));
         graphic.clear();
-        graphic.strokeColor = color("#48653B");
-        graphic.lineWidth = 3;
-        for (const offset of [-13, 13]) {
-            graphic.ellipse(
-                horizontal ? offset : 0,
-                horizontal ? -2 : offset,
-                horizontal ? 6 : 3,
-                horizontal ? 3 : 6,
-            );
-            graphic.stroke();
-        }
-        graphic.moveTo(-5, 1);
-        graphic.lineTo(-5, 7);
-        graphic.bezierCurveTo(-5, 14, 5, 14, 5, 7);
-        if (!open) graphic.lineTo(5, 1);
-        graphic.stroke();
-        graphic.fillColor = color("#F5CE63");
-        graphic.roundRect(-9, -10, 18, 14, 4);
+        graphic.lineWidth = 1.5;
+        graphic.fillColor = color("#ADBFB2");
+        graphic.strokeColor = color("#6D8276");
+        const railWidth = horizontal ? 42 : 9;
+        const railHeight = horizontal ? 9 : 42;
+        graphic.roundRect(
+            -railWidth / 2,
+            -railHeight / 2,
+            railWidth,
+            railHeight,
+            4,
+        );
         graphic.fill();
         graphic.stroke();
-        graphic.fillColor = color("#48653B");
+
+        graphic.strokeColor = color("#526A5D");
+        graphic.lineWidth = 2.5;
+        graphic.moveTo(-5, 2);
+        graphic.lineTo(-5, 7);
+        graphic.bezierCurveTo(-5, 13, 5, 13, 5, 7);
+        graphic.lineTo(5, open ? 6 : 2);
+        graphic.stroke();
+
+        graphic.fillColor = color(open ? "#E3EEDC" : "#EEF0EF");
+        graphic.strokeColor = color("#63796D");
+        graphic.lineWidth = 1.5;
+        graphic.roundRect(-10, -10, 20, 14, 4);
+        graphic.fill();
+        graphic.stroke();
+        graphic.fillColor = color("#FFFFFF");
+        graphic.roundRect(-6, 0, 12, 1.4, 0.7);
+        graphic.fill();
+        graphic.fillColor = color("#526A5D");
         graphic.circle(0, -3, 2);
+        graphic.rect(-0.8, -6, 1.6, 3);
         graphic.fill();
     }
 
@@ -1996,7 +2147,10 @@ export class FlipZooStartScreen extends Component {
         const onBoard = round.cards.filter((card) => round.isOnBoard(card));
         for (const card of round.cards) {
             const view = this.cards[card.id];
-            if (!round.isOnBoard(card)) {
+            if (
+                !round.isOnBoard(card) ||
+                this.boardPress?.tiles.some((tile) => tile.card.id === card.id)
+            ) {
                 view.node.active = false;
                 continue;
             }
@@ -2034,7 +2188,6 @@ export class FlipZooStartScreen extends Component {
                 button,
                 false,
                 available || claimable || remaining > 0,
-                prop === "undo" ? "blue" : prop === "peek" ? "purple" : "green",
             );
         }
         this.tutorialRibbon.active = round.level === 1;
@@ -2093,6 +2246,7 @@ export class FlipZooStartScreen extends Component {
     }
 
     private resizeLayout(): void {
+        this.cancelBoardPress();
         this.fitViewport();
         const { width, height } = this.screenSize();
         if (this.garden) {
@@ -2135,14 +2289,21 @@ export class FlipZooStartScreen extends Component {
         this.syncFeedbackButton();
     }
 
-    private fitBoard(board: Node, width: number, height: number): void {
+    private fitBoard(
+        board: Node,
+        width: number,
+        height: number,
+        extraHeight = 0,
+    ): void {
         const bounds = board.getComponent(UITransform)!;
+        const maxScale =
+            WECHAT && this.round.level === 2 ? WECHAT_MAIN_BOARD_SCALE : 1;
         const scale = Math.min(
-            1,
+            maxScale,
             (width - 20) / bounds.width,
-            (height - 20) / bounds.height,
+            (height - extraHeight - 20) / bounds.height,
         );
-        board.setScale(scale, scale, 1);
+        board.setScale(scale, scale + extraHeight / bounds.height, 1);
     }
 
     private layoutWeChatGame(height: number): void {
@@ -2209,57 +2370,61 @@ export class FlipZooStartScreen extends Component {
             40,
             boardTop - bottom - footerAndTrayHeight - 18,
         );
-        const boardHeight = tutorial
+        const availableMatHeight = tutorial
             ? Math.min(matBounds.height, availableBoardHeight)
             : availableBoardHeight;
-        const stackBottom = bottom + (availableBoardHeight - boardHeight) / 2;
+        const stackBottom =
+            bottom + (availableBoardHeight - availableMatHeight) / 2;
         footer.setPosition(0, stackBottom + footerHeight / 2);
         const trayTop = stackBottom + footerAndTrayHeight;
         this.slotTray.setPosition(0, trayTop - trayHeight / 2);
         const boardBottom = trayTop + (tutorial ? 18 : 8);
-        const center = boardBottom + boardHeight / 2;
+        const topExtension = tutorial ? 0 : WECHAT_MAIN_BOARD_TOP_EXTENSION;
+        const bottomExtension = tutorial
+            ? 0
+            : WECHAT_MAIN_BOARD_BOTTOM_EXTENSION;
+        const extraHeight = topExtension + bottomExtension;
+        const boardHeight = availableMatHeight + extraHeight;
+        const center = boardBottom - bottomExtension + boardHeight / 2;
         mat.setPosition(0, center);
         mat.setScale(1, boardHeight / matBounds.height, 1);
         this.board.node.setPosition(0, center);
-        if (!tutorial) this.resizeMainTiles(matBounds.width, boardHeight);
-        this.fitBoard(this.board.node, matBounds.width, boardHeight);
-        if (!tutorial) this.matchSlotSizeToBoard();
-    }
-
-    private matchSlotSizeToBoard(): void {
-        const board = this.board!;
-        for (const slot of this.slots) {
-            slot.setHeight(board.tileHeight);
-            slot.node.setScale(board.node.scale);
-        }
-        if (!this.animatingCards) {
-            this.refreshSlots(this.round.slots.map((card) => card.kind));
-        }
-    }
-
-    private resizeMainTiles(width: number, height: number): void {
-        const board = this.board!;
-        const bounds = board.node.getComponent(UITransform)!;
-        const rows = bounds.height / board.tileHeight;
-        const widthScale = Math.min(1, (width - 20) / bounds.width);
-        const tileHeight = Math.max(
-            TABLE[2].height,
-            Math.min(TABLE[2].height * 1.24, (height - 20) / rows / widthScale),
+        this.fitBoard(
+            this.board.node,
+            matBounds.width,
+            boardHeight,
+            extraHeight,
         );
-        if (Math.abs(tileHeight - board.tileHeight) < 0.01) return;
-        const heightChange = rows * (tileHeight - board.tileHeight);
-        board.tileHeight = tileHeight;
-        bounds.setContentSize(bounds.width, rows * tileHeight);
-        if (board.touchArea) board.touchArea.height += heightChange;
-        for (const card of this.round.cards) {
-            const view = this.cards[card.id];
-            view.setHeight(tileHeight);
-            view.node.setPosition(
-                view.node.position.x,
-                bounds.height / 2 - (card.top - board.top + 0.5) * tileHeight,
-            );
+        if (!tutorial) {
+            this.updateBoardProjection();
+            this.matchSlotScaleToBoard();
+            this.refreshBoard();
         }
-        this.refreshBoard();
+    }
+
+    private updateBoardProjection(): void {
+        const { node, touchArea } = this.board!;
+        for (const card of this.cards) {
+            card.setProjectionScale(node.scale.y);
+            card.keepPortraitSquare(node.scale.x, node.scale.y);
+        }
+        const bounds = node.getComponent(UITransform)!;
+        const liftY = Math.max(
+            ...this.cards.map((card) => card.drawingOffsetY),
+        );
+        touchArea!.setContentSize(bounds.width, bounds.height + liftY);
+        touchArea!.node.setPosition(0, liftY / 2);
+    }
+
+    private matchSlotScaleToBoard(): void {
+        const scale = this.board!.node.scale;
+        for (const slot of this.slots) {
+            slot.node.setScale(scale);
+            slot.keepPortraitSquare(scale.x, scale.y);
+            slot.node
+                .getChildByName("ShareUnlockButton")
+                ?.setScale(1, scale.x / scale.y, 1);
+        }
     }
 
     private pageScale(height: number): number {

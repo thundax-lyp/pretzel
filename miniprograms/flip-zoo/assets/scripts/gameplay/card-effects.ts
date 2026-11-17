@@ -14,6 +14,47 @@ import { FULL_EXPOSURE } from "./round";
 
 export const MATCH_DURATION = 0.36;
 const SLOT_MOVE_DURATION = 0.18;
+const PICKUP_RISE = 12;
+const PICKUP_SCALE = 1.24;
+
+export function liftBoardCards(
+    layer: Node,
+    art: ZooArtwork,
+    cards: readonly { source: Node; kind: number | null }[],
+    bound: boolean,
+): CardView[] {
+    const transform = layer.getComponent(UITransform)!;
+    const center = new Vec3();
+    const poses = cards.map(({ source, kind }) => {
+        const drawing = source.getChildByName("Drawing") ?? source;
+        const position = transform.convertToNodeSpaceAR(drawing.worldPosition);
+        center.add(position);
+        return { source, kind, drawing, position };
+    });
+    center.multiplyScalar(1 / poses.length);
+    return poses.map(({ source, kind, drawing, position }) => {
+        const { width, height } = source.getComponent(UITransform)!;
+        const scaleX = drawing.worldScale.x / layer.worldScale.x;
+        const scaleY = drawing.worldScale.y / layer.worldScale.y;
+        const lifted = new CardView(
+            layer,
+            "LiftedCard",
+            width,
+            height,
+            art,
+            drawing.getChildByName("TileSkin") ? 0 : undefined,
+        );
+        lifted.keepPortraitSquare(scaleX, scaleY);
+        lifted.show(kind, FULL_EXPOSURE, true, [], bound);
+        lifted.node.setPosition(
+            center.x + (position.x - center.x) * PICKUP_SCALE,
+            center.y + (position.y - center.y) * PICKUP_SCALE + PICKUP_RISE,
+        );
+        lifted.node.setScale(scaleX * PICKUP_SCALE, scaleY * PICKUP_SCALE, 1);
+        source.active = false;
+        return lifted;
+    });
+}
 
 export function flyCardToSlot(
     layer: Node,
@@ -22,21 +63,22 @@ export function flyCardToSlot(
     target: Node,
     kind: number,
     onLanded: () => void,
+    lifted?: CardView,
 ): void {
     const { width, height } = target.getComponent(UITransform)!;
     const layerTransform = layer.getComponent(UITransform)!;
-    const start = layerTransform.convertToNodeSpaceAR(
-        source.getChildByName("Drawing")?.worldPosition ?? source.worldPosition,
-    );
+    const origin = lifted?.node ?? source;
+    const drawing = origin.getChildByName("Drawing") ?? origin;
+    const start = layerTransform.convertToNodeSpaceAR(drawing.worldPosition);
     const end = layerTransform.convertToNodeSpaceAR(target.worldPosition);
     const position = new Vec3();
-    const sourceScale = source.worldScale;
+    const sourceScale = drawing.worldScale;
     const targetScale = target.worldScale;
     const layerScale = layer.worldScale;
     const startScale = new Vec3(
-        (sourceScale.x * source.getComponent(UITransform)!.width) /
+        (sourceScale.x * origin.getComponent(UITransform)!.width) /
             (layerScale.x * width),
-        (sourceScale.y * source.getComponent(UITransform)!.height) /
+        (sourceScale.y * origin.getComponent(UITransform)!.height) /
             (layerScale.y * height),
         1,
     );
@@ -46,10 +88,20 @@ export function flyCardToSlot(
         1,
     );
     const scale = new Vec3();
-    const flight = new CardView(layer, "FlyingCard", width, height, art);
+    const flight =
+        lifted ??
+        new CardView(
+            layer,
+            "FlyingCard",
+            width,
+            height,
+            art,
+            drawing.getChildByName("TileSkin") ? 0 : undefined,
+        );
     flight.show(kind, FULL_EXPOSURE, true);
     flight.node.setPosition(start);
     flight.node.setScale(startScale);
+    flight.keepPortraitSquare(startScale.x, startScale.y);
     source.active = false;
     tween({ progress: 0 })
         .to(
@@ -58,6 +110,7 @@ export function flyCardToSlot(
             {
                 easing: "quadOut",
                 onUpdate: (state) => {
+                    if (!flight.node.isValid) return;
                     const progress = state!.progress;
                     Vec3.lerp(position, start, end, progress);
                     position.y += 64 * progress * (1 - progress);
@@ -65,10 +118,12 @@ export function flyCardToSlot(
                     flight.node.setScale(
                         Vec3.lerp(scale, startScale, endScale, progress),
                     );
+                    flight.keepPortraitSquare(scale.x, scale.y);
                 },
             },
         )
         .call(() => {
+            if (!flight.node.isValid) return;
             flight.node.active = false;
             flight.node.destroy();
             onLanded();
@@ -84,10 +139,20 @@ export function slideSlotCard(
     kind: number,
 ): void {
     const { width, height } = source.getComponent(UITransform)!;
-    const card = new CardView(tray, "SlidingCard", width, height, art);
+    const card = new CardView(
+        tray,
+        "SlidingCard",
+        width,
+        height,
+        art,
+        source.getChildByName("Drawing")?.getChildByName("TileSkin")
+            ? 0
+            : undefined,
+    );
     card.show(kind, FULL_EXPOSURE, true);
     card.node.setPosition(source.position);
     card.node.setScale(source.scale);
+    card.keepPortraitSquare(source.scale.x, source.scale.y);
     tween(card.node)
         .to(
             SLOT_MOVE_DURATION,
@@ -168,7 +233,17 @@ export function playMatch(
             glow.close();
         }
         glow.fill();
-        const tile = new CardView(effect, "MatchedTile", width, height, art);
+        const tile = new CardView(
+            effect,
+            "MatchedTile",
+            width,
+            height,
+            art,
+            slot.getChildByName("Drawing")?.getChildByName("TileSkin")
+                ? 0
+                : undefined,
+        );
+        tile.keepPortraitSquare(scaleX, scaleY);
         tile.show(kind, FULL_EXPOSURE, true);
         const opacity = effect.addComponent(UIOpacity);
         tween(effect)

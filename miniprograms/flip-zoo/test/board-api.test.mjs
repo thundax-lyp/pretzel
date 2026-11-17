@@ -25,15 +25,15 @@ function usePreviewOrigin(context) {
 }
 
 test("the visible right edge of an elevated card extends past its logical footprint", () => {
-    const deal = MAIN_BOARD_POOL.find(({ name }) => name === "T 型峰顶 A");
-    const round = new Round(2, "C", deal.kinds, undefined, deal.layout);
-    const summit = round.cards[188];
+    const layout = [[[1, 0, 1, 1]], [[0.5, 0, 1, 1]], [[0, 0, 1, 1]]];
+    const round = new Round(2, "C", [0, 0, 0], undefined, layout);
+    const summit = round.cards[2];
     const width = 88;
     const height = 92;
     const offset = summit.layer * 2;
-    const rightEdge = summit.left + 1 + 6 / width;
+    const rightEdge = summit.left + 1 + 2 / width;
     const middle = summit.top + 0.5;
-    assert.equal(round.cardAt(rightEdge, middle).id, 162);
+    assert.equal(round.cardAt(rightEdge, middle).id, 1);
     assert.ok(round.isSelectable(round.exposure(summit)));
     assert.ok(
         isInsideCardOutline(
@@ -133,6 +133,15 @@ test("WeChat draws each saved board without contacting the preview server", asyn
             Math.abs(a.left - b.left) < 1 && Math.abs(a.top - b.top) < 1;
         for (const [layer, cards] of layers) {
             for (const card of cards) {
+                assert.ok(
+                    card.left >= 0 &&
+                        card.left + 1 <= 7 &&
+                        card.top >= 0 &&
+                        card.top + 1 <= 8 &&
+                        Number.isInteger(card.left * 2) &&
+                        Number.isInteger(card.top * 2),
+                    expected.name,
+                );
                 assert.ok(
                     cards.every(
                         (other) => other === card || !overlaps(card, other),

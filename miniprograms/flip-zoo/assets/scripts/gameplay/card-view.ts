@@ -5,27 +5,22 @@ import { FULL_EXPOSURE } from "./round";
 
 import { color, label, picture, uiNode } from "../ui/nodes";
 
-const ELEVATION_SIDES = [
-    "#83B55A",
-    "#78A857",
-    "#67974C",
-    "#588647",
-    "#47743D",
-    "#355C31",
-];
-const ELEVATION_OFFSET = 2;
+const TILE_DEPTH = 8;
 
 export class CardView {
     readonly node: Node;
     private readonly body: Graphics;
+    private readonly skin?: Sprite;
     private readonly art: ZooArtwork;
     private readonly portrait: Sprite;
     private readonly portraitSize: UITransform;
     private readonly mark: Label;
     private readonly width: number;
     private readonly elevation: number;
-    readonly drawingOffset: number;
-    private height: number;
+    private readonly raised: boolean;
+    private readonly drawing: Node;
+    private depthY = TILE_DEPTH;
+    private readonly height: number;
     private lastAppearance = "";
 
     constructor(
@@ -34,38 +29,71 @@ export class CardView {
         width: number,
         height: number,
         art: ZooArtwork,
-        elevation = 0,
+        elevation?: number,
     ) {
         this.art = art;
         this.width = width;
         this.height = height;
-        this.elevation = Math.min(elevation, ELEVATION_SIDES.length - 1);
-        this.drawingOffset = elevation * ELEVATION_OFFSET;
+        this.raised = elevation !== undefined;
+        this.elevation = elevation ?? 0;
         this.node = uiNode(parent, name, width, height);
-        const drawing =
-            elevation > 0 ? uiNode(this.node, "Drawing") : this.node;
-        if (drawing !== this.node) {
-            drawing.setPosition(this.drawingOffset, this.drawingOffset);
+        const drawing = uiNode(this.node, "Drawing");
+        this.drawing = drawing;
+        this.setProjectionScale(1);
+        if (this.raised) {
+            this.skin = picture(drawing, "TileSkin", art.raisedTile, width);
+            this.skin.node
+                .getComponent(UITransform)!
+                .setContentSize(width, height);
         }
-        this.body = drawing.addComponent(Graphics);
+        this.body = (
+            this.skin ? uiNode(drawing, "CardGraphics") : drawing
+        ).addComponent(Graphics);
         this.portrait = picture(drawing, "Portrait", art.paw, width);
+        this.portrait.trim = false;
         this.portraitSize = this.portrait.node.getComponent(UITransform)!;
         this.mark = label(drawing, "", 36);
         this.mark.isBold = true;
     }
 
-    setHeight(height: number): void {
-        if (height === this.height) return;
-        this.height = height;
-        this.node.getComponent(UITransform)!.setContentSize(this.width, height);
+    get drawingOffsetY(): number {
+        return this.elevation * this.depthY;
+    }
+
+    get faceCenterY(): number {
+        return this.raised ? (19 * this.height) / 256 : 0;
+    }
+
+    private get pawSize(): number {
+        return (Math.min(this.width, this.height) - 12) * 0.56;
+    }
+
+    setArtworkVisible(visible: boolean): void {
+        this.drawing.active = visible;
+    }
+
+    keepPortraitSquare(scaleX: number, scaleY: number): void {
+        this.portrait.node.setScale(1, scaleX / scaleY, 1);
+    }
+
+    setProjectionScale(scaleY: number): void {
+        if (!this.raised) return;
+        this.depthY = TILE_DEPTH / scaleY;
+        this.drawing.setPosition(0, this.drawingOffsetY);
         this.lastAppearance = "";
+    }
+
+    private get faceLift(): number {
+        const inset = 2 * CARD_INSET;
+        const squareFace = (this.width - inset) * this.portrait.node.scale.y;
+        return Math.max(0, this.height - inset - squareFace);
     }
 
     containsBoardPoint(x: number, y: number): boolean {
         const { position } = this.node;
         return isInsideCardOutline(
-            x - position.x - this.drawingOffset,
-            y - position.y - this.drawingOffset,
+            x - position.x,
+            y - position.y - this.drawingOffsetY,
             this.width,
             this.height,
         );
@@ -84,31 +112,51 @@ export class CardView {
         this.lastAppearance = appearance;
 
         this.mark.string = "";
+        if (this.skin) this.skin.node.active = true;
         const faceDown = kind === null || exposure === 0;
         this.paintTile(faceDown, selectable, upperCards, bound);
         // A fully covered tile can still contribute a visible strip after
         // the drawing offset. Show its body without exposing its portrait.
         this.portrait.node.active = exposure !== 0;
         if (exposure === 0) return;
+        const faceCenter = this.faceCenterY;
         if (kind === null) {
-            const size = (Math.min(this.width, this.height) - 12) * 0.56;
             this.portrait.spriteFrame = this.art.paw;
-            this.portrait.color = color("#52723B38");
-            this.portraitSize.setContentSize(size, size);
-            this.portrait.node.setPosition(0, 3);
+            this.portrait.color = color(
+                this.raised ? "#52667544" : "#52723B38",
+            );
+            this.portraitSize.setContentSize(this.pawSize, this.pawSize);
+            this.portrait.node.setPosition(0, this.raised ? faceCenter : 3);
             return;
         }
 
         const partial = exposure !== FULL_EXPOSURE;
         const quadrant = [0, 1, 2, 3].find((index) => exposure & (1 << index))!;
+        const rowMask = quadrant < 2 ? 0b0011 : 0b1100;
+        const columnMask = quadrant % 2 === 0 ? 0b0101 : 0b1010;
+        const centerX = (exposure & rowMask) === rowMask;
+        const centerY = (exposure & columnMask) === columnMask;
         const size =
             (Math.min(this.width, this.height) - 12) * (partial ? 0.44 : 0.96);
+        const portraitSize = this.raised ? (this.width * 77) / 94 : size;
         this.portrait.spriteFrame = this.art.animals[kind];
-        this.portrait.color = color(selectable ? "#FFFFFF" : "#F4F2DF");
-        this.portraitSize.setContentSize(size, size);
+        this.portrait.color = color(
+            selectable ? "#FFFFFF" : this.raised ? "#CED4C8" : "#F4F2DF",
+        );
+        this.portraitSize.setContentSize(portraitSize, portraitSize);
+        if (this.raised) {
+            this.portrait.node.setPosition(0, faceCenter);
+            return;
+        }
         this.portrait.node.setPosition(
-            partial ? ((quadrant % 2 === 0 ? -1 : 1) * this.width) / 4 : 0,
-            partial ? ((quadrant < 2 ? 1 : -1) * this.height) / 4 : 3,
+            partial && !centerX
+                ? ((quadrant % 2 === 0 ? -1 : 1) * this.width) / 4
+                : 0,
+            partial
+                ? centerY
+                    ? 0
+                    : ((quadrant < 2 ? 1 : -1) * this.height) / 4
+                : 3,
         );
     }
 
@@ -117,23 +165,41 @@ export class CardView {
         selectable: boolean,
         upperCards: readonly CardView[],
         bound: boolean,
-        edge = 6,
     ): void {
-        const { body, width, height, elevation } = this;
+        const { body, width, height } = this;
         const x = -width / 2 + CARD_INSET;
         const y = -height / 2 + CARD_INSET;
         const faceWidth = -2 * x;
         const tileHeight = -2 * y;
-        const summit = elevation === ELEVATION_SIDES.length - 1;
+        const edge = this.raised ? this.faceLift : 6;
         body.clear();
+        if (this.skin?.node.active) {
+            this.skin.spriteFrame = faceDown
+                ? this.art.raisedTileBack
+                : this.art.raisedTile;
+            this.skin.color = color(
+                faceDown
+                    ? selectable
+                        ? bound
+                            ? "#CCD8DF"
+                            : "#E1EBF0"
+                        : bound
+                          ? "#A9B8C1"
+                          : "#BDC9D0"
+                    : selectable
+                      ? bound
+                          ? "#FFF0CC"
+                          : "#FFFFFF"
+                      : bound
+                        ? "#D6CEA8"
+                        : "#DEE4DA",
+            );
+            return;
+        }
         body.lineWidth = 2;
         body.strokeColor = color(selectable ? "#49763F" : "#648056");
 
-        body.fillColor = color(
-            selectable || elevation > 0
-                ? ELEVATION_SIDES[elevation]
-                : "#88A577",
-        );
+        body.fillColor = color("#83B55A");
         body.roundRect(x, y, faceWidth, tileHeight, CARD_RADIUS);
         body.fill();
         body.stroke();
@@ -159,11 +225,8 @@ export class CardView {
         body.fill();
         body.stroke();
         if (selectable) {
-            body.fillColor = summit
-                ? color("#FFF0A6")
-                : new Color(255, 255, 255, 145);
-            const rim = summit ? 4 : 3;
-            body.roundRect(x + 8, y + height - 11, width - 20, rim, rim / 2);
+            body.fillColor = new Color(255, 255, 255, 145);
+            body.roundRect(x + 8, y + height - 11, width - 20, 3, 1.5);
             body.fill();
         }
         if (upperCards.length > 0) {
@@ -178,7 +241,7 @@ export class CardView {
         right: number,
         top: number,
     ): void {
-        const { body, node, drawingOffset } = this;
+        const { body, node, drawingOffsetY } = this;
         const strip = (x: number, y: number, endX: number, endY: number) => {
             const leftEdge = Math.max(left, x);
             const bottomEdge = Math.max(bottom, y);
@@ -191,9 +254,12 @@ export class CardView {
         for (const upper of upperCards) {
             // Both tile outlines are inset by two units. Work in the lower
             // drawing's coordinates, including the difference in lift.
-            const offset = upper.drawingOffset - drawingOffset;
-            const x = upper.node.position.x - node.position.x + offset;
-            const y = upper.node.position.y - node.position.y + offset;
+            const x = upper.node.position.x - node.position.x;
+            const y =
+                upper.node.position.y -
+                node.position.y +
+                upper.drawingOffsetY -
+                drawingOffsetY;
             const l = x - upper.width / 2 + CARD_INSET;
             const r = x + upper.width / 2 - CARD_INSET;
             const b = y - upper.height / 2 + CARD_INSET;
@@ -215,10 +281,12 @@ export class CardView {
         const appearance = lockedLabel || "empty";
         if (this.lastAppearance === appearance) return;
         this.lastAppearance = appearance;
+        if (this.skin) this.skin.node.active = false;
         this.portrait.node.active = !locked;
         this.portrait.spriteFrame = this.art.paw;
         this.portrait.color = color("#88985667");
-        this.portraitSize.setContentSize(30, 30);
+        const size = this.raised ? this.pawSize : 30;
+        this.portraitSize.setContentSize(size, size);
         this.portrait.node.setPosition(0, 0);
         this.mark.string = lockedLabel;
         this.mark.fontSize = 21;
@@ -238,18 +306,5 @@ export class CardView {
         );
         this.body.fill();
         this.body.stroke();
-    }
-
-    showShareUnlock(pressed = false): void {
-        const appearance = pressed ? "shareUnlockPressed" : "shareUnlock";
-        if (this.lastAppearance === appearance) return;
-        this.lastAppearance = appearance;
-        this.paintTile(false, true, [], false, pressed ? 4 : 12);
-        this.portrait.node.active = false;
-        this.mark.string = "解锁";
-        this.mark.fontSize = 19;
-        this.mark.lineHeight = 22;
-        this.mark.color = color("#476648");
-        this.mark.node.setPosition(0, pressed ? -24 : -18);
     }
 }

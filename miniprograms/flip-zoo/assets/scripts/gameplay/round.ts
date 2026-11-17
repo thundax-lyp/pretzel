@@ -718,22 +718,7 @@ export class Round {
         const matching =
             taken.length +
             this.slotted.filter((tile) => tile.kind === card.kind).length;
-        for (const tile of taken) this.onBoard.delete(tile.id);
-        for (const neighbor of this.cards) {
-            if (
-                (this.level === 1 || this.group !== "B") &&
-                this.isOnBoard(neighbor) &&
-                taken.some(
-                    (tile) =>
-                        neighbor.layer === tile.layer &&
-                        Math.abs(neighbor.x - tile.x) +
-                            Math.abs(neighbor.y - tile.y) ===
-                            1,
-                )
-            ) {
-                this.revealed.add(neighbor.id);
-            }
-        }
+        this.removeBoardCards(taken, true);
         this.moves += 1;
         this.slotted.splice(insertion, 0, ...taken);
         this.lastTaken = matching < 3 ? taken : null;
@@ -792,14 +777,42 @@ export class Round {
             groups.push({ kind, heldCount, boardCards });
         }
 
-        for (const group of groups) {
-            for (const card of group.boardCards) this.onBoard.delete(card.id);
-        }
+        this.removeBoardCards(
+            groups.flatMap(({ boardCards }) => boardCards),
+            false,
+        );
         this.slotted = [];
         this.lastTaken = null;
         this.usedProps.add("remove");
         this.firstMatchAt ??= "prop";
         if (this.remaining === 0) this.status = "won";
         return groups;
+    }
+
+    private removeBoardCards(
+        removed: readonly Card[],
+        revealNeighbors: boolean,
+    ): void {
+        for (const card of removed) this.onBoard.delete(card.id);
+        if (this.level === 2 && this.group === "B") return;
+
+        for (const card of this.cards) {
+            if (!this.isOnBoard(card) || this.isFaceUp(card, 0)) continue;
+            const adjacent =
+                revealNeighbors &&
+                removed.some(
+                    (tile) =>
+                        card.layer === tile.layer &&
+                        Math.abs(card.x - tile.x) +
+                            Math.abs(card.y - tile.y) ===
+                            1,
+                );
+            const uncovered =
+                !adjacent &&
+                this.level === 2 &&
+                removed.some((tile) => covers(tile, card)) &&
+                this.isSelectable(this.exposure(card));
+            if (adjacent || uncovered) this.revealed.add(card.id);
+        }
     }
 }
