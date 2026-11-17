@@ -14,6 +14,8 @@ export interface ZooArtwork {
         collection: SpriteFrame;
         homeAnimals: readonly (readonly SpriteFrame[])[];
     };
+    readonly raisedTile: SpriteFrame;
+    readonly raisedTileBack: SpriteFrame;
     readonly paper: SpriteFrame;
     readonly garden: SpriteFrame;
     readonly winPanda: SpriteFrame;
@@ -53,6 +55,53 @@ function slice(
         return frame;
     });
 }
+// Visible bounds inside each 128 × 128 cell, measured from the atlas alpha.
+const ANIMAL_BOUNDS = [
+    [7, 122, 7, 125],
+    [5, 123, 17, 114],
+    [5, 121, 21, 112],
+    [4, 121, 10, 120],
+    [4, 125, 14, 116],
+    [1, 127, 16, 114],
+    [2, 125, 7, 119],
+    [1, 124, 7, 120],
+    [5, 124, 7, 121],
+    [10, 116, 3, 124],
+    [4, 122, 9, 117],
+    [17, 109, 2, 123],
+    [6, 122, 5, 120],
+    [3, 125, 11, 115],
+    [4, 125, 14, 115],
+    [3, 123, 9, 117],
+    [5, 122, 1, 127],
+    [5, 123, 1, 126],
+    [5, 121, 10, 118],
+    [8, 119, 2, 125],
+] as const;
+
+function centeredAnimals(texture: Texture2D): SpriteFrame[] {
+    const cell = 128;
+    return ANIMAL_BOUNDS.slice(0, ANIMAL_KIND_COUNT).map(
+        ([left, right, top, bottom], index) => {
+            const padX = Math.min(2, left, cell - 1 - right);
+            const padY = Math.min(2, top, cell - 1 - bottom);
+            const frame = new SpriteFrame();
+            frame.reset({
+                texture,
+                rect: new Rect(
+                    (index % 4) * cell + left - padX,
+                    Math.floor(index / 4) * cell + top - padY,
+                    right - left + 1 + 2 * padX,
+                    bottom - top + 1 + 2 * padY,
+                ),
+                originalSize: new Size(cell, cell),
+            });
+            frame.packable = false;
+            return frame;
+        },
+    );
+}
+
 export async function loadZooArtwork(): Promise<ZooArtwork> {
     const [
         garden,
@@ -62,6 +111,8 @@ export async function loadZooArtwork(): Promise<ZooArtwork> {
         symbols,
         props,
         paper,
+        raisedTileTexture,
+        raisedTileBackTexture,
         screens,
     ] = await Promise.all([
         loadTexture("zoo-garden"),
@@ -71,17 +122,36 @@ export async function loadZooArtwork(): Promise<ZooArtwork> {
         loadTexture("zoo-symbols"),
         loadTexture("zoo-props"),
         loadTexture("panel-paper"),
+        loadTexture("raised-tile"),
+        loadTexture("raised-tile-back"),
         loadScreens(),
     ]);
+    // Exclude the transparent margin of the source image.
+    const [raisedTile, raisedTileBack] = [
+        raisedTileTexture,
+        raisedTileBackTexture,
+    ].map((texture) => {
+        const frame = new SpriteFrame();
+        const rect = new Rect(74, 40, 199, 256);
+        frame.reset({
+            texture,
+            rect,
+            originalSize: new Size(rect.width, rect.height),
+        });
+        frame.packable = false;
+        return frame;
+    });
     const symbolsFrames = slice(symbols, 3, 2);
     const [undo] = slice(props, 2, 2);
     return {
         screens,
+        raisedTile,
+        raisedTileBack,
         paper: slice(paper, 1, 1)[0],
         garden: slice(garden, 1, 1)[0],
         winPanda: slice(winPanda, 1, 1)[0],
         sadPanda: slice(sadPanda, 1, 1)[0],
-        animals: slice(animals, 4, 5).slice(0, ANIMAL_KIND_COUNT),
+        animals: centeredAnimals(animals),
         paw: symbolsFrames[0],
         undo,
     };

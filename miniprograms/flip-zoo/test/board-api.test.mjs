@@ -25,15 +25,15 @@ function usePreviewOrigin(context) {
 }
 
 test("the visible right edge of an elevated card extends past its logical footprint", () => {
-    const deal = MAIN_BOARD_POOL.find(({ name }) => name === "T 型峰顶 A");
-    const round = new Round(2, "C", deal.kinds, undefined, deal.layout);
-    const summit = round.cards[188];
+    const layout = [[[1, 0, 1, 1]], [[0.5, 0, 1, 1]], [[0, 0, 1, 1]]];
+    const round = new Round(2, "C", [0, 0, 0], undefined, layout);
+    const summit = round.cards[2];
     const width = 88;
     const height = 92;
     const offset = summit.layer * 2;
-    const rightEdge = summit.left + 1 + 6 / width;
+    const rightEdge = summit.left + 1 + 2 / width;
     const middle = summit.top + 0.5;
-    assert.equal(round.cardAt(rightEdge, middle).id, 162);
+    assert.equal(round.cardAt(rightEdge, middle).id, 1);
     assert.ok(round.isSelectable(round.exposure(summit)));
     assert.ok(
         isInsideCardOutline(
