@@ -1,4 +1,5 @@
 export const GROUPS = ["A", "B", "C"] as const;
+export const C_OPENING_CARD_COUNT = 12;
 export const PROPS = ["undo", "peek", "remove"] as const;
 export const INITIAL_SLOTS = 5;
 export const SLOT_LIMIT = 7;
@@ -463,11 +464,11 @@ export class Round {
                       // Leave one summit card dark so peek works at the start.
                       .slice(1)
                       .filter((card) => this.isSelectable(this.exposure(card)))
-                      .slice(0, 6)
+                      .slice(0, C_OPENING_CARD_COUNT)
                 : this.cards.filter(
                       (card) =>
                           card.layer === 2 &&
-                          (card.x === 1 || card.x === 5) &&
+                          [1, 2, 4, 5].includes(card.x) &&
                           (card.y === 1 || card.y === 4 || card.y === 7),
                   );
             for (const card of opening) this.revealed.add(card.id);
