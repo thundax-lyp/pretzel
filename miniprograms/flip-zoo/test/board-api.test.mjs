@@ -71,6 +71,13 @@ test("WeChat draws each saved board without contacting the preview server", asyn
             [...counts.values()].every((cards) => cards.length % 3 === 0),
         );
         const round = new Round(2, "C", kinds, undefined, layout);
+        const faceUp = round.cards.filter((card) => round.isFaceUp(card));
+        assert.equal(faceUp.length, 12, expected.name);
+        assert.ok(
+            faceUp.every((card) => round.isSelectable(round.exposure(card))),
+            expected.name,
+        );
+        assert.equal(round.isFaceUp(round.cards.at(-1)), false, expected.name);
         const layoutKey = round.cards
             .map(({ layer, left, top }) => `${layer},${left},${top}`)
             .sort()
@@ -233,7 +240,14 @@ test("each peak shape fits the table and clears across all four key-group counts
             assert.ok(layers.every((cards) => cards.length > 0));
             assert.equal(
                 round.cards.filter((card) => round.isFaceUp(card)).length,
-                6,
+                Math.min(
+                    12,
+                    round.cards
+                        .slice(0, -1)
+                        .filter((card) =>
+                            round.isSelectable(round.exposure(card)),
+                        ).length,
+                ),
             );
             if (sample === 0) {
                 for (const [layer, cards] of layers.entries()) {

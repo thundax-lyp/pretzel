@@ -64,6 +64,7 @@ import { SettingsView } from "../settings/settings-view";
 import { ZooAudio } from "../services/zoo-audio";
 import {
     FULL_EXPOSURE,
+    C_OPENING_CARD_COUNT,
     GROUPS,
     PROPS,
     covers,
@@ -81,7 +82,7 @@ const { ccclass } = _decorator;
 const GROUP_LABELS: Record<Group, string> = {
     A: "A  全暗",
     B: "B  可点即亮",
-    C: "C  预亮 6 张",
+    C: `C  预亮 ${C_OPENING_CARD_COUNT} 张`,
 };
 
 const TABLE = {

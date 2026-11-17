@@ -89,7 +89,7 @@ test("A/B/C use the same board and expose only their assigned opening tiles", ()
             (round) =>
                 round.cards.filter((card) => round.isFaceUp(card)).length,
         ),
-        [0, 63, 6],
+        [0, 63, 12],
     );
     assert.ok(
         rounds[2].cards
@@ -97,7 +97,7 @@ test("A/B/C use the same board and expose only their assigned opening tiles", ()
             .every(
                 (card) =>
                     card.layer === 2 &&
-                    [1, 5].includes(card.x) &&
+                    [1, 2, 4, 5].includes(card.x) &&
                     [1, 4, 7].includes(card.y),
             ),
     );
@@ -368,7 +368,7 @@ test("peek reveals all uncovered dark cards and permits immediate takes", () => 
 });
 
 test("peek includes uncovered lower layers while the summit remains", () => {
-    const round = new Round(2, "C", undefined, () => 0, "pyramid");
+    const round = new Round(2, "A", undefined, () => 0, "pyramid");
     const dark = round.cards.filter((card) => !round.isFaceUp(card));
     const expected = dark.filter((card) =>
         round.isSelectable(round.exposure(card)),
