@@ -36,4 +36,4 @@
 2. **筛选候选。** 记录布局和配牌，固定策略、误选率及每副局数。前段达标率偏低时先查上层的可取牌和三消机会。前段已达标且通关率偏高时，优先调下层绑定位置和命门露出顺序。
 3. **用独立种子复核。** 冻结牌库后使用未参与筛选的种子。记录逐副、逐布局和整库的模拟局数、达标局数、通关局数及对应比例。布局和整库比例均用对应范围的成功局数除以总局数。六格结果用于验收，七格结果单列。
 
-牌库入口为 [MAIN_BOARD_CONFIG](../../miniprograms/flip-zoo/assets/scripts/services/main-board-pool.ts)。逐副保存 `layout`、`bindings`、`kinds`、`layerKindCounts` 和对应的参考取牌顺序。
+牌库入口为 `assets/scripts/services/main-board-pool.ts` 中的 `MAIN_BOARD_CONFIG`。逐副保存 `layout`、`bindings`、`kinds`、`layerKindCounts` 和对应的参考取牌顺序。
