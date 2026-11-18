@@ -8,20 +8,21 @@
 npm ci
 ```
 
-## 格式与 lint
+## 仓库检查
 
 ```sh
-# 检查；需要应用统一格式时追加 --write。
-node scripts/check-format.mjs
-node --test scripts/check-structure.test.mjs
+npm run format:check
 npm run lint
+npm test
 ```
 
-check-format 根据 .prettierrc.json 处理前端、小程序、配置及 Markdown。Cocos Creator 的 `.meta` 文件使用 `json-stringify` parser，非空数组逐项换行。检查尊重 Git 忽略规则，跳过产物、备份和私有文件。
+仓库根目录统一检查源码、配置和 Markdown 格式。需要应用格式时运行 `node scripts/check-format.mjs --write`。Cocos Creator 的 `.meta` 文件使用 `json-stringify` parser，非空数组逐项换行。检查尊重 Git 忽略规则，跳过产物、备份和私有文件。
 
 check-structure 检查小游戏目录与文档导航。仓库和各小游戏的 `npm run lint` 共用根目录的 `eslint.config.mjs`。
 
 ## 小游戏脚本
+
+在游戏目录运行 `npm run check` 执行类型检查、lint 和已有测试。CI 使用同一个入口。
 
 游戏专用脚本随各自工程维护。Flip Zoo 的构建、Web 预览、难度模拟和云函数打包均位于 `miniprograms/flip-zoo/scripts/`，具体命令见 [Flip Zoo 工程说明](../miniprograms/flip-zoo/README.md#脚本索引)。麻将消消通过自身的 npm scripts 和 Creator 运行，命令见 [麻将消消工程说明](../miniprograms/mahjong-match/README.md)。
 

@@ -83,10 +83,8 @@ jobs:
             - run: npm ci
               working-directory: .
             - run: npm ci
-            - run: npm run typecheck
-            - run: npm test
-            - run: npm run lint
-            - run: npm run format:check
+            - name: Type check, lint and tests
+              run: npm run check
     mahjong-match:
         name: miniprogram (mahjong-match)
         needs: changes
@@ -107,6 +105,5 @@ jobs:
             - run: npm ci
               working-directory: .
             - run: npm ci
-            - run: npm run typecheck
-            - run: npm run lint
-            - run: npm run format:check
+            - name: Type check and lint
+              run: npm run check

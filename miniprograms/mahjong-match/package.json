@@ -4,13 +4,12 @@
     "private": true,
     "type": "module",
     "scripts": {
+        "check": "npm run typecheck && npm run lint",
         "typecheck": "tsc --noEmit",
-        "lint": "node ../../node_modules/eslint/bin/eslint.js --max-warnings 0 assets",
-        "format:check": "prettier --check assets/scripts package.json tsconfig.json \"settings/**/*.json\""
+        "lint": "node ../../node_modules/eslint/bin/eslint.js --max-warnings 0 assets"
     },
     "devDependencies": {
         "@cocos/creator-types": "3.8.8",
-        "prettier": "3.9.3",
         "typescript": "5.9.3"
     },
     "creator": {
