@@ -15,9 +15,12 @@ function fixture(t, entries = {}) {
     const files = {
         "docs/README.md": "[命名](00-governance/NAMING-RULES.md)\n",
         "docs/00-governance/NAMING-RULES.md": "# Naming\n",
+        "miniprograms/sample-game/package.json": "{}\n",
+        "miniprograms/sample-game/assets/scenes/start.scene": "[]\n",
         ...entries,
     };
     for (const [name, text] of Object.entries(files)) {
+        if (text === null) continue;
         const file = path.join(root, name);
         fs.mkdirSync(path.dirname(file), { recursive: true });
         fs.writeFileSync(file, text);
@@ -26,11 +29,37 @@ function fixture(t, entries = {}) {
 }
 
 test("accepts a tree of documents and a game application", (t) => {
-    assert.equal(
-        fixture(t, {
-            "miniprograms/sample-game/package.json": "{}\n",
-        }).status,
-        0,
+    assert.equal(fixture(t).status, 0);
+});
+
+test("checks game names and required Cocos project paths", (t) => {
+    const result = fixture(t, {
+        "miniprograms/Bad_Project/package.json": "{}\n",
+        "miniprograms/missing-manifest/assets/scenes/start.scene": "[]\n",
+        "miniprograms/missing-scenes/package.json": "{}\n",
+    });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /Bad_Project: use a kebab-case game directory/);
+    assert.match(result.stderr, /missing-manifest: missing game package\.json/);
+    assert.match(result.stderr, /missing-scenes: missing Cocos assets\/scenes/);
+});
+
+test("rejects Cocos scenes outside a direct game directory", (t) => {
+    const result = fixture(t, {
+        "apps/other-game/assets/scenes/start.scene": "[]\n",
+        "miniprograms/sample-game/nested/assets/scenes/start.scene": "[]\n",
+    });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /other-game: place Cocos game applications/);
+    assert.match(result.stderr, /nested: place Cocos game applications/);
+});
+
+test("requires the document navigation entry", (t) => {
+    const result = fixture(t, { "docs/README.md": null });
+    assert.equal(result.status, 1);
+    assert.match(
+        result.stderr,
+        /README\.md: missing document navigation entry/,
     );
 });
 test("rejects retired frontend application locations", (t) => {
