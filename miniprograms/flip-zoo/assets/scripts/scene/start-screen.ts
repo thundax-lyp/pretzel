@@ -11,7 +11,6 @@ import {
     ScrollView,
     Mask,
     Sprite,
-    SubContextView,
     UIOpacity,
     UITransform,
     Vec3,
@@ -22,7 +21,12 @@ import {
     type SpriteFrame,
     Tween,
 } from "cc";
-import { leaderboardScale } from "../ui/leaderboard-layout";
+import {
+    fitLeaderboardCard,
+    showLeaderboardCard,
+    showWeekRanking,
+} from "../ui/leaderboard-view";
+import * as wechat from "../services/wechat-platform";
 import { ButtonPress, scaleButton } from "../ui/button-press";
 import { drawButtonIcon } from "../ui/button-icon";
 import { WECHAT } from "cc/env";
@@ -102,47 +106,6 @@ const TABLE = {
 const WECHAT_MAIN_BOARD_TOP_EXTENSION = 88;
 const WECHAT_MAIN_BOARD_BOTTOM_EXTENSION = 72;
 
-interface ShareCard {
-    title: string;
-    imageUrlId?: string;
-    imageUrl?: string;
-}
-
-declare const GameGlobal: { flipZooShareCards?: ShareCard[] };
-declare const wx: {
-    getAccountInfoSync?: () => { miniProgram?: { version?: string } };
-    shareAppMessage?: (card: ShareCard) => void;
-    showShareMenu?: (options: { menus: string[] }) => void;
-    onShareAppMessage?: (handler: () => ShareCard) => void;
-    offShareAppMessage?: (handler: () => ShareCard) => void;
-    showToast?: (options: { title: string; icon: "none" }) => void;
-    openCustomerServiceConversation?: (options: { fail: () => void }) => void;
-    getWindowInfo?: () => {
-        windowWidth: number;
-        windowHeight: number;
-        safeArea?: { top: number; bottom: number };
-    };
-    getMenuButtonBoundingClientRect?: () => { top?: number; bottom: number };
-    createFeedbackButton?: (options: {
-        type: "text";
-        text: string;
-        style: {
-            left: number;
-            top: number;
-            width: number;
-            height: number;
-            backgroundColor: string;
-            color: string;
-        };
-    }) => { show(): void; destroy(): void; onTap?(callback: () => void): void };
-    getOpenDataContext?: () => {
-        postMessage(data: {
-            action: "show-week" | "show-preview" | "record-win" | "scroll-week";
-            rows?: number;
-        }): void;
-    };
-};
-
 const PROP_LABELS: Record<Prop, string> = {
     undo: "撤回",
     peek: "翻牌",
@@ -205,7 +168,7 @@ export class FlipZooStartScreen extends Component {
     private feedbackControl?: Node;
     private feedbackButton?: { destroy(): void };
     private readonly shareFromMenu = () =>
-        this.shareCard(
+        wechat.shareCard(
             this.overlay?.name === "RoundResult" && this.round.status === "won",
         );
     private readonly boardApi = createBoardApi(WECHAT);
@@ -274,8 +237,7 @@ export class FlipZooStartScreen extends Component {
             void checkCloudConnection().catch(() => {
                 console.warn("FLIP ZOO cloud connection could not be verified");
             });
-            wx.onShareAppMessage?.(this.shareFromMenu);
-            wx.showShareMenu?.({ menus: ["shareAppMessage"] });
+            wechat.enableShareMenu(this.shareFromMenu);
         }
         this.resizeLayout();
         view.on("canvas-resize", this.resizeLayout, this);
@@ -283,7 +245,7 @@ export class FlipZooStartScreen extends Component {
 
     onDestroy(): void {
         this.feedbackButton?.destroy();
-        if (WECHAT) wx.offShareAppMessage?.(this.shareFromMenu);
+        wechat.disableShareMenu(this.shareFromMenu);
         view.off("canvas-resize", this.resizeLayout, this);
     }
 
@@ -557,15 +519,12 @@ export class FlipZooStartScreen extends Component {
             this.art.screens.settings,
         );
         this.feedbackControl = this.settingsView.show(dialog, {
-            version: this.releaseVersion(),
+            version: wechat.releaseVersion(),
             contact: () => {
-                if (!WECHAT || !wx.openCustomerServiceConversation) {
-                    this.platformNotice("请在微信小游戏内联系客服");
-                    return;
-                }
-                wx.openCustomerServiceConversation({
-                    fail: () => this.platformNotice("暂时无法打开客服"),
-                });
+                const opened = wechat.openCustomerService(() =>
+                    this.platformNotice("暂时无法打开客服"),
+                );
+                if (!opened) this.platformNotice("请在微信小游戏内联系客服");
             },
             feedback: () =>
                 this.platformNotice(
@@ -1070,7 +1029,7 @@ export class FlipZooStartScreen extends Component {
             this.showResult(false);
         } else if (this.round.status === "won") {
             if (this.round.level === 2) {
-                if (WECHAT) this.postRankMessage("record-win");
+                wechat.postRankMessage("record-win");
                 const reward = this.fragmentRound;
                 this.fragmentRound = undefined;
                 if (reward)
@@ -1244,7 +1203,7 @@ export class FlipZooStartScreen extends Component {
     }
 
     private async loadWelcomeVersion(welcome: Node): Promise<void> {
-        let version = this.releaseVersion();
+        let version = wechat.releaseVersion();
         if (!version && WECHAT && hasCloudEnvironment()) {
             try {
                 version = await readReleaseVersion();
@@ -1257,21 +1216,9 @@ export class FlipZooStartScreen extends Component {
         }
     }
 
-    private releaseVersion(): string | undefined {
-        if (!WECHAT) return undefined;
-        try {
-            return (
-                wx.getAccountInfoSync?.()?.miniProgram?.version?.trim() ||
-                undefined
-            );
-        } catch {
-            return undefined;
-        }
-    }
-
     private positionWelcomeVersion(node: Node): void {
         const { width, height } = this.screenSize();
-        const window = WECHAT ? wx.getWindowInfo?.() : undefined;
+        const window = wechat.windowInfo();
         const bottomMargin = window?.windowHeight
             ? (24 * height) / window.windowHeight
             : 24;
@@ -1563,7 +1510,7 @@ export class FlipZooStartScreen extends Component {
             "#8F552B",
         );
         label(summary, "好友本周榜", 31, "#56351C").node.setPosition(0, 153);
-        this.showWeekRanking(summary, true);
+        showWeekRanking(summary, this.controls, true);
         const viewAll = this.button(
             "查看全部排行 ›",
             178,
@@ -1668,27 +1615,17 @@ export class FlipZooStartScreen extends Component {
         );
     }
 
-    private shareCard(won: boolean): ShareCard {
-        const cards = GameGlobal.flipZooShareCards;
-        return cards?.[won ? 1 : 0] ?? { title: "两只眼睛几条腿" };
-    }
-
     private share(won = false): boolean {
-        if (!WECHAT || !wx.shareAppMessage) {
+        const result = wechat.openShare(won);
+        if (result === "opened") return true;
+        if (result === "unsupported")
             this.platformNotice("当前环境无法调起微信分享", this.welcome);
-            return false;
-        }
-        try {
-            wx.shareAppMessage(this.shareCard(won));
-            return true;
-        } catch {
-            this.platformNotice("暂时无法打开分享");
-            return false;
-        }
+        else this.platformNotice("暂时无法打开分享");
+        return false;
     }
 
     private platformNotice(message: string, fallback?: Node): void {
-        if (WECHAT) wx.showToast?.({ title: message, icon: "none" });
+        if (WECHAT) wechat.showToast(message);
         else {
             const parent = this.overlay ?? fallback;
             if (!parent) return;
@@ -1702,9 +1639,8 @@ export class FlipZooStartScreen extends Component {
     private syncFeedbackButton(): void {
         this.feedbackButton?.destroy();
         this.feedbackButton = undefined;
-        if (!WECHAT || !this.feedbackControl || !wx.createFeedbackButton)
-            return;
-        const window = wx.getWindowInfo?.();
+        if (!this.feedbackControl || !wechat.supportsFeedback()) return;
+        const window = wechat.windowInfo();
         if (!window) return;
         const rect = this.feedbackControl
             .getComponent(UITransform)!
@@ -1712,140 +1648,29 @@ export class FlipZooStartScreen extends Component {
         const visible = view.getVisibleSize();
         const scaleX = window.windowWidth / visible.width;
         const scaleY = window.windowHeight / visible.height;
-        try {
-            const button = wx.createFeedbackButton({
-                type: "text",
-                text: "",
-                style: {
-                    left: rect.x * scaleX,
-                    top: window.windowHeight - (rect.y + rect.height) * scaleY,
-                    width: rect.width * scaleX,
-                    height: rect.height * scaleY,
-                    backgroundColor: "rgba(0,0,0,0)",
-                    color: "#FFFFFF",
-                },
-            });
-            button?.onTap?.(() => this.audio.playButtonPress());
-            this.feedbackButton = button;
-            button?.show();
-        } catch {
-            this.feedbackButton?.destroy();
-            this.feedbackButton = undefined;
-        }
-    }
-
-    private postRankMessage(
-        action: "show-week" | "show-preview" | "record-win" | "scroll-week",
-        rows?: number,
-    ): boolean {
-        const context = wx.getOpenDataContext?.();
-        if (!context) return false;
-        context.postMessage({ action, rows });
-        return true;
-    }
-
-    private showWeekRanking(parent: Node, preview = false): void {
-        const height = preview ? 226 : 1064;
-        const width = preview
-            ? 550
-            : parent.getComponent(UITransform)!.width - 42;
-        const list = uiNode(parent, "WeeklyLeaderboard", width, height);
-        list.setPosition(0, preview ? 12 : -13);
-        if (WECHAT && wx.getOpenDataContext?.()) {
-            list.active = false;
-            const subContext = list.addComponent(SubContextView);
-            subContext.designResolutionSize.set(width, height);
-            subContext.fps = 12;
-            list.active = true;
-            if (!preview) {
-                const rowDragDistance = Math.round(height * 0.105);
-                let distance = 0;
-                list.on(Node.EventType.TOUCH_START, () => {
-                    distance = 0;
-                });
-                list.on(Node.EventType.TOUCH_MOVE, (event: EventTouch) => {
-                    distance += event.getUIDelta().y;
-                    const rows = Math.trunc(distance / rowDragDistance);
-                    if (!rows) return;
-                    distance -= rows * rowDragDistance;
-                    this.postRankMessage("scroll-week", rows);
-                });
-            }
-            const refresh = this.button(
-                "刷新",
-                preview ? -230 : 233,
-                preview ? -145 : -586,
-                98,
-                () =>
-                    this.postRankMessage(
-                        preview ? "show-preview" : "show-week",
-                    ),
-                parent,
-                48,
-            );
-            refresh.graphic.clear();
-            refresh.caption.fontSize = 23;
-            refresh.caption.color = color("#56351C");
-            refresh.caption.node.getComponent(LabelOutline)!.width = 0;
-            this.postRankMessage(preview ? "show-preview" : "show-week");
-        } else {
-            label(list, "请在微信小游戏内查看好友周榜", 27, "#56351C");
-        }
+        this.feedbackButton = wechat.createFeedbackButton(
+            {
+                left: rect.x * scaleX,
+                top: window.windowHeight - (rect.y + rect.height) * scaleY,
+                width: rect.width * scaleX,
+                height: rect.height * scaleY,
+            },
+            () => this.audio.playButtonPress(),
+        );
     }
 
     private showLeaderboard(
         history = false,
         back = () => this.showWelcome(),
     ): void {
-        const overlay = this.openOverlay("Leaderboard");
-        const card = this.panel(
-            overlay,
-            "LeaderboardCard",
-            0,
-            682,
-            1312,
-            "#FFF1D4",
-            "#8F552B",
-        );
-        this.heading(card, "好友排行榜", 654, "#A66532", "#63381D", "small");
-        this.fitLeaderboardCard(card);
-        const week = this.button(
-            "本周榜",
-            -117,
-            569,
-            226,
-            () => this.showLeaderboard(false, back),
-            card,
-            58,
-        );
-        const previous = this.button(
-            "历史榜",
-            117,
-            569,
-            226,
-            () => this.showLeaderboard(true, back),
-            card,
-            58,
-        );
-        this.paintButton(week, !history, true, "cream");
-        this.paintButton(previous, false, false, "cream");
-        if (history) label(card, "历史榜暂未开放", 32, "#56351C");
-        else this.showWeekRanking(card);
-        const close = this.button("◀ 返回", 0, -586, 244, back, card, 72);
-        this.paintButton(close, true);
-    }
-
-    private fitLeaderboardCard(card: Node): void {
-        const bounds = card.getComponent(UITransform)!;
-        const heading = card.getChildByName("Heading")!;
-        const headingTop =
-            heading.position.y + heading.getComponent(UITransform)!.height / 2;
-        const scale = leaderboardScale(
+        showLeaderboardCard(
+            this.openOverlay("Leaderboard"),
+            this.controls,
             this.screenSize(),
-            bounds.width,
-            headingTop,
+            history,
+            (selected) => this.showLeaderboard(selected, back),
+            back,
         );
-        card.setScale(scale, scale, 1);
     }
 
     private addAdBadge(parent: Node, width: number, height: number): void {
@@ -2280,7 +2105,7 @@ export class FlipZooStartScreen extends Component {
         const version = this.welcome?.getChildByName("ReleaseVersion");
         if (version) this.positionWelcomeVersion(version);
         const leaderboard = this.overlay?.getChildByName("LeaderboardCard");
-        if (leaderboard) this.fitLeaderboardCard(leaderboard);
+        if (leaderboard) fitLeaderboardCard(leaderboard, this.screenSize());
         this.fitScreenArtwork(this.overlay?.getChildByName("SettingsArtwork"));
         this.fitScreenArtwork(
             this.overlay?.getChildByName("CollectionArtwork"),
@@ -2308,10 +2133,10 @@ export class FlipZooStartScreen extends Component {
 
     private layoutWeChatGame(height: number): void {
         if (!this.board || !this.slotTray) return;
-        const window = wx.getWindowInfo?.();
+        const window = wechat.windowInfo();
         const safeArea = window?.safeArea;
         const scale = window?.windowHeight ? height / window.windowHeight : 1;
-        const menu = wx.getMenuButtonBoundingClientRect?.();
+        const menu = wechat.menuButtonRect();
         const topInset =
             Math.max(safeArea?.top ?? 0, menu?.bottom || 64) * scale;
         const bottomInset =

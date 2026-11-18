@@ -17,6 +17,12 @@ const skip = new Set([
     "logs",
     "storage",
     ".secrets",
+    "build",
+    "library",
+    "local",
+    "native",
+    "profiles",
+    "temp",
 ]);
 function files(directory) {
     return fs
@@ -30,14 +36,49 @@ function files(directory) {
 function fail(file, message) {
     errors.push(`${path.relative(root, file)}: ${message}`);
 }
+const isDirectory = (file) =>
+    fs.statSync(file, { throwIfNoEntry: false })?.isDirectory();
+const isFile = (file) => fs.statSync(file, { throwIfNoEntry: false })?.isFile();
+
+const gamesRoot = path.join(root, "miniprograms");
+if (!isDirectory(gamesRoot)) {
+    fail(gamesRoot, "missing game applications directory");
+} else {
+    for (const entry of fs.readdirSync(gamesRoot, { withFileTypes: true })) {
+        if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
+        const game = path.join(gamesRoot, entry.name);
+        if (
+            !entry.isDirectory() ||
+            !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(entry.name)
+        ) {
+            fail(game, "use a kebab-case game directory under miniprograms");
+            continue;
+        }
+        if (!isFile(path.join(game, "package.json")))
+            fail(game, "missing game package.json");
+        if (!isDirectory(path.join(game, "assets", "scenes")))
+            fail(game, "missing Cocos assets/scenes directory");
+    }
+}
 for (const retired of ["admin-web", "frontend", "miniprogram"]) {
     const directory = path.join(root, retired);
     if (fs.existsSync(directory))
         fail(directory, "place game applications in miniprograms/<game>");
 }
 const all = files(root);
+for (const file of all) {
+    if (!file.endsWith(".scene")) continue;
+    const parts = path.relative(root, file).split(path.sep);
+    const assets = parts.lastIndexOf("assets");
+    if (assets >= 0 && parts[assets + 1] === "scenes") {
+        const game = path.join(root, ...parts.slice(0, assets));
+        if (path.dirname(game) !== gamesRoot)
+            fail(game, "place Cocos game applications in miniprograms/<game>");
+    }
+}
 const docsRoot = path.join(root, "docs");
 const docsIndex = path.join(docsRoot, "README.md");
+if (!isFile(docsIndex)) fail(docsIndex, "missing document navigation entry");
 const indexedDocs = new Set();
 const humanDocs = path.join(docsRoot, "60-human") + path.sep;
 for (const file of all.filter(

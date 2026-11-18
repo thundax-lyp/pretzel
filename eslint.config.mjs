@@ -18,8 +18,24 @@ export default [
         files: ["**/*.ts"],
     })),
     {
-        files: ["**/*.{js,mjs,cjs}"],
+        files: [
+            "scripts/**/*.mjs",
+            ".agents/**/*.mjs",
+            "**/*.config.mjs",
+            "miniprograms/*/{scripts,test}/**/*.mjs",
+        ],
         languageOptions: { globals: globals.node },
+    },
+    {
+        files: ["miniprograms/*/cloudfunctions/**/*.js"],
+        languageOptions: { sourceType: "commonjs", globals: globals.node },
+    },
+    {
+        files: ["miniprograms/*/open-data/**/*.js"],
+        languageOptions: {
+            sourceType: "script",
+            globals: { wx: "readonly", console: "readonly" },
+        },
     },
     {
         files: ["miniprograms/**/*.ts"],

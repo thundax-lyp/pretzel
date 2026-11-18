@@ -4,19 +4,40 @@ import { test } from "node:test";
 import { compileFunction } from "node:vm";
 import ts from "typescript";
 
-const { outputText } = ts.transpileModule(
-    readFileSync(
-        new URL("../assets/scripts/scene/start-screen.ts", import.meta.url),
-        "utf8",
-    ),
-    {
-        compilerOptions: {
-            module: ts.ModuleKind.CommonJS,
-            target: ts.ScriptTarget.ES2020,
-            experimentalDecorators: true,
+function compileModule(file) {
+    const { outputText } = ts.transpileModule(
+        readFileSync(new URL(file, import.meta.url), "utf8"),
+        {
+            compilerOptions: {
+                module: ts.ModuleKind.CommonJS,
+                target: ts.ScriptTarget.ES2020,
+                experimentalDecorators: true,
+            },
         },
-    },
+    );
+    return compileFunction(outputText, [
+        "exports",
+        "require",
+        "wx",
+        "GameGlobal",
+    ]);
+}
+
+const compileScreen = compileModule("../assets/scripts/scene/start-screen.ts");
+const compilePlatform = compileModule(
+    "../assets/scripts/services/wechat-platform.ts",
 );
+
+function loadScreen(imports, wx, gameGlobal) {
+    const platform = {};
+    const exports = {};
+    const require = (name) => imports[name] ?? {};
+    compilePlatform(platform, require, wx, gameGlobal);
+    compileScreen(exports, (name) =>
+        name === "../services/wechat-platform" ? platform : require(name),
+    );
+    return new exports.FlipZooStartScreen();
+}
 
 test("opening the share picker does not mutate the round", () => {
     const calls = [];
@@ -40,14 +61,11 @@ test("opening the share picker does not mutate the round", () => {
         "cc/env": { WECHAT: true },
         "../services/board-api": { createBoardApi() {} },
     };
-    const exports = {};
-    compileFunction(outputText, ["exports", "require", "wx", "GameGlobal"])(
-        exports,
-        (name) => imports[name] ?? {},
+    const screen = loadScreen(
+        imports,
         { shareAppMessage: (card) => calls.push(card) },
         { flipZooShareCards: cards },
     );
-    const screen = new exports.FlipZooStartScreen();
     screen.round = Object.freeze({ status: "lost", slotCapacity: 7 });
     screen.share();
     screen.share(true);
@@ -62,7 +80,6 @@ test("opening the share picker does not mutate the round", () => {
 });
 
 test("claiming a prop requires a successful share invocation and only grants once", () => {
-    const exports = {};
     let shareCalls = 0;
     const notices = [];
     const wx = {
@@ -89,13 +106,7 @@ test("claiming a prop requires a successful share invocation and only grants onc
         }),
     };
     imports.cc.Label = { Overflow: { RESIZE_HEIGHT: 0 } };
-    compileFunction(outputText, ["exports", "require", "wx", "GameGlobal"])(
-        exports,
-        (name) => imports[name] ?? {},
-        wx,
-        {},
-    );
-    const screen = new exports.FlipZooStartScreen();
+    const screen = loadScreen(imports, wx, {});
     const dialog = {};
     let claimed = false;
     let grantCount = 0;

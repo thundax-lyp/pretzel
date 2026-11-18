@@ -96,10 +96,7 @@ npm run simulate:win-rate -- --max-binding-groups 2
 
 ```sh
 npm ci
-npm run typecheck
-npm test
-npm run lint
-npm run format:check
+npm run check
 ```
 
 ### 分享素材与儿童隐私

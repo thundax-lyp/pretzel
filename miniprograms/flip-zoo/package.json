@@ -4,10 +4,10 @@
     "private": true,
     "type": "module",
     "scripts": {
+        "check": "npm run typecheck && npm run lint && npm test",
         "typecheck": "tsc --noEmit",
         "test": "node --test test/*.test.mjs",
-        "lint": "node ../../node_modules/eslint/bin/eslint.js --max-warnings 0 assets scripts test",
-        "format:check": "prettier --check assets/scripts scripts test package.json tsconfig.json \"settings/**/*.json\"",
+        "lint": "node ../../node_modules/eslint/bin/eslint.js --max-warnings 0 assets scripts test open-data cloudfunctions",
         "build:web": "node scripts/build-cocos.mjs web-mobile",
         "build:wechat": "node scripts/build-cocos.mjs wechatgame",
         "preview": "node scripts/preview-web.mjs",
@@ -15,7 +15,6 @@
     },
     "devDependencies": {
         "@cocos/creator-types": "3.8.8",
-        "prettier": "3.9.3",
         "typescript": "5.9.3"
     },
     "creator": {
