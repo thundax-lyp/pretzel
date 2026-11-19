@@ -27,6 +27,17 @@ import {
     showWeekRanking,
 } from "../ui/leaderboard-view";
 import * as wechat from "../services/wechat-platform";
+import { callCloud } from "../services/cloud-health";
+import {
+    supportsStoreGift,
+    openStoreGift,
+    giftMessage,
+    giftEnabled,
+    type GiftPlatform,
+    type GiftResult,
+} from "../services/store-gift";
+
+declare const wx: GiftPlatform;
 import { ButtonPress, scaleButton } from "../ui/button-press";
 import { drawButtonIcon } from "../ui/button-icon";
 import { WECHAT } from "cc/env";
@@ -1227,6 +1238,11 @@ export class FlipZooStartScreen extends Component {
 
     private showHomeCollection(): void {
         const overlay = this.openOverlay("HomeCollection");
+        let redeemBusy = false;
+        const giftButtons: {
+            detail: Label;
+            setEnabled(value: boolean): void;
+        }[] = [];
         const artwork = dialogArtwork(
             overlay,
             "CollectionArtwork",
@@ -1260,7 +1276,14 @@ export class FlipZooStartScreen extends Component {
                 caption.node.getComponent(UITransform)!.setAnchorPoint(0, 0.5);
                 caption.node.setPosition(-213, offset);
             }
-            const button = uiNode(cover, "RedeemUnavailable", 160, 104);
+            const available = WECHAT;
+            let enabled = false;
+            const button = uiNode(
+                cover,
+                available ? `RedeemAnimal${index}` : "RedeemUnavailable",
+                160,
+                104,
+            );
             button.setPosition(140, 0);
             const buttonStyle = button.addComponent(Graphics);
             buttonStyle.fillColor = color("#A39D93");
@@ -1272,35 +1295,122 @@ export class FlipZooStartScreen extends Component {
             const redeem = label(button, "兑换", 34, "#FFFFFF");
             redeem.isBold = true;
             redeem.node.setPosition(0, 20);
-            label(button, "暂未开放", 25, "#FFFFFF").node.setPosition(0, -23);
+            const detail = label(
+                button,
+                available ? "读取中…" : "暂未开放",
+                25,
+                "#FFFFFF",
+            );
+            detail.node.setPosition(0, -23);
+            if (available) {
+                giftButtons[index] = {
+                    detail,
+                    setEnabled(value) {
+                        enabled = value;
+                        buttonStyle.clear();
+                        buttonStyle.fillColor = color(
+                            value ? "#69A74E" : "#A39D93",
+                        );
+                        buttonStyle.roundRect(-80, -52, 160, 104, 18);
+                        buttonStyle.fill();
+                        buttonStyle.stroke();
+                    },
+                };
+                button.on(Node.EventType.TOUCH_END, () => {
+                    if (redeemBusy || !enabled) return;
+                    if (!hasCloudEnvironment()) {
+                        this.platformNotice("兑换服务尚未配置");
+                        return;
+                    }
+                    if (!supportsStoreGift(wx)) {
+                        this.platformNotice("请在微信8.0.60及以上手机版中兑换");
+                        return;
+                    }
+                    redeemBusy = true;
+                    detail.string = "处理中…";
+                    void (async () => {
+                        try {
+                            const result = await callCloud<GiftResult>(
+                                "flipZooFragments",
+                                { action: "redeem-gift", animal: index },
+                            );
+                            if (this.overlay !== overlay) return;
+                            if (result.status === "ready")
+                                await openStoreGift(wx, result);
+                            else this.platformNotice(giftMessage(result));
+                        } catch {
+                            if (this.overlay === overlay)
+                                this.platformNotice(
+                                    "暂未完成，请再次兑换继续领取",
+                                );
+                        } finally {
+                            redeemBusy = false;
+                            if (this.overlay === overlay) void load();
+                        }
+                    })();
+                });
+            }
             return value;
         });
-        if (WECHAT && hasCloudEnvironment()) {
-            const load = async () => {
-                balances.forEach((value) => {
-                    value.string = "读取中…";
+        const load = async () => {
+            balances.forEach((value) => {
+                value.string = "读取中…";
+            });
+            try {
+                const { gifts } = await callCloud<{ gifts: GiftResult[] }>(
+                    "flipZooFragments",
+                    { action: "gifts-status" },
+                );
+                if (
+                    !Array.isArray(gifts) ||
+                    gifts.length !== FRAGMENT_ANIMALS.length
+                )
+                    throw new Error("Invalid gift availability");
+                const amounts = await loadFragmentBalances();
+                if (this.overlay !== overlay) return;
+                gifts.forEach((gift, index) => {
+                    const control = giftButtons[index];
+                    const enabled = giftEnabled(gift);
+                    control.setEnabled(enabled);
+                    control.detail.string = !enabled
+                        ? "暂未开放"
+                        : gift.status === "ready"
+                          ? "继续领取"
+                          : gift.status === "pending"
+                            ? "重试确认"
+                            : `${gift.cost}碎片`;
                 });
-                try {
-                    const amounts = await loadFragmentBalances();
-                    if (this.overlay !== overlay) return;
-                    balances.forEach((value, index) => {
-                        value.string = `碎片：${amounts[index]}`;
-                    });
-                } catch {
-                    if (this.overlay !== overlay) return;
-                    balances.forEach((value) => {
-                        value.string = "读取失败";
-                    });
-                    artworkButton(artwork, "重试", 576, 1660, 450, 72, () => {
-                        retry.node.destroy();
-                        artwork.getChildByName("重试")?.destroy();
-                        void load();
-                    });
-                    const retry = label(artwork, "点击重试", 30, "#684824");
-                    retry.node.setPosition(0, -636);
-                }
-            };
-            void load();
+                balances.forEach((value, index) => {
+                    value.string = `碎片：${amounts[index]}`;
+                });
+            } catch {
+                if (this.overlay !== overlay) return;
+                giftButtons.forEach((control) => {
+                    control.setEnabled(false);
+                    control.detail.string = "读取失败";
+                });
+                balances.forEach((value) => {
+                    value.string = "读取失败";
+                });
+                artworkButton(artwork, "重试", 576, 1660, 450, 72, () => {
+                    retry.node.destroy();
+                    artwork.getChildByName("重试")?.destroy();
+                    void load();
+                });
+                const retry = label(artwork, "点击重试", 30, "#684824");
+                retry.node.setPosition(0, -636);
+            }
+        };
+        if (WECHAT && hasCloudEnvironment()) {
+            redeemBusy = true;
+            void load().finally(() => {
+                redeemBusy = false;
+            });
+        } else if (WECHAT) {
+            giftButtons.forEach((control) => {
+                control.setEnabled(false);
+                control.detail.string = "暂未开放";
+            });
         }
     }
 

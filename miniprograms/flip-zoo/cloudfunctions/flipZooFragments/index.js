@@ -6,12 +6,19 @@ const {
     SHARE_SLOT_ACTION,
 } = require("./rules/gameplay/round.js");
 const { MAIN_BOARD_POOL } = require("./rules/services/main-board-pool.js");
+const {
+    GIFT_ANIMALS,
+    readGiftConfig,
+    createGiftApi,
+} = require("./gift-api.js");
+const { createGiftHandler } = require("./gifts.js");
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const collection = "flipZooFragments";
 const weights = [1176, 1176, 2353, 1765, 1765, 1765];
 const emptyBalances = () => weights.map(() => 0);
+const giftApi = createGiftApi(process.env);
 
 function verifyWin(deal, actions, shareLockedSlot) {
     const round = new Round(
@@ -82,6 +89,34 @@ exports.main = async (event) => {
         .update(APPID + ":" + OPENID)
         .digest("hex");
     const walletId = "wallet-" + owner;
+    if (["redeem-gift", "gift-status", "gifts-status"].includes(event.action)) {
+        if (
+            event.action !== "gifts-status" &&
+            (!Number.isInteger(event.animal) || !GIFT_ANIMALS[event.animal])
+        )
+            return { status: "invalid" };
+        await ensureWallet(walletId);
+        const runGift = async (animal, action) => {
+            const config = readGiftConfig(process.env, APPID, animal);
+            const result = await createGiftHandler({
+                db,
+                collection,
+                api: giftApi,
+                config,
+                animal,
+            })({ walletId, openid: OPENID, action });
+            return { ...result, cost: config?.cost };
+        };
+        if (event.action === "gifts-status")
+            return {
+                gifts: await Promise.all(
+                    GIFT_ANIMALS.map((_, animal) =>
+                        runGift(animal, "gift-status"),
+                    ),
+                ),
+            };
+        return runGift(event.animal, event.action);
+    }
     if (event.action === "balances") {
         const wallet = await ensureWallet(walletId);
         return { balances: wallet.balances };

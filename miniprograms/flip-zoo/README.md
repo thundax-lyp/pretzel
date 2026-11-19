@@ -34,9 +34,9 @@ node scripts/with-env.mjs --env-file .env -- npm --prefix miniprograms/flip-zoo 
 
 首页和失败结算页可以直接转发。胜利结算时可从微信菜单转发通关卡片。第二关每种道具开局未领取，成功调用微信分享后领取一次，用完后本局不能再领。Web Demo 提供模拟分享。通过私有环境的 `FLIP_ZOO_SHARE_DEFAULT_*` 和 `FLIP_ZOO_SHARE_VICTORY_*` 配置普通卡片和通关卡片。审核图片的 ID 与 URL 必须成对提供。设置页可以打开微信客服和原生问题反馈。
 
-第二关胜利后，开放数据域读取并更新本周的微信托管数据 `mgrank`。好友周榜按北京时间周一切换，读取同玩好友的本周成绩。胜负结算都展示好友周榜前三。历史榜与家园兑换暂未开放。
+第二关胜利后，开放数据域读取并更新本周的微信托管数据 `mgrank`。好友周榜按北京时间周一切换，读取同玩好友的本周成绩。胜负结算都展示好友周榜前三。历史榜暂未开放。
 
-微信构建从教学关开始。配置云环境的构建由云函数签发第二关固定牌局，每个账号在 40 副牌局中循环抽取。云函数重放操作校验清盘，每局最多发放 1 个动物碎片，每个账号按北京时间每天最多发放 60 个。家园从云函数读取碎片余额，网络失败的结算会在打开家园时重试。兑换尚未开放。
+微信构建从教学关开始。配置云环境的构建由云函数签发第二关固定牌局，每个账号在 40 副牌局中循环抽取。云函数重放操作校验清盘，每局最多发放 1 个动物碎片，每个账号按北京时间每天最多发放 60 个。家园从云函数读取碎片余额，网络失败的结算会在打开家园时重试。六种动物分别按各自配置控制兑换按钮；只有配置完整、活动和商品规格有效且有库存时才开放。兑换调用云函数创建微信礼物订单并打开领取组件。配置完整并部署后才可实际兑换；本地离线测试不代表真实礼物领取已验收。
 
 未配置云环境的微信构建在本地抽取固定牌局。Creator 直接预览使用本地生成的三层牌序，本地 Web Demo 通过 `HttpBoardAdapter` 读取 `GET /api/board`。A/B/C 对照、难度后台和模拟广告由 Web Demo 提供。
 
@@ -54,6 +54,34 @@ node scripts/with-env.mjs --env-file .env -- npm --prefix miniprograms/flip-zoo 
 暂存候选版本。集合权限设为仅云端可读写。发布技能负责创建集合并维护版本文档。
 
 运行 `node scripts/package-fragments.mjs` 生成 `build/cloudfunctions/flipZooFragments`，然后将该目录部署到同一云环境并安装云端依赖。云函数使用 `flipZooFragments` 集合保存牌局、发放记录和余额。集合权限应设为仅云端可读写。
+
+### 动物兑换配置
+
+兑换采用微信小店的商家配置模式。活动必须绑定当前正式小游戏 AppID，并包含指定商品与 SKU，处于活动有效期内且库存充足。客户端使用基础库 3.8.12 以上、微信 iOS／Android 8.0.60 以上；Windows／Mac 微信不支持礼物组件。
+
+以下配置保存在仓库根目录私有 `.env`，部署时还必须设置为 `flipZooFragments` 云函数环境变量。根目录 `.env` 不会自动同步到云端，不随客户端构建或云函数部署包分发。
+
+| 环境变量                          | 用途                                                            |
+| --------------------------------- | --------------------------------------------------------------- |
+| `FLIP_ZOO_WECHAT_GAME_APP_ID`     | 当前正式小游戏 AppID，与调用上下文核对                          |
+| `FLIP_ZOO_WECHAT_GAME_APP_SECRET` | 正式小游戏 AppSecret，仅服务端获取稳定版 access_token           |
+| `FLIP_ZOO_WECHAT_SHOP_APP_ID`     | 合作小店 ID                                                     |
+| `FLIP_ZOO_CAT_GIFT_ACTIVITY_ID`   | 商家配置的送礼活动 ID                                           |
+| `FLIP_ZOO_CAT_GIFT_PRODUCT_ID`    | 活动内商品 ID                                                   |
+| `FLIP_ZOO_CAT_GIFT_SKU_ID`        | 可选；配置则直接使用，留空查询活动并取该商品第一个条目的规格 ID |
+| `FLIP_ZOO_CAT_GIFT_FRAGMENT_COST` | 每次消耗的正整数碎片数；默认 100，本地调试设为 1                |
+
+每种动物使用独立配置组，动物索引由代码固定，不通过环境变量设置。上述公仔猫配置中的 `CAT` 可分别替换为 `CHIHUAHUA`（吉娃娃）、`CAPYBARA`（卡皮巴拉）、`DUCK`（小黄鸭）、`SHEEP`（招财羊）和 `PIG`（鸡肚猪）。每组均包含 `ACTIVITY_ID`、`PRODUCT_ID`、可选的 `SKU_ID` 和 `FRAGMENT_COST`；默认成本分别为 100、100、200、150、150、150。未配置、活动未进行、商品/SKU 不匹配、库存不足或查询失败时关闭该动物入口，不自动借用其他动物或其他商品。已创建的订单仍可继续确认或领取。AppSecret、access_token 不返回客户端，不记录到日志。云函数出网需能访问 `api.weixin.qq.com`；微信凭据接口要求 IP 白名单时，需按实际云函数出口配置。
+
+SKU 留空时先查询活动中的 `product_info_list`，取与配置商品 ID 匹配的第一个条目的 `sku_id`；不按库存改选其他条目。查询失败、没有匹配条目或首条规格无效时不预扣碎片、不下单。解析后的 SKU 保存在兑换记录中，处理中重试不重新查询。
+
+`redeem-gift` 在事务内校验余额与额度并预扣碎片，同一笔兑换使用持久化的 `idempotent_id` 调用服务端下单接口。每账号同种动物累计最多 3 件、全部动物累计最多 6 件；当前测试阶段不设每日兑换次数限制，处理中订单也占额度。重试沿用原订单的活动、商品、SKU、成本和幂等 ID，不按当前配置另发一份。微信明确拒绝下单时退回碎片与额度；超时或未知响应保留预扣，点击按钮或重新打开家园时继续确认原订单。
+
+`gifts-status` 汇总六种动物的可用状态；`gift-status` 从服务端查询礼物订单，待收下时允许继续领取；前端 `open()` 成功不代表收下。服务端确认过期未领取后，事务内退回原成本与额度；已领取及领取后的售后取消不自动退碎片。当前由玩家重新打开家园或再次点击触发确认，没有定时扫描任务。不得通过人工重置钱包或删除处理中记录处理不确定订单。
+
+本地验证覆盖并发预扣、相同幂等 ID 重试、配置变化、库存拒绝、领取状态、过期退款及次数限制。配置补齐后仍需部署云函数、重新构建并在手机版微信验证真实下单、领取、过期和余额刷新。
+
+接口依据：[小游戏微信礼物接入指引](https://developers.weixin.qq.com/minigame/dev/guide/open-ability/WeChatGift.html)、[创建并发送礼物](https://developers.weixin.qq.com/doc/store/shop/API/miniandstore/cooperation_gift/api_create_present_order)、[查询礼物订单详情](https://developers.weixin.qq.com/doc/store/shop/API/miniandstore/cooperation_gift/api_get_present)、[创建礼物组件](https://developers.weixin.qq.com/minigame/dev/api/open-api/store-gift/wx.createStoreGift.html)、[获取稳定版接口调用凭据](https://developers.weixin.qq.com/minigame/dev/api-backend/access-token/api_getstableaccesstoken.html)。
 
 ## 脚本索引
 
