@@ -1,7 +1,7 @@
 const https = require("node:https");
 
 const GIFT_ANIMALS = ["CAT", "CHIHUAHUA", "CAPYBARA", "DUCK", "SHEEP", "PIG"];
-const DEFAULT_COSTS = [100, 100, 200, 150, 150, 150];
+const DEFAULT_GIFT_COST = 1000;
 
 function readGiftConfig(env, appid, animal = 0) {
     if (!Number.isInteger(animal) || !GIFT_ANIMALS[animal]) return null;
@@ -26,7 +26,7 @@ function readGiftConfig(env, appid, animal = 0) {
         // IDs remain strings: order IDs can exceed JavaScript's safe integer range.
         config[field] = value;
     }
-    const cost = Number(env[prefix + "FRAGMENT_COST"] ?? DEFAULT_COSTS[animal]);
+    const cost = Number(env[prefix + "FRAGMENT_COST"] ?? DEFAULT_GIFT_COST);
     if (
         env.FLIP_ZOO_WECHAT_GAME_APP_ID !== appid ||
         !env.FLIP_ZOO_WECHAT_GAME_APP_SECRET?.trim() ||

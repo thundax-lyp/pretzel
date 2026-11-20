@@ -1,126 +1,178 @@
 import {
     Graphics,
-    Rect,
-    Size,
     Node,
+    Sprite,
     UITransform,
     Vec3,
     type EventTouch,
-    SpriteFrame,
+    type SpriteFrame,
 } from "cc";
 import type { ZooAudio, VolumeChannel } from "../services/zoo-audio";
-import {
-    artworkButton,
-    color,
-    label,
-    picture,
-    dialogArtwork,
-    uiNode,
-} from "../ui/nodes";
-import type { ScreenControls } from "../ui/screen-controls";
+import { color, label, picture, uiNode } from "../ui/nodes";
+import { ButtonPress, scaleButton } from "../ui/button-press";
 
 interface SettingsActions {
     version: string | undefined;
     contact(): void;
     feedback(): void;
-    abandon?(): void;
     privacy(): void;
+    abandon?(): void;
     back(): void;
 }
 
 export class SettingsView {
     constructor(
-        private readonly controls: ScreenControls,
         private readonly audio: ZooAudio,
-        private readonly artwork: SpriteFrame,
+        private readonly sprites: readonly SpriteFrame[],
     ) {}
 
     show(dialog: Node, actions: SettingsActions): Node {
         const footerShift = actions.abandon ? 0 : 160;
-        const artwork = dialogArtwork(dialog, "SettingsArtwork", this.artwork, [
-            [169, 521, 811, 1033 - footerShift, 58],
-            [341, 452, 463, 154, 61],
-            [891, 491, 113, 116, 31],
-        ]);
-        artworkButton(artwork, "关闭设置", 945, 545, 110, 110, actions.back);
+        const artwork = uiNode(dialog, "SettingsArtwork", 1152, 2048);
+        picture(
+            artwork,
+            "SettingsPanel",
+            this.sprites[0],
+            850,
+            1150 - footerShift,
+        ).node.setPosition(0, -14 + footerShift / 2);
+        this.dialogTitle(artwork, "设置", 495, actions.back);
+        for (const [index, text, y] of [
+            [7, "音效高低", 345],
+            [8, "音乐高低", 205],
+        ] as const) {
+            picture(
+                artwork,
+                text + "图标",
+                this.sprites[index],
+                85,
+                85,
+            ).node.setPosition(-291, y);
+            const caption = label(artwork, text, 42, "#56351C");
+            caption.isBold = true;
+            caption.node.setPosition(-130, y);
+        }
         this.createVolumeRow(artwork, "sfx", 345);
         this.createVolumeRow(artwork, "music", 205);
-        artworkButton(
+        const feedback = this.rowButton(
             artwork,
-            "联系客服",
-            576,
-            1151,
-            474,
-            132,
-            actions.contact,
+            "问题反馈",
+            34,
+            4,
+            actions.feedback,
         );
+        this.rowButton(artwork, "联系客服", -127, 5, actions.contact);
         if (actions.abandon) {
-            artworkButton(
-                artwork,
-                "放弃挑战",
-                576,
-                1317,
-                474,
-                132,
-                actions.abandon,
-            );
-        } else {
-            this.raiseFooterArtwork(artwork, footerShift);
+            this.rowButton(artwork, "放弃挑战", -293, 6, actions.abandon);
         }
-        artworkButton(
+        const privacy = label(
             artwork,
             "儿童隐私保护声明及监护人须知",
-            576,
-            1453 - footerShift,
-            600,
-            75,
-            actions.privacy,
+            30,
+            "#386B8F",
         );
+        privacy.node.name = "ChildPrivacyLink";
+        privacy.isUnderline = true;
+        privacy.node.setPosition(0, -429 + footerShift);
+        privacy.node.getComponent(UITransform)!.setContentSize(680, 75);
+        const press = privacy.node.addComponent(ButtonPress);
+        const scale = scaleButton(privacy.node, 0.98);
+        press.action = actions.privacy;
+        press.showPressed = (pressed) => {
+            if (!privacy.isValid) return;
+            privacy.color = color(pressed ? "#20425B" : "#386B8F");
+            scale(pressed);
+        };
         const version = actions.version?.trim();
         if (version) {
-            label(artwork, `版本 ${version}`, 24, "#886849").node.setPosition(
+            label(artwork, "版本 " + version, 24, "#886849").node.setPosition(
                 0,
                 -480 + footerShift,
             );
         }
-        return artworkButton(
-            artwork,
-            "问题反馈",
-            576,
-            990,
-            474,
-            132,
-            actions.feedback,
+        return feedback;
+    }
+
+    private dialogTitle(
+        parent: Node,
+        text: string,
+        y: number,
+        onClose: () => void,
+    ): void {
+        const sign = picture(parent, "DialogTitle", this.sprites[1], 490, 188);
+        sign.node.setPosition(0, y);
+        const caption = label(sign.node, text, 52, "#FFFFFF");
+        caption.isBold = true;
+        caption.node.getComponent(UITransform)!.setContentSize(360, 90);
+        this.imageButton(
+            parent,
+            "关闭对话框",
+            369,
+            y - 16,
+            110,
+            110,
+            3,
+            onClose,
         );
     }
 
-    private raiseFooterArtwork(artwork: Node, shift: number): void {
-        // Reuse the illustrated footer and frame below the baked challenge row.
-        const texture = this.artwork.texture;
-        const top = 1400;
-        const height = 156;
-        const frame = new SpriteFrame();
-        const rect = new Rect(
-            0,
-            (top / 2048) * texture.height,
-            texture.width,
-            (height / 2048) * texture.height,
-        );
-        frame.reset({
-            texture,
-            rect,
-            originalSize: new Size(rect.width, rect.height),
-        });
-        frame.packable = false;
-        const footer = picture(
-            artwork,
-            "HomeSettingsFooter",
-            frame,
-            1152,
+    private imageButton(
+        parent: Node,
+        name: string,
+        x: number,
+        y: number,
+        width: number,
+        height: number,
+        index: number,
+        action: () => void,
+    ): Node {
+        const sprite = picture(
+            parent,
+            name,
+            this.sprites[index],
+            width,
             height,
-        ).node;
-        footer.setPosition(0, 1024 - top - height / 2 + shift);
-        footer.once(Node.EventType.NODE_DESTROYED, () => frame.destroy());
+        );
+        sprite.node.setPosition(x, y);
+        const press = sprite.node.addComponent(ButtonPress);
+        const scale = scaleButton(sprite.node, 0.96);
+        press.action = action;
+        press.showPressed = (pressed) => {
+            if (!sprite.isValid) return;
+            sprite.color = color(pressed ? "#D9CDBB" : "#FFFFFF");
+            scale(pressed);
+        };
+        return sprite.node;
+    }
+
+    private rowButton(
+        parent: Node,
+        text: string,
+        y: number,
+        icon: number,
+        action: () => void,
+    ): Node {
+        const button = this.imageButton(
+            parent,
+            text,
+            0,
+            y,
+            490,
+            160,
+            2,
+            action,
+        );
+        picture(
+            button,
+            text + "图标",
+            this.sprites[icon],
+            88,
+            88,
+        ).node.setPosition(-117, 0);
+        const caption = label(button, text, 44, "#56351C");
+        caption.isBold = true;
+        caption.node.setPosition(55, 0);
+        return button;
     }
 
     confirmAbandon(
@@ -128,42 +180,36 @@ export class SettingsView {
         onCancel: () => void,
         onAbandon: () => void,
     ): void {
-        this.controls.panel(
-            dialog,
-            "AbandonCard",
+        const artwork = uiNode(dialog, "SettingsArtwork", 1152, 2048);
+        const frame = this.sprites[0];
+        frame.insetLeft = 100;
+        frame.insetRight = 100;
+        frame.insetTop = 100;
+        frame.insetBottom = 100;
+        const panel = picture(artwork, "AbandonCard", frame, 850, 500);
+        panel.type = Sprite.Type.SLICED;
+        this.dialogTitle(artwork, "放弃挑战？", 250, onCancel);
+        label(artwork, "结束本局并返回首页", 42, "#56351C").node.setPosition(
             0,
-            616,
-            315,
-            "#FFF9E0",
-            "#859F73",
+            60,
         );
-        const title = label(dialog, "放弃挑战？", 42, "#56351C");
-        title.isBold = true;
-        title.node.setPosition(0, 91);
-        label(dialog, "结束本局并返回首页", 25, "#684824").node.setPosition(
-            0,
-            19,
-        );
-        const abandon = this.controls.button(
-            "是的",
-            -136,
-            -65,
-            212,
-            onAbandon,
-            dialog,
-            88,
-        );
-        this.controls.paintButton(abandon, false, true, "red");
-        const resume = this.controls.button(
-            "不是",
-            136,
-            -65,
-            212,
-            onCancel,
-            dialog,
-            88,
-        );
-        this.controls.paintButton(resume, false, true, "green");
+        for (const [text, x, action, ink] of [
+            ["继续挑战", -200, onCancel, "#56351C"],
+            ["放弃挑战", 200, onAbandon, "#8A3523"],
+        ] as const) {
+            const button = this.imageButton(
+                artwork,
+                text,
+                x,
+                -105,
+                340,
+                116,
+                2,
+                action,
+            );
+            const caption = label(button, text, 42, ink);
+            caption.isBold = true;
+        }
     }
 
     private createVolumeRow(

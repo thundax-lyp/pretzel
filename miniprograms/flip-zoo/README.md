@@ -69,9 +69,9 @@ node scripts/with-env.mjs --env-file .env -- npm --prefix miniprograms/flip-zoo 
 | `FLIP_ZOO_CAT_GIFT_ACTIVITY_ID`   | 商家配置的送礼活动 ID                                           |
 | `FLIP_ZOO_CAT_GIFT_PRODUCT_ID`    | 活动内商品 ID                                                   |
 | `FLIP_ZOO_CAT_GIFT_SKU_ID`        | 可选；配置则直接使用，留空查询活动并取该商品第一个条目的规格 ID |
-| `FLIP_ZOO_CAT_GIFT_FRAGMENT_COST` | 每次消耗的正整数碎片数；默认 100，本地调试设为 1                |
+| `FLIP_ZOO_CAT_GIFT_FRAGMENT_COST` | 每次消耗的正整数碎片数；默认及正式配置均为 1000                 |
 
-每种动物使用独立配置组，动物索引由代码固定，不通过环境变量设置。上述公仔猫配置中的 `CAT` 可分别替换为 `CHIHUAHUA`（吉娃娃）、`CAPYBARA`（卡皮巴拉）、`DUCK`（小黄鸭）、`SHEEP`（招财羊）和 `PIG`（鸡肚猪）。每组均包含 `ACTIVITY_ID`、`PRODUCT_ID`、可选的 `SKU_ID` 和 `FRAGMENT_COST`；默认成本分别为 100、100、200、150、150、150。未配置、活动未进行、商品/SKU 不匹配、库存不足或查询失败时关闭该动物入口，不自动借用其他动物或其他商品。已创建的订单仍可继续确认或领取。AppSecret、access_token 不返回客户端，不记录到日志。云函数出网需能访问 `api.weixin.qq.com`；微信凭据接口要求 IP 白名单时，需按实际云函数出口配置。
+每种动物使用独立配置组，动物索引由代码固定，不通过环境变量设置。上述公仔猫配置中的 `CAT` 可分别替换为 `CHIHUAHUA`（吉娃娃）、`CAPYBARA`（卡皮巴拉）、`DUCK`（小黄鸭）、`SHEEP`（招财羊）和 `PIG`（鸡肚猪）。每组均包含 `ACTIVITY_ID`、`PRODUCT_ID`、可选的 `SKU_ID` 和 `FRAGMENT_COST`；六种动物的默认兑换成本统一为 1000 个同种碎片。未配置、活动未进行、商品/SKU 不匹配、库存不足或查询失败时关闭该动物入口，不自动借用其他动物或其他商品。已创建的订单仍可继续确认或领取。AppSecret、access_token 不返回客户端，不记录到日志。云函数出网需能访问 `api.weixin.qq.com`；微信凭据接口要求 IP 白名单时，需按实际云函数出口配置。
 
 SKU 留空时先查询活动中的 `product_info_list`，取与配置商品 ID 匹配的第一个条目的 `sku_id`；不按库存改选其他条目。查询失败、没有匹配条目或首条规格无效时不预扣碎片、不下单。解析后的 SKU 保存在兑换记录中，处理中重试不重新查询。
 
@@ -127,10 +127,27 @@ npm ci
 npm run check
 ```
 
+### 资源位置
+
+资源按实际使用界面与用途组织，资源文件及其 `.meta` 一起维护。
+
+| 业务用途                       | 源码位置                                                                      | 微信包归属   |
+| ------------------------------ | ----------------------------------------------------------------------------- | ------------ |
+| 首页与 LOADING 共用背景        | `assets/resources/home-loading/background.jpg`                                | 主包         |
+| 牌桌背景、卡牌、道具与消除音效 | `assets/resources/gameplay/`                                                  | 主包         |
+| 胜利与失败结算插画             | `assets/resources/result/`                                                    | 主包         |
+| 共享图标、弹层纸纹与按钮音效   | `assets/resources/shared/`                                                    | 主包         |
+| 儿童隐私结构化全文             | `assets/resources/privacy/child-privacy-policy.json`                          | 主包         |
+| 首页、设置独立控件与家园动画   | `assets/home/buttons.png`、`assets/home/settings/`、`assets/home/collection/` | `home` 分包  |
+| 全局背景音乐                   | `assets/music/shared/background-music.mp3`                                    | `music` 分包 |
+| 邀请与胜利分享卡               | `share/game-invite.jpg`、`share/victory-result.jpg`                           | 主包         |
+
+LOADING 背景先由主包加载并显示，再加载 `home` 分包。
+
 ### 分享素材与儿童隐私
 
-普通和胜利分享卡使用 [share/default.jpg](share/default.jpg) 与 [share/victory.jpg](share/victory.jpg)，均为 500 × 400。微信构建将两张图复制进代码包。可通过既有的分享配置指定平台审核通过的图片编号与地址。
+普通和胜利分享卡使用 [share/game-invite.jpg](share/game-invite.jpg) 与 [share/victory-result.jpg](share/victory-result.jpg)，均为 500 × 400。微信构建将两张图复制进代码包。可通过既有的分享配置指定平台审核通过的图片编号与地址。
 
 弹层纸纹改编自 [ambientCG Paper 001](https://ambientcg.com/view?id=Paper001)，采用 [CC0 1.0](https://docs.ambientcg.com/license/)。标题装饰和胜负熊猫为本项目生成的插画。
 
-儿童隐私弹层按当前代码的数据用途编写，参考[《个人信息保护法》](https://www.miit.gov.cn/jgsj/zfs/fl/art/2022/art_515a4b20c12f430eab54bb4f56d89f56.html)、[《儿童个人信息网络保护规定》](https://www.moj.gov.cn/pub/sfbgw/flfggz/flfggzbmgz/202101/t20210105_146377.html)及[腾讯儿童隐私保护声明](https://privacy.tencent.com/yszc-children.htm)。发布前由运营方补齐主体、联系方式、保存期限和权利请求处理安排，并确认微信后台公示内容与监护人同意流程。当前游戏内弹层提供说明，好友信息授权由微信弹窗处理。
+儿童隐私全文使用 `assets/resources/privacy/child-privacy-policy.json`，标题、日期、章节、段落和列表独立存储。从设置中的文字链接打开游戏内全屏阅读页，支持滚动与返回。文案与排版代码分开维护；发布前由运营方确认文案与实际业务、微信后台公示内容及监护人同意流程一致。
