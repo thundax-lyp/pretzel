@@ -44,7 +44,7 @@ node scripts/with-env.mjs --env-file .env -- npm --prefix miniprograms/flip-zoo 
 
 在微信云开发控制台将小游戏 AppID 关联到目标环境。正式构建从私有环境读取
 `FLIP_ZOO_WECHAT_CLOUD_ENV`，`--test` 构建读取
-`FLIP_ZOO_WECHAT_TEST_CLOUD_ENV`。将 `cloudfunctions/flipZooHealth` 部署到对应环境，并安装云端依赖。
+`FLIP_ZOO_WECHAT_TEST_CLOUD_ENV`。将 `cloud-functions/flip-zoo-health` 部署到对应环境，云函数名称指定为 `flipZooHealth`，并安装云端依赖。
 
 配置环境 ID 后，小游戏启动时调用 `flipZooHealth`。云函数通过微信调用上下文验证身份，
 接通时开发者工具控制台显示 `FLIP ZOO cloud connection verified`。首页优先使用
@@ -53,7 +53,7 @@ node scripts/with-env.mjs --env-file .env -- npm --prefix miniprograms/flip-zoo 
 `version-<AppID>`，字段 `version` 使用 `主版本.次版本.补丁版本`，`pendingVersion` 仅供发布流程
 暂存候选版本。集合权限设为仅云端可读写。发布技能负责创建集合并维护版本文档。
 
-运行 `node scripts/package-fragments.mjs` 生成 `build/cloudfunctions/flipZooFragments`，然后将该目录部署到同一云环境并安装云端依赖。云函数使用 `flipZooFragments` 集合保存牌局、发放记录和余额。集合权限应设为仅云端可读写。
+运行 `node scripts/package-fragments.mjs` 生成 `build/cloud-functions/flip-zoo-fragments`，然后将该目录部署到同一云环境，云函数名称指定为 `flipZooFragments`，并安装云端依赖。云函数使用 `flipZooFragments` 集合保存牌局、发放记录和余额。集合权限应设为仅云端可读写。
 
 ### 动物兑换配置
 
@@ -96,7 +96,7 @@ SKU 留空时先查询活动中的 `product_info_list`，取与配置商品 ID �
 | `simulate-win-rate.mjs` | 批量运行无道具模拟，默认逐副输出微信第二关固定牌局的通关率和 30% 进度达标率。 | `npm run simulate:win-rate`                      |
 | `simulate-round.mjs`    | 复用游戏的 `Round` 规则运行单局，按可见牌推演策略选牌。                       | 由 `simulate-win-rate.mjs` 导入                  |
 | `visible-lookahead.mjs` | 根据可见牌、遮挡和卡槽向前推演，为候选取牌操作打分。                          | 由 `simulate-round.mjs` 导入                     |
-| `package-fragments.mjs` | 生成碎片云函数的本地部署包 `build/cloudfunctions/flipZooFragments`。          | `node scripts/package-fragments.mjs`             |
+| `package-fragments.mjs` | 生成碎片云函数的本地部署包 `build/cloud-functions/flip-zoo-fragments`。       | `node scripts/package-fragments.mjs`             |
 
 ## 难度推演
 

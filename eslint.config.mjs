@@ -27,7 +27,7 @@ export default [
         languageOptions: { globals: globals.node },
     },
     {
-        files: ["miniprograms/*/cloudfunctions/**/*.js"],
+        files: ["miniprograms/*/cloud-functions/**/*.js"],
         languageOptions: { sourceType: "commonjs", globals: globals.node },
     },
     {

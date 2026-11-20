@@ -7,7 +7,7 @@
         "check": "npm run typecheck && npm run lint && npm test",
         "typecheck": "tsc --noEmit",
         "test": "node --test test/*.test.mjs",
-        "lint": "node ../../node_modules/eslint/bin/eslint.js --max-warnings 0 assets scripts test open-data cloudfunctions",
+        "lint": "node ../../node_modules/eslint/bin/eslint.js --max-warnings 0 assets scripts test open-data cloud-functions",
         "build:web": "node scripts/build-cocos.mjs web-mobile",
         "build:wechat": "node scripts/build-cocos.mjs wechatgame",
         "preview": "node scripts/preview-web.mjs",
