@@ -8,11 +8,11 @@ import {
     resources,
 } from "cc";
 export interface ZooArtwork {
-    readonly screens: {
-        welcome: SpriteFrame;
-        settings: SpriteFrame;
-        collection: SpriteFrame;
-        homeAnimals: readonly (readonly SpriteFrame[])[];
+    readonly home: {
+        background: SpriteFrame;
+        buttons: readonly SpriteFrame[];
+        settings: readonly SpriteFrame[];
+        collectionAnimals: readonly (readonly SpriteFrame[])[];
     };
     readonly raisedTile: SpriteFrame;
     readonly raisedTileBack: SpriteFrame;
@@ -26,7 +26,7 @@ export interface ZooArtwork {
 }
 function loadTexture(name: string): Promise<Texture2D> {
     return new Promise((resolve, reject) => {
-        resources.load(`art/${name}/texture`, Texture2D, (error, texture) => {
+        resources.load(`${name}/texture`, Texture2D, (error, texture) => {
             if (error) reject(error);
             else resolve(texture);
         });
@@ -102,7 +102,22 @@ function centeredAnimals(texture: Texture2D): SpriteFrame[] {
     );
 }
 
-export async function loadZooArtwork(): Promise<ZooArtwork> {
+export async function loadLoadingArtwork(): Promise<SpriteFrame> {
+    return slice(await loadTexture("home-loading/background"), 1, 1)[0];
+}
+
+export async function loadZooArtwork(
+    onProgress: (progress: number) => void = () => {},
+): Promise<ZooArtwork> {
+    let completed = 0;
+    // Ten main-package textures, one home bundle and eight home textures.
+    const advance = () => onProgress(++completed / 19);
+    const trackedTexture = async (name: string) => {
+        const texture = await loadTexture(name);
+        advance();
+        return texture;
+    };
+    onProgress(0);
     const [
         garden,
         sadPanda,
@@ -113,18 +128,20 @@ export async function loadZooArtwork(): Promise<ZooArtwork> {
         paper,
         raisedTileTexture,
         raisedTileBackTexture,
-        screens,
+        loading,
+        home,
     ] = await Promise.all([
-        loadTexture("zoo-garden"),
-        loadTexture("zoo-sad-panda"),
-        loadTexture("zoo-win-panda"),
-        loadTexture("animal-portraits"),
-        loadTexture("zoo-symbols"),
-        loadTexture("zoo-props"),
-        loadTexture("panel-paper"),
-        loadTexture("raised-tile"),
-        loadTexture("raised-tile-back"),
-        loadScreens(),
+        trackedTexture("gameplay/background"),
+        trackedTexture("result/failure-illustration"),
+        trackedTexture("result/victory-illustration"),
+        trackedTexture("gameplay/cards/animal-portraits"),
+        trackedTexture("shared/icons/paw-symbols"),
+        trackedTexture("gameplay/props/icons"),
+        trackedTexture("shared/panels/paper-texture"),
+        trackedTexture("gameplay/cards/front"),
+        trackedTexture("gameplay/cards/back"),
+        trackedTexture("home-loading/background"),
+        loadHomeArtwork(advance),
     ]);
     // Exclude the transparent margin of the source image.
     const [raisedTile, raisedTileBack] = [
@@ -144,7 +161,7 @@ export async function loadZooArtwork(): Promise<ZooArtwork> {
     const symbolsFrames = slice(symbols, 3, 2);
     const [undo] = slice(props, 2, 2);
     return {
-        screens,
+        home: { ...home, background: slice(loading, 1, 1)[0] },
         raisedTile,
         raisedTileBack,
         paper: slice(paper, 1, 1)[0],
@@ -157,27 +174,41 @@ export async function loadZooArtwork(): Promise<ZooArtwork> {
     };
 }
 
-async function loadScreens(): Promise<ZooArtwork["screens"]> {
+const SETTINGS_REGIONS = [
+    [6, 118, 714, 1027],
+    [719, 71, 514, 178],
+    [724, 306, 508, 157],
+    [872, 505, 189, 183],
+    [731, 744, 149, 147],
+    [898, 742, 155, 153],
+    [1072, 741, 154, 155],
+    [805, 964, 117, 110],
+    [1006, 962, 109, 110],
+] as const;
+
+async function loadHomeArtwork(
+    advance: () => void,
+): Promise<Omit<ZooArtwork["home"], "background">> {
     const bundle = await new Promise<
         NonNullable<ReturnType<typeof assetManager.getBundle>>
     >((resolve, reject) => {
-        assetManager.loadBundle("screens", (error, loaded) => {
+        assetManager.loadBundle("home", (error, loaded) => {
             if (error) reject(error);
             else resolve(loaded);
         });
     });
+    advance();
 
-    const [welcome, settings, collection, ...animalSheets] = await Promise.all(
+    const [buttons, settings, ...animalSheets] = await Promise.all(
         [
-            "welcome",
-            "settings",
-            "collection",
-            "home-animals",
-            "home-animals-1",
-            "home-animals-2",
-            "home-animals-3",
-            "home-animals-4",
-            "home-animals-5",
+            "buttons",
+            "settings/controls",
+            "collection/animals-idle",
+            "collection/animals-action-01",
+            "collection/animals-action-02",
+            "collection/animals-action-03",
+            "collection/animals-action-04",
+            "collection/animals-action-05",
         ].map(
             (name) =>
                 new Promise<Texture2D>((resolve, reject) => {
@@ -186,7 +217,10 @@ async function loadScreens(): Promise<ZooArtwork["screens"]> {
                         Texture2D,
                         (error, texture) => {
                             if (error) reject(error);
-                            else resolve(texture);
+                            else {
+                                advance();
+                                resolve(texture);
+                            }
                         },
                     );
                 }),
@@ -194,10 +228,32 @@ async function loadScreens(): Promise<ZooArtwork["screens"]> {
     );
     const poses = animalSheets.map((sheet) => slice(sheet, 2, 3));
     return {
-        welcome: slice(welcome, 1, 1)[0],
-        settings: slice(settings, 1, 1)[0],
-        collection: slice(collection, 1, 1)[0],
-        homeAnimals: poses[0].map((_, animal) =>
+        buttons: [
+            [204, 110, 1128, 340],
+            [206, 530, 350, 370],
+            [590, 530, 350, 370],
+            [974, 530, 350, 370],
+        ].map(([x, y, width, height]) => {
+            const frame = new SpriteFrame();
+            frame.reset({
+                texture: buttons,
+                rect: new Rect(x, y, width, height),
+                originalSize: new Size(width, height),
+            });
+            frame.packable = false;
+            return frame;
+        }),
+        settings: SETTINGS_REGIONS.map(([x, y, width, height]) => {
+            const frame = new SpriteFrame();
+            frame.reset({
+                texture: settings,
+                rect: new Rect(x, y, width, height),
+                originalSize: new Size(width, height),
+            });
+            frame.packable = false;
+            return frame;
+        }),
+        collectionAnimals: poses[0].map((_, animal) =>
             poses.map((pose) => pose[animal]),
         ),
     };

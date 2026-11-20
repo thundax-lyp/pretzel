@@ -127,10 +127,27 @@ npm ci
 npm run check
 ```
 
+### 资源位置
+
+资源按实际使用界面与用途组织，资源文件及其 `.meta` 一起维护。
+
+| 业务用途                       | 源码位置                                                                      | 微信包归属   |
+| ------------------------------ | ----------------------------------------------------------------------------- | ------------ |
+| 首页与 LOADING 共用背景        | `assets/resources/home-loading/background.jpg`                                | 主包         |
+| 牌桌背景、卡牌、道具与消除音效 | `assets/resources/gameplay/`                                                  | 主包         |
+| 胜利与失败结算插画             | `assets/resources/result/`                                                    | 主包         |
+| 共享图标、弹层纸纹与按钮音效   | `assets/resources/shared/`                                                    | 主包         |
+| 儿童隐私结构化全文             | `assets/resources/privacy/child-privacy-policy.json`                          | 主包         |
+| 首页、设置独立控件与家园动画   | `assets/home/buttons.png`、`assets/home/settings/`、`assets/home/collection/` | `home` 分包  |
+| 全局背景音乐                   | `assets/music/shared/background-music.mp3`                                    | `music` 分包 |
+| 邀请与胜利分享卡               | `share/game-invite.jpg`、`share/victory-result.jpg`                           | 主包         |
+
+LOADING 背景先由主包加载并显示，再加载 `home` 分包。
+
 ### 分享素材与儿童隐私
 
-普通和胜利分享卡使用 [share/default.jpg](share/default.jpg) 与 [share/victory.jpg](share/victory.jpg)，均为 500 × 400。微信构建将两张图复制进代码包。可通过既有的分享配置指定平台审核通过的图片编号与地址。
+普通和胜利分享卡使用 [share/game-invite.jpg](share/game-invite.jpg) 与 [share/victory-result.jpg](share/victory-result.jpg)，均为 500 × 400。微信构建将两张图复制进代码包。可通过既有的分享配置指定平台审核通过的图片编号与地址。
 
 弹层纸纹改编自 [ambientCG Paper 001](https://ambientcg.com/view?id=Paper001)，采用 [CC0 1.0](https://docs.ambientcg.com/license/)。标题装饰和胜负熊猫为本项目生成的插画。
 
-儿童隐私弹层按当前代码的数据用途编写，参考[《个人信息保护法》](https://www.miit.gov.cn/jgsj/zfs/fl/art/2022/art_515a4b20c12f430eab54bb4f56d89f56.html)、[《儿童个人信息网络保护规定》](https://www.moj.gov.cn/pub/sfbgw/flfggz/flfggzbmgz/202101/t20210105_146377.html)及[腾讯儿童隐私保护声明](https://privacy.tencent.com/yszc-children.htm)。发布前由运营方补齐主体、联系方式、保存期限和权利请求处理安排，并确认微信后台公示内容与监护人同意流程。当前游戏内弹层提供说明，好友信息授权由微信弹窗处理。
+儿童隐私全文使用 `assets/resources/privacy/child-privacy-policy.json`，标题、日期、章节、段落和列表独立存储。从设置中的文字链接打开游戏内全屏阅读页，支持滚动与返回。文案与排版代码分开维护；发布前由运营方确认文案与实际业务、微信后台公示内容及监护人同意流程一致。

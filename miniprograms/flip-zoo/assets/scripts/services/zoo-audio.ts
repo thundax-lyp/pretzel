@@ -35,12 +35,20 @@ export class ZooAudio extends Component {
         game.on(Game.EVENT_HIDE, this.onHide, this);
         game.on(Game.EVENT_SHOW, this.onShow, this);
         this.node.on(ButtonPress.PRESSED, this.playButtonPress, this);
-        resources.load("audio/button-press", AudioClip, (error, clip) => {
-            if (!error && this.isValid) this.pressClip = clip;
-        });
-        resources.load("audio/tile-match", AudioClip, (error, clip) => {
-            if (!error && this.isValid) this.matchClip = clip;
-        });
+        resources.load(
+            "shared/audio/button-press",
+            AudioClip,
+            (error, clip) => {
+                if (!error && this.isValid) this.pressClip = clip;
+            },
+        );
+        resources.load(
+            "gameplay/audio/tile-match",
+            AudioClip,
+            (error, clip) => {
+                if (!error && this.isValid) this.matchClip = clip;
+            },
+        );
     }
 
     onDestroy(): void {
@@ -101,7 +109,7 @@ export class ZooAudio extends Component {
                 this.loadingMusic = false;
                 return;
             }
-            bundle.load("background-music", AudioClip, (error, clip) => {
+            bundle.load("shared/background-music", AudioClip, (error, clip) => {
                 this.loadingMusic = false;
                 if (error || !this.isValid) return;
                 this.music.clip = clip;

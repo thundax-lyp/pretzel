@@ -3,7 +3,6 @@ import {
     Graphics,
     Label,
     LabelOutline,
-    Mask,
     Node,
     Sprite,
     UITransform,
@@ -85,46 +84,6 @@ export function screenArtwork(
     frame: SpriteFrame,
 ): Node {
     return picture(parent, name, frame, imageWidth, imageHeight).node;
-}
-
-export function dialogArtwork(
-    parent: Node,
-    name: string,
-    frame: SpriteFrame,
-    regions: readonly (readonly [number, number, number, number, number])[],
-): Node {
-    const artwork = uiNode(parent, name, imageWidth, imageHeight);
-    const mask = artwork.addComponent(Mask);
-    mask.type = Mask.Type.GRAPHICS_STENCIL;
-    const stencil = mask.subComp as Graphics;
-    stencil.clear();
-    for (const [x, y, width, height, radius] of regions) {
-        stencil.roundRect(
-            x - imageWidth / 2,
-            imageHeight / 2 - y - height,
-            width,
-            height,
-            radius,
-        );
-        stencil.fill();
-    }
-    picture(artwork, "DialogImage", frame, imageWidth, imageHeight);
-    return artwork;
-}
-
-export function artworkButton(
-    artwork: Node,
-    name: string,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    action: () => void,
-): Node {
-    const button = uiNode(artwork, name, width, height);
-    button.setPosition(x - imageWidth / 2, imageHeight / 2 - y);
-    shadedButton(button, action);
-    return button;
 }
 
 export function shadedButton(node: Node, action: () => void): ButtonPress {

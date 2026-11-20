@@ -128,7 +128,9 @@ try {
                 imageUrlId,
                 imageUrl:
                     imageUrl ||
-                    (victory ? "share/victory.jpg" : "share/default.jpg"),
+                    (victory
+                        ? "share/victory-result.jpg"
+                        : "share/game-invite.jpg"),
             };
         });
         fs.writeFileSync(
@@ -160,7 +162,7 @@ try {
         // The Cocos WeChat adapter resolves bundles listed in settings.assets.subpackages from this directory.
         fs.mkdirSync(path.join(output, "subpackages"), { recursive: true });
         gameConfig.subpackages ??= [];
-        for (const name of ["music", "screens"]) {
+        for (const name of ["music", "home"]) {
             const root = `subpackages/${name}`;
             fs.renameSync(
                 path.join(output, "assets", name),
@@ -188,8 +190,8 @@ try {
         );
         const firstScreenPath = path.join(output, "first-screen.js");
         let firstScreen = fs.readFileSync(firstScreenPath, "utf8");
-        const artPath = (filename) => {
-            const source = path.join(project, "assets/resources/art", filename);
+        const resourcePath = (filename) => {
+            const source = path.join(project, "assets/resources", filename);
             const { uuid } = JSON.parse(
                 fs.readFileSync(source + ".meta", "utf8"),
             );
@@ -199,7 +201,7 @@ try {
             }
             // The bootstrap needs the original image even when Creator packs it differently.
             const bootstrapPath = `first-screen/${filename}`;
-            fs.mkdirSync(path.join(output, "first-screen"), {
+            fs.mkdirSync(path.dirname(path.join(output, bootstrapPath)), {
                 recursive: true,
             });
             fs.copyFileSync(source, path.join(output, bootstrapPath));
@@ -213,8 +215,8 @@ try {
             useCustomBg: "true",
             fitWidth: "false",
             fitHeight: "false",
-            logoName: artPath("zoo-title.png"),
-            bgName: artPath("zoo-garden.jpg"),
+            logoName: resourcePath("home-loading/background.jpg"),
+            bgName: resourcePath("home-loading/background.jpg"),
             progressBarColor: "[255 / 255, 199 / 255, 85 / 255, 1]",
             progressBackground: "[111 / 255, 63 / 255, 106 / 255, 1]",
         };
@@ -230,6 +232,91 @@ try {
                 `let ${key} = ${value};`,
             );
         }
+        // Keep the bootstrap notice visible even though the default Cocos logo is disabled.
+        firstScreen = firstScreen.replaceAll(
+            "useLogo && useDefaultLogo &&",
+            "useLogo &&",
+        );
+        firstScreen = firstScreen.replace(
+            "useLogo && drawTexture(gl, program, logoTexture, vertexBuffer, 4);",
+            "// The loading background already includes the HOME logo.",
+        );
+        const replaceFunction = (name, body) => {
+            const pattern = new RegExp(
+                `function ${name}\\([^)]*\\) \\{[\\s\\S]*?^\\}`,
+                "m",
+            );
+            if (!pattern.test(firstScreen)) {
+                throw new Error(
+                    `Unexpected WeChat first-screen function: ${name}`,
+                );
+            }
+            firstScreen = firstScreen.replace(pattern, body);
+        };
+        replaceFunction(
+            "updateBgVertexBuffer",
+            `function updateBgVertexBuffer() {
+    const scale = Math.max(canvas.width / 1152, canvas.height / 2048);
+    const width = 1152 * scale / canvas.width;
+    const height = 2048 * scale / canvas.height;
+    const vertices = new Float32Array([
+        width, height, 1, 1,
+        width, -height, 1, 0,
+        -width, height, 0, 1,
+        -width, -height, 0, 0,
+    ]);
+    gl.bindBuffer(gl.ARRAY_BUFFER, bgVertexBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+}`,
+        );
+        replaceFunction(
+            "loadSlogan",
+            `function loadSlogan() {
+    slogan = wx.createCanvas();
+    slogan.width = 1152;
+    slogan.height = 320;
+    const context = slogan.getContext('2d');
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.lineJoin = 'round';
+    context.strokeStyle = '#258C52';
+    context.fillStyle = '#F4F7E9';
+    context.lineWidth = 8;
+    for (const [text, y, size] of ${JSON.stringify([
+        ["健康游戏忠告", 30, 36],
+        ["抵制不良游戏，拒绝盗版游戏 ，注意自我保护，谨防受骗上当。", 76, 31],
+        ["适度游戏益脑，沉迷游戏伤身 ，合理安排时间，享受健康生活。", 118, 31],
+        ["本公司积极履行《网络游戏行业防沉迷自律公约》", 161, 31],
+        ["上海四象无忧数字娱乐科技有限公司", 246, 31],
+    ])}) {
+        context.font = 'bold ' + size + 'px sans-serif';
+        context.strokeText(text, 576, y);
+        context.fillText(text, 576, y);
+    }
+    return Promise.resolve(slogan);
+}`,
+        );
+        replaceFunction(
+            "updateSloganVertexBuffer",
+            `function updateSloganVertexBuffer() {
+    const scale = Math.min(canvas.width / 1152, canvas.height / 2048);
+    const width = 1152 * scale / canvas.width;
+    const top = 1 - 3328 / 2048;
+    const bottom = top - 640 * scale / canvas.height;
+    const vertices = new Float32Array([
+        width, bottom, 1, 1,
+        width, top, 1, 0,
+        -width, bottom, 0, 1,
+        -width, top, 0, 0,
+    ]);
+    gl.bindBuffer(gl.ARRAY_BUFFER, sloganVertexBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+}`,
+        );
+        firstScreen = firstScreen.replace(
+            "const heightOffset = -0.8;",
+            "const heightOffset = 1 - 3174 / 2048;",
+        );
         fs.writeFileSync(firstScreenPath, firstScreen);
 
         const subpackageRoots = (gameConfig.subpackages ?? []).map(({ root }) =>
