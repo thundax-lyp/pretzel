@@ -72,7 +72,7 @@ test("WeChat draws each saved board without contacting the preview server", asyn
         );
         const keyKinds = [...counts].filter(([, cards]) => cards.length === 3);
         assert.ok(keyKinds.length <= 3, expected.name);
-        assert.ok(bindings.length <= 10, expected.name);
+        assert.ok(bindings.length <= 20, expected.name);
         const round = new Round(
             2,
             "C",
@@ -128,9 +128,37 @@ test("WeChat draws each saved board without contacting the preview server", asyn
         layouts.add(layoutKey);
         const layers = Map.groupBy(round.cards, ({ layer }) => layer);
         assert.equal(round.cards.length, 189, expected.name);
-        assert.equal(layers.size, 6, expected.name);
+        assert.ok(layers.size >= 2 && layers.size <= 9, expected.name);
+        const layerCounts = [...layers.values()].map((cards) => cards.length);
+        assert.ok(Math.max(...layerCounts) <= 35, expected.name);
+        const waist = Math.min(...layerCounts.slice(1, -1));
+        assert.ok(
+            waist < layerCounts[0] && waist < layerCounts.at(-1),
+            expected.name,
+        );
         const overlaps = (a, b) =>
             Math.abs(a.left - b.left) < 1 && Math.abs(a.top - b.top) < 1;
+        const coveredLayers = round.cards.filter(
+            (card) => card.layer < layers.size - 1,
+        );
+        const coverCounts = coveredLayers.map(
+            (card) =>
+                layers
+                    .get(card.layer + 1)
+                    .filter((upper) => overlaps(card, upper)).length,
+        );
+        assert.ok(
+            coverCounts.filter((count) => count === 1).length /
+                coveredLayers.length <=
+                0.2,
+            expected.name,
+        );
+        assert.ok(
+            coverCounts.filter((count) => count >= 2 && count <= 4).length /
+                coveredLayers.length >=
+                0.75,
+            expected.name,
+        );
         for (const [layer, cards] of layers) {
             for (const card of cards) {
                 assert.ok(

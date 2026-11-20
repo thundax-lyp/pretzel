@@ -12,6 +12,7 @@ import {
     giftAvailability,
 } from "../cloud-functions/flip-zoo-fragments/gift-api.js";
 import {
+    giftDiagnostic,
     supportsStoreGift,
     openStoreGift,
     giftEnabled,
@@ -724,6 +725,44 @@ test("cloud HTTP client initializes and sends requests without global fetch or A
     assert.equal(requests.length, 2);
     assert.equal(JSON.parse(requests[0].body).force_refresh, false);
     assert.equal(JSON.parse(requests[1].body).idempotent_id, "test-key");
+});
+
+test("gift diagnostic identifies the failing component stage without exposing identities", async () => {
+    const stages = [];
+    const failure = {
+        errCode: -123,
+        errMsg: "open failed for o123456789012345678901234567 at https://example.com?token=secret",
+    };
+    const platform = {
+        createStoreGift: () => ({
+            getOrderInfo: async () => ({}),
+            isSupported: () => true,
+            open: async () => {
+                throw failure;
+            },
+        }),
+    };
+    await assert.rejects(
+        openStoreGift(
+            platform,
+            { status: "ready", presentOrderId, openid },
+            (stage) => stages.push(stage),
+        ),
+        (error) => error === failure,
+    );
+    assert.deepEqual(stages, [
+        "createStoreGift",
+        "getOrderInfo",
+        "isSupported",
+        "open",
+    ]);
+    const text = giftDiagnostic(stages.at(-1), "ready", failure);
+    assert.match(text, /阶段：open/);
+    assert.match(text, /-123/);
+    assert.doesNotMatch(
+        text,
+        /o123456789012345678901234567|example.com|token=secret/,
+    );
 });
 
 test("all six animals default to 1000 fragments per gift", () => {

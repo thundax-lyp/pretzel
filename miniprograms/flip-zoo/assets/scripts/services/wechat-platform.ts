@@ -13,6 +13,14 @@ declare const wx: {
     showShareMenu?: (options: { menus: string[] }) => void;
     onShareAppMessage?: (handler: () => ShareCard) => void;
     offShareAppMessage?: (handler: () => ShareCard) => void;
+    showModal?: (options: {
+        title: string;
+        content: string;
+        confirmText: string;
+        cancelText: string;
+        success: (result: { confirm: boolean }) => void;
+    }) => void;
+    setClipboardData?: (options: { data: string }) => void;
     showToast?: (options: { title: string; icon: "none" }) => void;
     openCustomerServiceConversation?: (options: { fail: () => void }) => void;
     getWindowInfo?: () => {
@@ -136,4 +144,18 @@ export function postRankMessage(
     if (!context) return false;
     context.postMessage({ action, rows });
     return true;
+}
+
+export function showGiftDiagnostic(content: string): void {
+    if (!WECHAT) return;
+    const data = `版本：${releaseVersion() ?? "开发版"}\n${content}`;
+    wx.showModal?.({
+        title: "兑换诊断",
+        content: data,
+        confirmText: "复制信息",
+        cancelText: "关闭",
+        success: ({ confirm }) => {
+            if (confirm) wx.setClipboardData?.({ data });
+        },
+    });
 }
