@@ -32,6 +32,7 @@ import {
     openStoreGift,
     giftMessage,
     giftEnabled,
+    giftDiagnostic,
     type GiftPlatform,
     type GiftResult,
 } from "../services/store-gift";
@@ -1407,19 +1408,32 @@ export class FlipZooStartScreen extends Component {
                     redeemBusy = true;
                     detail.string = "处理中…";
                     void (async () => {
+                        let stage = "redeem-gift";
+                        let status = "unknown";
                         try {
                             const result = await callCloud<GiftResult>(
                                 "flipZooFragments",
                                 { action: "redeem-gift", animal: index },
                             );
                             if (this.overlay !== overlay) return;
-                            if (result.status === "ready")
-                                await openStoreGift(wx, result);
-                            else this.platformNotice(giftMessage(result));
-                        } catch {
+                            status = result.status;
+                            if (result.status === "ready") {
+                                await openStoreGift(wx, result, (value) => {
+                                    stage = value;
+                                });
+                            } else {
+                                wechat.showGiftDiagnostic(
+                                    giftDiagnostic(
+                                        stage,
+                                        status,
+                                        new Error(giftMessage(result)),
+                                    ),
+                                );
+                            }
+                        } catch (error) {
                             if (this.overlay === overlay)
-                                this.platformNotice(
-                                    "暂未完成，请再次兑换继续领取",
+                                wechat.showGiftDiagnostic(
+                                    giftDiagnostic(stage, status, error),
                                 );
                         } finally {
                             redeemBusy = false;

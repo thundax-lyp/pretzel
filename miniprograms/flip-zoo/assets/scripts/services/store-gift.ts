@@ -41,6 +41,7 @@ export function supportsStoreGift(platform: GiftPlatform): boolean {
 export async function openStoreGift(
     platform: GiftPlatform,
     result: GiftResult,
+    onStage: (stage: string) => void = () => {},
 ): Promise<void> {
     if (
         result.status !== "ready" ||
@@ -51,13 +52,17 @@ export async function openStoreGift(
     ) {
         throw new Error("Invalid gift order");
     }
+    onStage("createStoreGift");
     const gift = platform.createStoreGift?.({
         presentOrderId: result.presentOrderId,
         openid: result.openid,
     });
     if (!gift) throw new Error("Gift component unavailable");
+    onStage("getOrderInfo");
     await gift.getOrderInfo();
+    onStage("isSupported");
     if (!gift.isSupported()) throw new Error("Gift component unavailable");
+    onStage("open");
     await gift.open();
 }
 
@@ -88,4 +93,33 @@ export function giftEnabled(result: GiftResult): boolean {
     return (
         result.enabled === true || ["ready", "pending"].includes(result.status)
     );
+}
+
+export function giftDiagnostic(
+    stage: string,
+    status: string,
+    error?: unknown,
+): string {
+    const value = error as
+        | {
+              errCode?: unknown;
+              code?: unknown;
+              errMsg?: unknown;
+              message?: unknown;
+          }
+        | undefined;
+    const sanitize = (input: unknown) =>
+        String(input ?? "-")
+            .replace(/https?:\/\/[^\s]+/gi, "[URL]")
+            .replace(/[A-Za-z0-9_-]{16,}/g, "[已脱敏]")
+            .replace(/\d{12,}/g, "[已脱敏]")
+            .slice(0, 350);
+    return [
+        "诊断标记：gift-debug-1",
+        `时间：${new Date().toISOString()}`,
+        `阶段：${stage}`,
+        `状态：${status}`,
+        `错误码：${sanitize(value?.errCode ?? value?.code)}`,
+        `错误：${sanitize(value?.errMsg ?? value?.message ?? error)}`,
+    ].join("\n");
 }
