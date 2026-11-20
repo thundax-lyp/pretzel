@@ -6,6 +6,7 @@ import { play } from "./simulate-round.mjs";
 const { values } = parseArgs({
     options: {
         source: { type: "string", default: "wechat" },
+        board: { type: "string" },
         rounds: { type: "string", default: "100" },
         seed: { type: "string", default: "1" },
         "error-rate": { type: "string", default: "0" },
@@ -20,12 +21,25 @@ const { values } = parseArgs({
 });
 if (values.help) {
     console.log(
-        "npm run simulate:win-rate -- [--source wechat|web|tutorial] [--rounds N] [--seed N] [--error-rate 0..1] [--key-groups N --overlap-groups N] [--max-binding-groups N] [--unlock-slot] [--omniscient] [--json]",
+        "npm run simulate:win-rate -- [--source wechat|web|tutorial] [--board 1..40] [--rounds N] [--seed N] [--error-rate 0..1] [--key-groups N --overlap-groups N] [--max-binding-groups N] [--unlock-slot] [--omniscient] [--json]",
     );
     process.exit(0);
 }
 
 const { source } = values;
+const boardIndex =
+    values.board === undefined ? undefined : Number(values.board);
+if (
+    values.board !== undefined &&
+    (source !== "wechat" ||
+        !/^\d+$/.test(values.board) ||
+        !Number.isInteger(boardIndex) ||
+        boardIndex < 1 ||
+        boardIndex > MAIN_BOARD_POOL.length)
+)
+    throw new Error(
+        `--board requires a WeChat board index from 1 to ${MAIN_BOARD_POOL.length}`,
+    );
 const rounds = Number(values.rounds);
 const seed = Number(values.seed);
 const errorRate = Number(values["error-rate"]);
@@ -61,7 +75,9 @@ const difficulty = {
 if (!isDifficulty(difficulty)) throw new Error("Invalid Web difficulty");
 
 const cases = {
-    wechat: MAIN_BOARD_POOL.map(({ name, layout, kinds, bindings }) => ({
+    wechat: MAIN_BOARD_POOL.filter(
+        (_, index) => boardIndex === undefined || index === boardIndex - 1,
+    ).map(({ name, layout, kinds, bindings }) => ({
         name,
         layout,
         boardKinds: kinds,
@@ -109,6 +125,7 @@ const summary = {
 };
 const settings = {
     source,
+    ...(boardIndex !== undefined && { boardIndex }),
     strategy: values.omniscient ? "omniscient-lookahead" : "visible-lookahead",
     group: "C",
     slots: source === "wechat" ? (shareLockedSlot ? 6 : 7) : 5,
