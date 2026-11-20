@@ -10,6 +10,7 @@ const root = process.argv[2] ? path.resolve(process.argv[2]) : toolRoot;
 const errors = [];
 const skip = new Set([
     ".git",
+    ".idea",
     "node_modules",
     "target",
     "dist",
@@ -30,6 +31,12 @@ function files(directory) {
         .flatMap((item) => {
             if (skip.has(item.name)) return [];
             const full = path.join(directory, item.name);
+            if (
+                item.isDirectory() &&
+                !/^\.?[a-z0-9]+(?:-[a-z0-9]+)*$/.test(item.name)
+            ) {
+                fail(full, "use kebab-case custom directory names");
+            }
             return item.isDirectory() ? files(full) : [full];
         });
 }
@@ -122,5 +129,7 @@ if (errors.length) {
     console.error(errors.join("\n"));
     process.exitCode = 1;
 } else {
-    console.log("Structure lint passed: game directories and document tree.");
+    console.log(
+        "Structure lint passed: custom directory names, game directories and document tree.",
+    );
 }
