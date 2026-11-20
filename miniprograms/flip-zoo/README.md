@@ -69,9 +69,9 @@ node scripts/with-env.mjs --env-file .env -- npm --prefix miniprograms/flip-zoo 
 | `FLIP_ZOO_CAT_GIFT_ACTIVITY_ID`   | 商家配置的送礼活动 ID                                           |
 | `FLIP_ZOO_CAT_GIFT_PRODUCT_ID`    | 活动内商品 ID                                                   |
 | `FLIP_ZOO_CAT_GIFT_SKU_ID`        | 可选；配置则直接使用，留空查询活动并取该商品第一个条目的规格 ID |
-| `FLIP_ZOO_CAT_GIFT_FRAGMENT_COST` | 每次消耗的正整数碎片数；默认 100，本地调试设为 1                |
+| `FLIP_ZOO_CAT_GIFT_FRAGMENT_COST` | 每次消耗的正整数碎片数；默认及正式配置均为 1000                 |
 
-每种动物使用独立配置组，动物索引由代码固定，不通过环境变量设置。上述公仔猫配置中的 `CAT` 可分别替换为 `CHIHUAHUA`（吉娃娃）、`CAPYBARA`（卡皮巴拉）、`DUCK`（小黄鸭）、`SHEEP`（招财羊）和 `PIG`（鸡肚猪）。每组均包含 `ACTIVITY_ID`、`PRODUCT_ID`、可选的 `SKU_ID` 和 `FRAGMENT_COST`；默认成本分别为 100、100、200、150、150、150。未配置、活动未进行、商品/SKU 不匹配、库存不足或查询失败时关闭该动物入口，不自动借用其他动物或其他商品。已创建的订单仍可继续确认或领取。AppSecret、access_token 不返回客户端，不记录到日志。云函数出网需能访问 `api.weixin.qq.com`；微信凭据接口要求 IP 白名单时，需按实际云函数出口配置。
+每种动物使用独立配置组，动物索引由代码固定，不通过环境变量设置。上述公仔猫配置中的 `CAT` 可分别替换为 `CHIHUAHUA`（吉娃娃）、`CAPYBARA`（卡皮巴拉）、`DUCK`（小黄鸭）、`SHEEP`（招财羊）和 `PIG`（鸡肚猪）。每组均包含 `ACTIVITY_ID`、`PRODUCT_ID`、可选的 `SKU_ID` 和 `FRAGMENT_COST`；六种动物的默认兑换成本统一为 1000 个同种碎片。未配置、活动未进行、商品/SKU 不匹配、库存不足或查询失败时关闭该动物入口，不自动借用其他动物或其他商品。已创建的订单仍可继续确认或领取。AppSecret、access_token 不返回客户端，不记录到日志。云函数出网需能访问 `api.weixin.qq.com`；微信凭据接口要求 IP 白名单时，需按实际云函数出口配置。
 
 SKU 留空时先查询活动中的 `product_info_list`，取与配置商品 ID 匹配的第一个条目的 `sku_id`；不按库存改选其他条目。查询失败、没有匹配条目或首条规格无效时不预扣碎片、不下单。解析后的 SKU 保存在兑换记录中，处理中重试不重新查询。
 

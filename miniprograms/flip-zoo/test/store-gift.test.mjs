@@ -725,3 +725,27 @@ test("cloud HTTP client initializes and sends requests without global fetch or A
     assert.equal(JSON.parse(requests[0].body).force_refresh, false);
     assert.equal(JSON.parse(requests[1].body).idempotent_id, "test-key");
 });
+
+test("all six animals default to 1000 fragments per gift", () => {
+    for (const [animal, name] of [
+        "CAT",
+        "CHIHUAHUA",
+        "CAPYBARA",
+        "DUCK",
+        "SHEEP",
+        "PIG",
+    ].entries()) {
+        const env = {
+            FLIP_ZOO_WECHAT_GAME_APP_ID: "wx0000000000000002",
+            FLIP_ZOO_WECHAT_GAME_APP_SECRET: "test-secret",
+            FLIP_ZOO_WECHAT_SHOP_APP_ID: config.shop_appid,
+            [`FLIP_ZOO_${name}_GIFT_ACTIVITY_ID`]: config.activity_id,
+            [`FLIP_ZOO_${name}_GIFT_PRODUCT_ID`]: config.product_id,
+            [`FLIP_ZOO_${name}_GIFT_SKU_ID`]: config.sku_id,
+        };
+        assert.equal(
+            readGiftConfig(env, env.FLIP_ZOO_WECHAT_GAME_APP_ID, animal).cost,
+            1000,
+        );
+    }
+});
