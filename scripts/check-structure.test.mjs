@@ -32,6 +32,45 @@ test("accepts a tree of documents and a game application", (t) => {
     assert.equal(fixture(t).status, 0);
 });
 
+test("accepts kebab-case directories and skips tool-managed directories", (t) => {
+    const result = fixture(t, {
+        "miniprograms/sample-game/cloud-functions/sample-function/index.js": "",
+        "miniprograms/sample-game/build/generatedDirectory/index.js": "",
+        "node_modules/vendorPackage/index.js": "",
+        ".idea/shelf/LocalChanges/data.xml": "",
+        ".agents/skills/sample-skill/SKILL.md": "",
+    });
+    assert.equal(result.status, 0, result.stderr);
+});
+
+test("rejects non-kebab-case custom directories at every depth", (t) => {
+    const invalidNames = [
+        "customDirectory",
+        "custom_directory",
+        "Custom-directory",
+        "custom--directory",
+        "custom.directory",
+        "custom directory",
+    ];
+    const entries = Object.fromEntries([
+        ["RootDirectory/index.js", ""],
+        ...invalidNames.map((name) => [
+            `miniprograms/sample-game/assets/scripts/${name}/index.js`,
+            "",
+        ]),
+    ]);
+    const result = fixture(t, entries);
+    assert.equal(result.status, 1);
+    for (const name of ["RootDirectory", ...invalidNames]) {
+        assert.ok(
+            result.stderr.includes(
+                `${name}: use kebab-case custom directory names`,
+            ),
+            result.stderr,
+        );
+    }
+});
+
 test("checks game names and required Cocos project paths", (t) => {
     const result = fixture(t, {
         "miniprograms/Bad_Project/package.json": "{}\n",

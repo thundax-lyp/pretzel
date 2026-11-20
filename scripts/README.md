@@ -18,7 +18,7 @@ npm test
 
 仓库根目录统一检查源码、配置和 Markdown 格式。需要应用格式时运行 `node scripts/check-format.mjs --write`。Cocos Creator 的 `.meta` 文件使用 `json-stringify` parser，非空数组逐项换行。检查尊重 Git 忽略规则，跳过产物、备份和私有文件。
 
-check-structure 检查小游戏目录与文档导航。仓库和各小游戏的 `npm run lint` 共用根目录的 `eslint.config.mjs`。
+check-structure 检查自定义目录的小写 kebab-case 命名、小游戏目录与文档导航；命名不符合时 lint 失败，依赖、构建产物和工具管理目录跳过检查。根目录 `npm run lint` 执行此门禁，CI 使用同一命令。仓库和各小游戏的 `npm run lint` 共用根目录的 `eslint.config.mjs`。
 
 ## 小游戏脚本
 
