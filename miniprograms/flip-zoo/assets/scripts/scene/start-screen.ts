@@ -21,12 +21,13 @@ import {
     Tween,
 } from "cc";
 import {
-    fitLeaderboardCard,
     showLeaderboardCard,
-    showWeekRanking,
+    fitLeaderboardCard,
 } from "../ui/leaderboard-view";
+import { fitResultCard, showResultCard } from "../ui/result-view";
 import * as wechat from "../services/wechat-platform";
 import { callCloud } from "../services/cloud-health";
+import { syncLifetimeRank } from "../services/leaderboard";
 import {
     supportsStoreGift,
     openStoreGift,
@@ -86,6 +87,7 @@ import {
     insertSlotCards,
     C_OPENING_CARD_COUNT,
     SHARE_SLOT_ACTION,
+    REVIVE_ACTION,
     GROUPS,
     PROPS,
     covers,
@@ -144,6 +146,7 @@ export class FlipZooStartScreen extends Component {
     private garden?: UITransform;
     private readonly pagePositions = new WeakMap<Node, number>();
     private round!: Round;
+    private readonly rankedRounds = new WeakSet<Round>();
     private board?: {
         node: Node;
         left: number;
@@ -179,6 +182,7 @@ export class FlipZooStartScreen extends Component {
         { button: Control; count: Label }
     >();
     private overlay?: Node;
+    private cancelRevivalShare?: () => void;
     private welcome?: Node;
     private feedbackControl?: Node;
     private feedbackButton?: { destroy(): void };
@@ -217,6 +221,9 @@ export class FlipZooStartScreen extends Component {
         if (WECHAT && hasCloudEnvironment() && !this.shareTrackingStarted) {
             this.shareTrackingStarted = true;
             wechat.enableShareMenu(this.shareFromMenu);
+            void syncLifetimeRank().catch(() => {
+                console.warn("Lifetime leaderboard sync pending");
+            });
         }
         this.fitViewport();
         const loading = label(this.node, "正在打开动物园…", 34);
@@ -362,6 +369,7 @@ export class FlipZooStartScreen extends Component {
     }
 
     onDestroy(): void {
+        this.cancelRevivalShare?.();
         this.feedbackButton?.destroy();
         wechat.disableShareMenu(this.shareFromMenu);
         view.off("canvas-resize", this.resizeLayout, this);
@@ -1122,7 +1130,10 @@ export class FlipZooStartScreen extends Component {
             this.showResult(false);
         } else if (this.round.status === "won") {
             if (this.round.level === 2) {
-                wechat.postRankMessage("record-win");
+                if (!this.rankedRounds.has(this.round)) {
+                    this.rankedRounds.add(this.round);
+                    wechat.postRankMessage("record-win");
+                }
                 const reward = this.fragmentRound;
                 this.fragmentRound = undefined;
                 if (reward)
@@ -1239,6 +1250,8 @@ export class FlipZooStartScreen extends Component {
     }
 
     private closeOverlay(): void {
+        this.cancelRevivalShare?.();
+        this.cancelRevivalShare = undefined;
         this.feedbackButton?.destroy();
         this.feedbackButton = undefined;
         this.feedbackControl = undefined;
@@ -1676,139 +1689,127 @@ export class FlipZooStartScreen extends Component {
 
     private showResult(won: boolean, feedback?: string): void {
         const result = this.openOverlay("RoundResult");
-        const canRevive = !WECHAT && this.round.canRevive;
-        const illustration = won ? this.art.winPanda : this.art.sadPanda;
-        const panda = picture(
+        const panda = showResultCard(
             result,
-            "ResultPanda",
-            illustration,
-            (204 * illustration.originalSize.width) /
-                illustration.originalSize.height,
-            204,
-        );
-        this.place(panda.node, 0, 448);
-        if (won) this.celebrate(result, panda.node, true);
-        this.heading(
-            result,
-            won ? "游戏胜利" : "失败啦",
-            322,
-            "#A66532",
-            "#63381D",
-            "ribbon",
-        );
-        const summary = this.panel(
-            result,
-            "ResultRanking",
-            34,
-            610,
-            375,
-            "#FFF1D4",
-            "#8F552B",
-        );
-        label(summary, "好友本周榜", 31, "#56351C").node.setPosition(0, 153);
-        showWeekRanking(summary, this.controls, true);
-        const viewAll = this.button(
-            "查看全部排行 ›",
-            178,
-            -145,
-            216,
-            () =>
-                this.showLeaderboard(false, () =>
-                    this.showResult(won, feedback),
-                ),
-            summary,
-            54,
-        );
-        viewAll.graphic.clear();
-        viewAll.caption.fontSize = 23;
-        viewAll.caption.color = color("#56351C");
-        viewAll.caption.node.getComponent(LabelOutline)!.width = 0;
-
-        if (!won || feedback) {
-            label(
-                result,
-                feedback ?? "卡槽已满",
-                26,
-                "#56351C",
-            ).node.setPosition(0, -205);
-        }
-        if (canRevive) {
-            const revive = this.button(
-                "看视频复活",
-                0,
-                -278,
-                330,
-                () => this.requestRevive(result),
-                result,
-                70,
-            );
-            this.paintButton(revive, true);
-            this.addAdBadge(revive.graphic.node, revive.width, revive.height);
-        }
-        const y = canRevive ? -470 : won ? -505 : -424;
-        const home = this.button(
-            "首页",
-            -224,
-            y,
-            138,
-            () => this.returnHome(),
-            result,
-            100,
-        );
-        this.paintButton(home, false, true, "cream");
-        home.caption.node.active = false;
-        drawButtonIcon(home.graphic.node, "home", 0, 0, 49, "#805025");
-        if (WECHAT && !won) {
-            const share = this.button(
-                "分享",
-                0,
-                y,
-                138,
-                () => this.share(),
-                result,
-                100,
-            );
-            this.paintButton(share, false, true, "cream");
-            share.caption.node.active = false;
-            drawButtonIcon(share.graphic.node, "share", 0, 0, 46, "#805025");
-        }
-        const retry = this.button(
-            won ? "再次挑战" : "继续挑战",
-            won ? 176 : 213,
-            y,
-            won ? 263 : 164,
-            () => {
-                this.closeOverlay();
-                this.restartRound();
+            this.art,
+            this.controls,
+            this.screenSize(),
+            won,
+            {
+                home: () => this.returnHome(),
+                share: () => {
+                    if (this.overlay === result) this.share(true);
+                },
+                retry: () => {
+                    if (this.overlay !== result) return;
+                    this.closeOverlay();
+                    this.restartRound();
+                },
+                revive: () => this.requestRevive(result),
+                leaderboard: () =>
+                    this.showLeaderboard(false, () =>
+                        this.showResult(won, feedback),
+                    ),
             },
-            result,
-            100,
+            feedback,
         );
-        this.paintButton(retry, false, true, won ? "cream" : "green");
-        retry.caption.fontSize = 26;
-        retry.caption.node.setPosition(won ? 25 : 0, won ? 0 : -17);
-        drawButtonIcon(
-            retry.graphic.node,
-            "retry",
-            won ? -84 : 0,
-            won ? 0 : 15,
-            won ? 42 : 30,
-            won ? "#805025" : "#FFFFFF",
-        );
+        if (won) this.celebrate(panda.parent!, panda, true);
     }
 
     private requestRevive(result: Node): void {
         const round = this.round;
-        if (WECHAT || this.overlay !== result || !round.canRevive) return;
-        this.showMockAd(
-            "看完解锁 1 格，继续本局",
-            () => {
-                if (this.round !== round || !round.revive()) return;
-                this.message.string = `已解锁第 ${round.slotCapacity} 格 · 继续本局`;
-                this.finishAction(false);
-            },
-            () => this.showResult(false),
+        if (this.overlay !== result || this.animatingCards || !round.canRevive)
+            return;
+        const dialog = this.openOverlay("RevivalShare");
+        const card = picture(
+            dialog,
+            "RevivalShareCard",
+            this.art.home.settings[0],
+            620,
+            432,
+        ).node;
+        const sign = picture(
+            card,
+            "RevivalShareHeading",
+            this.art.home.settings[1],
+            380,
+            116,
+        ).node;
+        sign.setPosition(0, 205);
+        titleLine(sign, "分享复活", 0, 42, "#FFF9E0", "#63381D");
+        label(card, "分享后清空卡槽，继续本局", 30, "#56351C").node.setPosition(
+            0,
+            77,
         );
+        const status = label(card, "", 25, "#71431F");
+        status.node.setPosition(0, 9);
+        let pending = false;
+        const share = this.button(
+            WECHAT ? "分享" : "模拟分享",
+            -139,
+            -103,
+            240,
+            () => {
+                if (
+                    this.overlay !== dialog ||
+                    this.round !== round ||
+                    pending ||
+                    !round.canRevive
+                )
+                    return;
+                if (!WECHAT) {
+                    this.completeRevive(dialog, round);
+                    return;
+                }
+                pending = true;
+                status.string = "分享返回后继续";
+                const cancel = wechat.openRevivalShare(() =>
+                    this.completeRevive(dialog, round),
+                );
+                if (!cancel) {
+                    pending = false;
+                    status.string = "暂时无法打开分享，请重试";
+                    return;
+                }
+                if (this.overlay === dialog) this.cancelRevivalShare = cancel;
+                else cancel();
+            },
+            card,
+            84,
+        );
+        this.paintButton(share, false, true, "green");
+        const cancel = this.button(
+            "取消",
+            139,
+            -103,
+            240,
+            () => {
+                if (this.overlay !== dialog || this.round !== round) return;
+                this.showResult(false);
+            },
+            card,
+            84,
+        );
+        this.paintButton(cancel, false, true, "cream");
+    }
+
+    private completeRevive(dialog: Node, round: Round): void {
+        if (
+            this.overlay !== dialog ||
+            this.round !== round ||
+            this.animatingCards
+        )
+            return;
+        const groups = round.revive();
+        if (!groups) {
+            this.platformNotice("当前牌局无法复活");
+            return;
+        }
+        this.fragmentRound?.actions.push(REVIVE_ACTION);
+        this.closeOverlay();
+        this.animatingCards = true;
+        this.message.string = "正在补齐槽内同款…";
+        this.playSlotClear(groups, 0);
     }
 
     private share(won = false): boolean {
@@ -1862,9 +1863,9 @@ export class FlipZooStartScreen extends Component {
         showLeaderboardCard(
             this.openOverlay("Leaderboard"),
             this.controls,
+            this.art,
             this.screenSize(),
             history,
-            (selected) => this.showLeaderboard(selected, back),
             back,
         );
     }
@@ -2325,6 +2326,8 @@ export class FlipZooStartScreen extends Component {
         if (version) this.positionWelcomeVersion(version);
         const leaderboard = this.overlay?.getChildByName("LeaderboardCard");
         if (leaderboard) fitLeaderboardCard(leaderboard, this.screenSize());
+        const result = this.overlay?.getChildByName("ResultCard");
+        if (result) fitResultCard(result, this.screenSize());
         this.fitScreenArtwork(this.overlay?.getChildByName("SettingsArtwork"));
         this.fitScreenArtwork(
             this.overlay?.getChildByName("CollectionArtwork"),

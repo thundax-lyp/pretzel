@@ -303,7 +303,9 @@ test("peak layouts open seven slots and cannot expand after a full tray", () => 
         assert.equal(round.take(picks[6].id), 0);
         assert.equal(round.status, "lost");
         assert.equal(round.slots.length, 7);
-        assert.equal(round.canRevive, false);
+        assert.equal(round.canRevive, true);
+        assert.equal(round.unlockNextSlot(), false);
+        assert.equal(round.slotCapacity, 7);
     }
 });
 

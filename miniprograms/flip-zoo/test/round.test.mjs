@@ -214,13 +214,17 @@ test("filling the active capacity without a match loses immediately", () => {
         assert.equal(round.moves, capacity);
         const slots = [...round.slots];
         const remaining = round.remaining;
-        assert.equal(round.canRevive, capacity < 7);
-        assert.equal(round.revive(), capacity < 7);
-        assert.equal(round.revive(), false);
-        assert.equal(round.slotCapacity, Math.min(capacity + 1, 7));
-        assert.equal(round.status, capacity < 7 ? "playing" : "lost");
-        assert.deepEqual(round.slots, slots);
-        assert.equal(round.remaining, remaining);
+        assert.equal(round.canRevive, true);
+        const groups = round.revive();
+        assert.equal(groups.length, slots.length);
+        assert.equal(round.revive(), undefined);
+        assert.equal(round.slotCapacity, capacity);
+        assert.equal(round.status, "playing");
+        assert.deepEqual(round.slots, []);
+        assert.equal(round.remaining, remaining - slots.length * 3);
+        assert.equal(round.moves, capacity);
+        assert.equal(round.propUsesLeft("remove"), 1);
+        assert.equal(round.use("undo"), false);
     }
 });
 
@@ -506,6 +510,61 @@ test("taking a bound pair into two matching held tiles removes only three", () =
     );
     assert.equal(round.remaining, 2);
     assert.equal(round.use("undo"), false);
+});
+
+test("revival can clear the final tiles while preserving bound pairs and prop state", () => {
+    const kinds = [0, 0, 0, 0, 0, 0, 1, 1, 1, 2, 2, 2];
+    const layout = [[[0, 0, 12, 1]]];
+    const round = new Round(
+        2,
+        "C",
+        kinds,
+        undefined,
+        layout,
+        true,
+        [
+            [2, 3],
+            [4, 5],
+        ],
+        true,
+    );
+    assert.equal(round.revive(), undefined);
+    assert.ok(round.claimProp("peek"));
+    assert.ok(round.use("peek"));
+    assert.ok(round.claimProp("remove"));
+    for (const id of [0, 1, 6, 7, 9, 10]) assert.notEqual(round.take(id), null);
+    assert.equal(round.status, "lost");
+    const groups = round.revive();
+    assert.equal(groups[0].heldCount, 2);
+    assert.deepEqual(
+        groups[0].boardCards.map((card) => card.id),
+        [2, 3, 4, 5],
+    );
+    assert.equal(round.status, "won");
+    assert.equal(round.remaining, 0);
+    assert.equal(round.slots.length, 0);
+    assert.equal(round.slotCapacity, 6);
+    assert.equal(round.propUsesLeft("peek"), 0);
+    assert.equal(round.propUsesLeft("remove"), 1);
+    assert.equal(round.revive(), undefined);
+});
+
+test("a failed revival is atomic and does not consume cards or props", () => {
+    const round = new Round(
+        2,
+        "C",
+        [0, 1, 2, 3, 4, 5, 6],
+        undefined,
+        [[[0, 0, 7, 1]]],
+        false,
+    );
+    for (let id = 0; id < 7; id++) round.take(id);
+    assert.equal(round.status, "lost");
+    const slots = [...round.slots];
+    assert.equal(round.revive(), undefined);
+    assert.equal(round.status, "lost");
+    assert.deepEqual(round.slots, slots);
+    assert.equal(round.propUsesLeft("remove"), 1);
 });
 
 test("advanced pairs insert both kinds and can resolve two triples atomically", () => {

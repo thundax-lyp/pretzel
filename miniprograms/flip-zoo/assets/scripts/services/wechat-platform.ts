@@ -1,5 +1,19 @@
-import { recordShareClick, startShareTracking } from "./share-tracking";
 import { WECHAT } from "cc/env";
+import { recordShareClick, startShareTracking } from "./share-tracking";
+
+type RankAction =
+    | "show-week"
+    | "show-history"
+    | "show-preview"
+    | "loading-history"
+    | "history-error"
+    | "sync-history"
+    | "record-win"
+    | "scroll-rank"
+    | "loading-rank"
+    | "rank-error"
+    | "refresh-rank"
+    | "rank-pointer";
 
 interface ShareCard {
     title: string;
@@ -16,6 +30,8 @@ declare const wx: {
     hideShareMenu?: (options: { menus: string[] }) => void;
     onShareAppMessage?: (handler: () => ShareCard) => void;
     offShareAppMessage?: (handler: () => ShareCard) => void;
+    onShow?: (handler: () => void) => void;
+    offShow?: (handler: () => void) => void;
     showModal?: (options: {
         title: string;
         content: string;
@@ -46,8 +62,11 @@ declare const wx: {
     }) => { show(): void; destroy(): void; onTap?(callback: () => void): void };
     getOpenDataContext?: () => {
         postMessage(data: {
-            action: "show-week" | "show-preview" | "record-win" | "scroll-week";
+            action: RankAction;
             rows?: number;
+            total?: number;
+            x?: number;
+            y?: number;
         }): void;
     };
 };
@@ -107,6 +126,31 @@ export function openShare(won: boolean): "opened" | "unsupported" | "failed" {
     }
 }
 
+// The share API has no completion result. The next foreground event is only
+// a return signal, not proof that the player sent the card. Do not require
+// onHide: a share panel can return without a background notification.
+export function openRevivalShare(
+    onReturn: () => void,
+): (() => void) | undefined {
+    if (!WECHAT || !wx.onShow || !wx.offShow) return undefined;
+    let active = true;
+    const cancel = () => {
+        active = false;
+        wx.offShow!(show);
+    };
+    const show = () => {
+        if (!active) return;
+        cancel();
+        onReturn();
+    };
+    wx.onShow(show);
+    if (openShare(false) !== "opened") {
+        cancel();
+        return undefined;
+    }
+    return cancel;
+}
+
 export function openCustomerService(onFailure: () => void): boolean {
     if (!WECHAT || !wx.openCustomerServiceConversation) return false;
     wx.openCustomerServiceConversation({ fail: onFailure });
@@ -158,13 +202,19 @@ export function hasOpenDataContext(): boolean {
     return WECHAT && !!wx.getOpenDataContext?.();
 }
 
+export function postRankingPointer(x: number, y: number): void {
+    if (WECHAT)
+        wx.getOpenDataContext?.().postMessage({ action: "rank-pointer", x, y });
+}
+
 export function postRankMessage(
-    action: "show-week" | "show-preview" | "record-win" | "scroll-week",
+    action: RankAction,
     rows?: number,
+    total?: number,
 ): boolean {
     const context = WECHAT ? wx.getOpenDataContext?.() : undefined;
     if (!context) return false;
-    context.postMessage({ action, rows });
+    context.postMessage({ action, rows, total });
     return true;
 }
 

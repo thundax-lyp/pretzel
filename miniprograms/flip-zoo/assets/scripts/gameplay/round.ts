@@ -519,15 +519,17 @@ export class Round {
         return (
             this.level === 2 &&
             this.status === "lost" &&
-            this.capacity < this.slotLimit
+            this.slotted.length > 0
         );
     }
 
-    revive(): boolean {
-        if (!this.canRevive) return false;
-        this.capacity += 1;
+    revive(): readonly SlotClearGroup[] | undefined {
+        if (!this.canRevive) return undefined;
+        const groups = this.slotClearGroups();
+        if (!groups) return undefined;
         this.status = "playing";
-        return true;
+        this.applySlotClear(groups);
+        return groups;
     }
 
     canUse(prop: Prop): boolean {

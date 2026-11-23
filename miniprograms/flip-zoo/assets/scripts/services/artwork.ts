@@ -12,6 +12,7 @@ export interface ZooArtwork {
         background: SpriteFrame;
         buttons: readonly SpriteFrame[];
         settings: readonly SpriteFrame[];
+        rankingButtons: readonly [SpriteFrame, SpriteFrame];
         collectionAnimals: readonly (readonly SpriteFrame[])[];
     };
     readonly raisedTile: SpriteFrame;
@@ -20,6 +21,10 @@ export interface ZooArtwork {
     readonly garden: SpriteFrame;
     readonly winPanda: SpriteFrame;
     readonly sadPanda: SpriteFrame;
+    readonly resultButtons: Record<
+        "home" | "revive" | "restart" | "home-compact" | "challenge" | "share",
+        SpriteFrame
+    >;
     readonly animals: readonly SpriteFrame[];
     readonly paw: SpriteFrame;
     readonly undo: SpriteFrame;
@@ -110,8 +115,8 @@ export async function loadZooArtwork(
     onProgress: (progress: number) => void = () => {},
 ): Promise<ZooArtwork> {
     let completed = 0;
-    // Ten main-package textures, one home bundle and eight home textures.
-    const advance = () => onProgress(++completed / 19);
+    // Ten main-package textures, one home bundle and sixteen home textures.
+    const advance = () => onProgress(++completed / 27);
     const trackedTexture = async (name: string) => {
         const texture = await loadTexture(name);
         advance();
@@ -158,16 +163,18 @@ export async function loadZooArtwork(
         frame.packable = false;
         return frame;
     });
+    const { resultButtons, ...homeArtwork } = home;
     const symbolsFrames = slice(symbols, 3, 2);
     const [undo] = slice(props, 2, 2);
     return {
-        home: { ...home, background: slice(loading, 1, 1)[0] },
+        home: { ...homeArtwork, background: slice(loading, 1, 1)[0] },
         raisedTile,
         raisedTileBack,
         paper: slice(paper, 1, 1)[0],
         garden: slice(garden, 1, 1)[0],
         winPanda: slice(winPanda, 1, 1)[0],
         sadPanda: slice(sadPanda, 1, 1)[0],
+        resultButtons,
         animals: centeredAnimals(animals),
         paw: symbolsFrames[0],
         undo,
@@ -188,7 +195,9 @@ const SETTINGS_REGIONS = [
 
 async function loadHomeArtwork(
     advance: () => void,
-): Promise<Omit<ZooArtwork["home"], "background">> {
+): Promise<
+    Omit<ZooArtwork["home"], "background"> & Pick<ZooArtwork, "resultButtons">
+> {
     const bundle = await new Promise<
         NonNullable<ReturnType<typeof assetManager.getBundle>>
     >((resolve, reject) => {
@@ -199,7 +208,7 @@ async function loadHomeArtwork(
     });
     advance();
 
-    const [buttons, settings, ...animalSheets] = await Promise.all(
+    const [buttons, settings, ...textures] = await Promise.all(
         [
             "buttons",
             "settings/controls",
@@ -209,6 +218,16 @@ async function loadHomeArtwork(
             "collection/animals-action-03",
             "collection/animals-action-04",
             "collection/animals-action-05",
+            ...[
+                "home",
+                "revive",
+                "restart",
+                "home-compact",
+                "challenge",
+                "share",
+            ].map((name) => `result-buttons/${name}`),
+            "ranking-buttons/wood-active",
+            "ranking-buttons/paper",
         ].map(
             (name) =>
                 new Promise<Texture2D>((resolve, reject) => {
@@ -226,8 +245,20 @@ async function loadHomeArtwork(
                 }),
         ),
     );
-    const poses = animalSheets.map((sheet) => slice(sheet, 2, 3));
+    const poses = textures.slice(0, 6).map((sheet) => slice(sheet, 2, 3));
     return {
+        resultButtons: {
+            home: slice(textures[6], 1, 1)[0],
+            revive: slice(textures[7], 1, 1)[0],
+            restart: slice(textures[8], 1, 1)[0],
+            "home-compact": slice(textures[9], 1, 1)[0],
+            challenge: slice(textures[10], 1, 1)[0],
+            share: slice(textures[11], 1, 1)[0],
+        },
+        rankingButtons: [
+            slice(textures[12], 1, 1)[0],
+            slice(textures[13], 1, 1)[0],
+        ],
         buttons: [
             [204, 110, 1128, 340],
             [206, 530, 350, 370],

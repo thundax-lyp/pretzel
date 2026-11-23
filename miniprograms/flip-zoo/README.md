@@ -30,9 +30,9 @@ npm run preview
 node scripts/with-env.mjs --env-file .env -- npm --prefix miniprograms/flip-zoo run build:wechat -- --test
 ```
 
-首页和失败结算页可以直接转发。胜利结算时可从微信菜单转发通关卡片。第二关每种道具开局未领取，成功调用微信分享后领取一次，用完后本局不能再领。Web Demo 提供模拟分享。通过私有环境的 `FLIP_ZOO_SHARE_DEFAULT_*` 和 `FLIP_ZOO_SHARE_VICTORY_*` 配置普通卡片和通关卡片。审核图片的 ID 与 URL 必须成对提供。设置页可以打开微信客服和原生问题反馈。
+首页、胜利结算和分享复活确认页均可转发；胜利按钮和胜利结算时的微信菜单使用通关卡片。第二关每种道具开局未领取，成功调用微信分享后领取一次，用完后本局不能再领。Web Demo 提供模拟分享。通过私有环境的 `FLIP_ZOO_SHARE_DEFAULT_*` 和 `FLIP_ZOO_SHARE_VICTORY_*` 配置普通卡片和通关卡片。审核图片的 ID 与 URL 必须成对提供。设置页可以打开微信客服和原生问题反馈。
 
-第二关胜利后，开放数据域读取并更新本周的微信托管数据 `mgrank`。好友周榜按北京时间周一切换，读取同玩好友的本周成绩。胜负结算都展示好友周榜前三。历史榜暂未开放。
+第二关胜利后，开放数据域读取并更新本周的微信托管数据 `mgrank`，周榜按北京时间周一切换。历史榜使用独立托管字段 `mgrank_total`，展示好友累计通过第二关的次数，不随周切换清零。累计由 `flipZooRank` 按当前用户云端已验证结算记录计算，包含 `granted` 和 `limit` 结果；启动、成功结算和打开／刷新历史榜时同步。旧周分数不作为历史总分，朋友运行新版后会恢复并同步自己的累计。两榜均支持滚动、本人名次及刷新，胜负结算预览保留本周前三和本人行。
 
 微信构建从教学关开始。配置云环境的构建由云函数签发第二关固定牌局，每个账号在 40 副牌局中循环抽取。云函数重放操作校验清盘，每局最多发放 1 个动物碎片，每个账号按北京时间每天最多发放 60 个。家园从云函数读取碎片余额，网络失败的结算会在打开家园时重试。六种动物分别按各自配置控制兑换按钮；只有配置完整、活动和商品规格有效且有库存时才开放。兑换调用云函数创建微信礼物订单并打开领取组件。配置完整并部署后才可实际兑换；本地离线测试不代表真实礼物领取已验收。
 
@@ -58,6 +58,10 @@ node scripts/with-env.mjs --env-file .env -- npm --prefix miniprograms/flip-zoo 
 运行 `node scripts/package-shares.mjs`，将生成的 `build/cloud-functions/flip-zoo-shares` 部署为事件型云函数 `flipZooShares`。使用 `Nodejs22.21`，依赖已在本地打包，部署时关闭云端安装。建立 `flipZooShares` 和 `flipZooShareOpens` 两个集合，数据库安全规则均设为仅云端可读写。该函数从微信调用上下文读取身份，生成／校验渠道 MD5，并按事件 ID 幂等写入分享点击和小游戏来源记录。分享卡片的 query 使用 `share_channel=<MD5>`；不携带用户 openid。只保存有效 `share_channel` 对应的进入记录；不保存无渠道或格式无效的普通打开，普通打开由微信后台统计。网络失败的客户端记录持久保留并重试，分享点击记录不代表实际转发成功。两表建立 `appid_channel` 联合索引（`appid`、`channel` 升序）。
 
 通过 `wx.cloud.callFunction({ name: "flipZooShares", data: { action: "stats", channel } })` 查询本人某次分享的回流闭环。返回带渠道进入次数、独立进入人数、外部回流次数／人数、分享者自开次数及首末进入时间；其他用户不能查询该分享的统计。`hasReturn` 仅在至少有一名分享者之外的用户带渠道进入后为 true。
+
+### 历史累计排行
+
+运行 `node scripts/package-rank.mjs`，将 `build/cloud-functions/flip-zoo-rank` 部署为事件型云函数 `flipZooRank`。使用 `Nodejs22.21`，依赖本地打包，关闭云端安装。函数从微信调用上下文确认用户，只读取 `flipZooFragments` 集合中该用户 `outcome.status` 为 `granted` 或 `limit` 的记录数，返回 `{ total }`，不修改余额或结算记录。该集合建立 `owner_outcome` 联合索引（`owner`、`outcome.status` 升序）。
 
 ### 动物兑换配置
 
