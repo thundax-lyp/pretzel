@@ -1516,13 +1516,16 @@ export class FlipZooStartScreen extends Component {
                     const control = giftButtons[index];
                     const enabled = giftEnabled(gift);
                     control.setEnabled(enabled);
-                    control.detail.string = !enabled
-                        ? "暂未开放"
-                        : gift.status === "ready"
-                          ? "继续领取"
-                          : gift.status === "pending"
-                            ? "重试确认"
-                            : `${gift.cost}碎片`;
+                    control.detail.string =
+                        gift.status === "ready"
+                            ? "继续领取"
+                            : gift.status === "pending"
+                              ? "重试确认"
+                              : amounts[index] < (gift.cost ?? 1000)
+                                ? "碎片不足"
+                                : !enabled
+                                  ? "暂未开放"
+                                  : `${gift.cost}碎片`;
                 });
                 balances.forEach((value, index) => {
                     value.string = `碎片：${amounts[index]}`;
