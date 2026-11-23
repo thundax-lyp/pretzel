@@ -312,24 +312,20 @@ function revivalShareFixture() {
     };
 }
 
-test("revival first asks for sharing; cancelling never changes the round", () => {
+test("revival opens native sharing directly without an intermediate dialog", () => {
     const f = revivalShareFixture();
+    f.screen.openOverlay = () =>
+        assert.fail("must not open a confirmation dialog");
     f.screen.requestRevive(f.result);
-    assert.equal(f.shareCalls, 0);
+    assert.equal(f.shareCalls, 1);
     assert.equal(f.revivals, 0);
-    f.actions.get("取消")();
-    f.actions.get("分享")();
     assert.equal(f.screen.overlay, f.result);
-    assert.equal(f.shareCalls, 0);
-    assert.equal(f.revivals, 0);
 });
 
 test("revival returns without a preceding hide event and completes only once", () => {
     const f = revivalShareFixture();
     f.screen.requestRevive(f.result);
-    const share = f.actions.get("分享");
-    share();
-    share();
+    f.screen.requestRevive(f.result);
     assert.equal(f.shareCalls, 1);
     assert.equal(f.revivals, 0);
     f.emit("show");
@@ -342,30 +338,31 @@ test("revival returns without a preceding hide event and completes only once", (
 test("revival also completes after a hide/show return", () => {
     const f = revivalShareFixture();
     f.screen.requestRevive(f.result);
-    f.actions.get("分享")();
     f.emit("hide");
     assert.equal(f.revivals, 0);
     f.emit("show");
     assert.equal(f.revivals, 1);
 });
 
-test("failed share calls can retry and cancelled pending shares cannot revive later", () => {
+test("failed share calls can retry and leaving the result prevents late revival", () => {
     const f = revivalShareFixture();
-    f.screen.requestRevive(f.result);
+    const notices = [];
+    f.screen.platformNotice = (message) => notices.push(message);
     f.fail();
-    f.actions.get("分享")();
+    f.screen.requestRevive(f.result);
     assert.equal(f.revivals, 0);
     assert.equal(f.lifecycle.show.size, 0);
+    assert.deepEqual(notices, ["暂时无法打开分享，请重试"]);
     f.allow();
-    f.actions.get("分享")();
+    f.screen.requestRevive(f.result);
     f.emit("hide");
     const lateReturns = [...f.lifecycle.show];
-    f.actions.get("取消")();
+    f.screen.openOverlay();
     f.emit("show");
     lateReturns.forEach((callback) => callback());
     assert.equal(f.shareCalls, 2);
     assert.equal(f.revivals, 0);
-    assert.equal(f.screen.overlay, f.result);
+    assert.notEqual(f.screen.overlay, f.result);
 });
 
 test("menu and direct sharing each create one tracked channel, including failed picker calls", () => {

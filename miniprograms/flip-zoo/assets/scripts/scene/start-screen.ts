@@ -1735,79 +1735,26 @@ export class FlipZooStartScreen extends Component {
 
     private requestRevive(result: Node): void {
         const round = this.round;
-        if (this.overlay !== result || this.animatingCards || !round.canRevive)
+        if (
+            this.overlay !== result ||
+            this.animatingCards ||
+            this.cancelRevivalShare ||
+            !round.canRevive
+        )
             return;
-        const dialog = this.openOverlay("RevivalShare");
-        const card = picture(
-            dialog,
-            "RevivalShareCard",
-            this.art.home.settings[0],
-            620,
-            432,
-        ).node;
-        const sign = picture(
-            card,
-            "RevivalShareHeading",
-            this.art.home.settings[1],
-            380,
-            116,
-        ).node;
-        sign.setPosition(0, 205);
-        titleLine(sign, "分享复活", 0, 42, "#FFF9E0", "#63381D");
-        label(card, "分享后清空卡槽，继续本局", 30, "#56351C").node.setPosition(
-            0,
-            77,
+        if (!WECHAT) {
+            this.completeRevive(result, round);
+            return;
+        }
+        const cancel = wechat.openRevivalShare(() =>
+            this.completeRevive(result, round),
         );
-        const status = label(card, "", 25, "#71431F");
-        status.node.setPosition(0, 9);
-        let pending = false;
-        const share = this.button(
-            WECHAT ? "分享" : "模拟分享",
-            -139,
-            -103,
-            240,
-            () => {
-                if (
-                    this.overlay !== dialog ||
-                    this.round !== round ||
-                    pending ||
-                    !round.canRevive
-                )
-                    return;
-                if (!WECHAT) {
-                    this.completeRevive(dialog, round);
-                    return;
-                }
-                pending = true;
-                status.string = "分享返回后继续";
-                const cancel = wechat.openRevivalShare(() =>
-                    this.completeRevive(dialog, round),
-                );
-                if (!cancel) {
-                    pending = false;
-                    status.string = "暂时无法打开分享，请重试";
-                    return;
-                }
-                if (this.overlay === dialog) this.cancelRevivalShare = cancel;
-                else cancel();
-            },
-            card,
-            84,
-        );
-        this.paintButton(share, false, true, "green");
-        const cancel = this.button(
-            "取消",
-            139,
-            -103,
-            240,
-            () => {
-                if (this.overlay !== dialog || this.round !== round) return;
-                this.showResult(false);
-            },
-            card,
-            84,
-        );
-        this.paintButton(cancel, false, true, "cream");
+        if (!cancel) {
+            this.platformNotice("暂时无法打开分享，请重试");
+            return;
+        }
+        if (this.overlay === result) this.cancelRevivalShare = cancel;
+        else cancel();
     }
 
     private completeRevive(dialog: Node, round: Round): void {
