@@ -21,3 +21,5 @@ dev.env
 .environment
 
 /.agents/skills/wechatide-skill/
+
+/output/
