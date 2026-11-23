@@ -12,7 +12,7 @@
 | 4    | 较强     | 优先使用的加难手段，通常需要同步验证参考解。   |
 | 5    | 很强     | 容易显著改变难度，少量使用并重点检查前段失败。 |
 
-下表以六格、无道具、无复活、玩家视角策略为主要参照。具体布局约束与验收目标由 `FLIP-ZOO-LAYOUT-GUIDE.md` 维护，逐副模拟结果保存在 `FLIP-ZOO-DESIGN.md` 的“当前布局复核”部分。
+下表以六格、无道具、无复活、玩家视角策略为主要参照。具体布局约束与验收目标由 `FLIP-ZOO-LAYOUT-GUIDE.md` 维护，逐副模拟证据保存在 `FLIP-ZOO-DIFFICULTY-CALIBRATION.md`，达标结论与验证缺口由 `FLIP-ZOO-DIFFICULTY-READINESS.md` 汇总。
 
 ## 当前布局与难度约束
 

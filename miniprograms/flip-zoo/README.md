@@ -110,6 +110,8 @@ SKU 留空时先查询活动中的 `product_info_list`，取与配置商品 ID �
 
 ## 难度推演
 
+当前牌库的逐副结果与复现参数见 [难度校准报告](../../docs/40-readiness/FLIP-ZOO-DIFFICULTY-CALIBRATION.md)，达标结论及未覆盖范围见 [难度验收状态](../../docs/40-readiness/FLIP-ZOO-DIFFICULTY-READINESS.md)。
+
 实现、指标口径和布局级评估设计见 [FLIP ZOO 难度推演说明](../../docs/30-designs/FLIP-ZOO-DESIGN.md#难度推演)。
 
 在本目录使用 Node.js 22 运行：
