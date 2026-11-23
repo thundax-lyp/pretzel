@@ -386,3 +386,21 @@ test("tabs can switch while friend data is pending, and previews ignore tab poin
     await f.send({ action: "rank-pointer", x: 482, y: f.layout().top + 124 });
     assert.equal(f.friendRequests.length, before);
 });
+
+test("a completed history sync refreshes the active historical board without reopening it", async () => {
+    const f = fixture({ count: 1, self: 0, history: [20] });
+    await f.send({ action: "show-history" });
+    assert.ok(f.labels.includes("20"));
+    await f.send({ action: "sync-history", total: 40 });
+    assert.ok(f.labels.includes("40"));
+    assert.ok(!f.labels.includes("20"));
+    const before = f.friendRequests.length;
+    await f.send({ action: "show-week" });
+    await f.send({ action: "sync-history", total: 50 });
+    assert.equal(f.friendRequests.length, before + 1);
+    assert.ok(f.labels.includes("本周通关"));
+    await f.send({ action: "show-preview" });
+    const previewRequests = f.friendRequests.length;
+    await f.send({ action: "sync-history", total: 60 });
+    assert.equal(f.friendRequests.length, previewRequests);
+});

@@ -681,10 +681,19 @@ wx.onMessage(({ action, rows, total, x, y }) => {
             .then(() => syncHistory(total))
             .then(() => {
                 historyWriteFailed = false;
+                if (fullRankingView && requestedHistory) {
+                    rankingList = undefined;
+                    showRanking(false, true, ++request);
+                }
             })
             .catch(() => {
                 historyWriteFailed = true;
                 console.warn("Unable to update the lifetime leaderboard");
+                if (fullRankingView && requestedHistory) {
+                    rankingList = undefined;
+                    ++request;
+                    draw("累计次数同步失败，请点击刷新");
+                }
             });
     } else if (
         action === "scroll-rank" &&

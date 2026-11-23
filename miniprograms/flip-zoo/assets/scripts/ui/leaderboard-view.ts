@@ -52,6 +52,20 @@ export function showRankingList(
     const list = uiNode(parent, "WeeklyLeaderboard", width, height);
     list.setPosition(0, preview ? -2 : 0);
     list.setSiblingIndex(0);
+    let historySync: Promise<void> | undefined;
+    const sync = () => {
+        historySync ??= syncLifetimeRank().finally(() => {
+            historySync = undefined;
+        });
+        return historySync;
+    };
+    const syncOnEntry = () => {
+        if (preview || !art) return;
+        void sync().catch(() => {
+            if (version === rankingRequest && list.isValid)
+                postRankMessage("history-error");
+        });
+    };
     if (hasOpenDataContext()) {
         list.active = false;
         const subContext = list.addComponent(SubContextView);
@@ -81,6 +95,9 @@ export function showRankingList(
                     .getComponent(UITransform)!
                     .convertToNodeSpaceAR(new Vec3(point.x, point.y, 0));
                 postRankingPointer(local.x + width / 2, height / 2 - local.y);
+                // Tabs are hit-tested inside the open-data domain. Recheck the
+                // total on taps without reading friend data back into main.
+                syncOnEntry();
             });
         }
     }
@@ -91,7 +108,7 @@ export function showRankingList(
                 return;
             }
             postRankMessage("loading-rank");
-            void syncLifetimeRank()
+            void sync()
                 .then(() => {
                     if (version === rankingRequest && list.isValid)
                         postRankMessage("refresh-rank");
@@ -114,8 +131,10 @@ export function showRankingList(
             );
             if (art) styleRankingButton(refresh, 30);
         }
-        if (!preview) postRankMessage(history ? "show-history" : "show-week");
-        else load();
+        if (!preview) {
+            postRankMessage(history ? "show-history" : "show-week");
+            syncOnEntry();
+        } else load();
     } else {
         label(list, "请在微信小游戏内查看好友榜单", 27, "#56351C");
     }
