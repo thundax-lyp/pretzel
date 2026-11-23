@@ -235,7 +235,7 @@ export class FlipZooStartScreen extends Component {
             const garden = picture(
                 loadingRoot,
                 "LoadingGarden",
-                art,
+                art.background,
                 width,
                 height,
             );
@@ -243,6 +243,20 @@ export class FlipZooStartScreen extends Component {
             garden
                 .getComponent(UITransform)!
                 .setContentSize(1152 * scale, 2048 * scale);
+            // Age badge reference: 1179 × 2556, keeping its black frame and transparent corners.
+            const badgeWidth = width * (189 / 1179);
+            const badgeHeight = badgeWidth * (242 / 189);
+            const badge = picture(
+                loadingRoot,
+                "LoadingAgeRating",
+                art.ageRating,
+                badgeWidth,
+                badgeHeight,
+            );
+            badge.node.setPosition(
+                -width / 2 + width * (39 / 1179) + badgeWidth / 2,
+                height / 2 - height * (35 / 2556) - badgeHeight / 2,
+            );
             // Reference screenshot: 1152 × 2048, coordinates measured from its top.
             const referenceScale = Math.min(width / 1152, height / 2048);
             for (const [text, y, size] of [

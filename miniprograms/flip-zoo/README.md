@@ -141,6 +141,7 @@ npm run check
 | 业务用途                       | 源码位置                                                                      | 微信包归属   |
 | ------------------------------ | ----------------------------------------------------------------------------- | ------------ |
 | 首页与 LOADING 共用背景        | `assets/resources/home-loading/background.jpg`                                | 主包         |
+| LOADING 适龄提示标牌           | `assets/resources/home-loading/age-rating.png`                                | 主包         |
 | 牌桌背景、卡牌、道具与消除音效 | `assets/resources/gameplay/`                                                  | 主包         |
 | 胜利与失败结算插画             | `assets/resources/result/`                                                    | 主包         |
 | 共享图标、弹层纸纹与按钮音效   | `assets/resources/shared/`                                                    | 主包         |

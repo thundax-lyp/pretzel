@@ -107,8 +107,18 @@ function centeredAnimals(texture: Texture2D): SpriteFrame[] {
     );
 }
 
-export async function loadLoadingArtwork(): Promise<SpriteFrame> {
-    return slice(await loadTexture("home-loading/background"), 1, 1)[0];
+export async function loadLoadingArtwork(): Promise<{
+    background: SpriteFrame;
+    ageRating: SpriteFrame;
+}> {
+    const [background, ageRating] = await Promise.all([
+        loadTexture("home-loading/background"),
+        loadTexture("home-loading/age-rating"),
+    ]);
+    return {
+        background: slice(background, 1, 1)[0],
+        ageRating: slice(ageRating, 1, 1)[0],
+    };
 }
 
 export async function loadZooArtwork(

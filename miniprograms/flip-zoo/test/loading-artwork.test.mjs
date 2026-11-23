@@ -81,8 +81,12 @@ function fixture(failure, allowHome = false) {
 test("loading artwork resolves from main-package resources without home subpackage", async () => {
     const { requested, load } = fixture();
     const art = await load();
-    assert.deepEqual(requested, ["home-loading/background/texture"]);
-    assert.ok(art.texture);
+    assert.deepEqual(requested, [
+        "home-loading/background/texture",
+        "home-loading/age-rating/texture",
+    ]);
+    assert.ok(art.background.texture);
+    assert.ok(art.ageRating.texture);
 });
 
 test("loading artwork propagates image failures to the retry UI", async () => {
