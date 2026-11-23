@@ -31,7 +31,13 @@ const compilePlatform = compileModule(
 function loadScreen(imports, wx, gameGlobal) {
     const platform = {};
     const exports = {};
-    const require = (name) => imports[name] ?? {};
+    const require = (name) =>
+        imports[name] ??
+        (name === "./share-tracking"
+            ? {
+                  recordShareClick: () => "share_channel=test-channel",
+              }
+            : {});
     compilePlatform(platform, require, wx, gameGlobal);
     compileScreen(exports, (name) =>
         name === "../services/wechat-platform" ? platform : require(name),
@@ -69,14 +75,18 @@ test("opening the share picker does not mutate the round", () => {
     screen.round = Object.freeze({ status: "lost", slotCapacity: 7 });
     screen.share();
     screen.share(true);
-    assert.deepEqual(calls, cards);
+    const tracked = cards.map((card) => ({
+        ...card,
+        query: "share_channel=test-channel",
+    }));
+    assert.deepEqual(calls, tracked);
     assert.deepEqual(screen.round, { status: "lost", slotCapacity: 7 });
     screen.overlay = { name: "RoundResult" };
-    assert.equal(screen.shareFromMenu(), cards[0]);
+    assert.deepEqual(screen.shareFromMenu(), tracked[0]);
     screen.round = Object.freeze({ status: "won", slotCapacity: 7 });
-    assert.equal(screen.shareFromMenu(), cards[1]);
+    assert.deepEqual(screen.shareFromMenu(), tracked[1]);
     screen.overlay = { name: "Leaderboard" };
-    assert.equal(screen.shareFromMenu(), cards[0]);
+    assert.deepEqual(screen.shareFromMenu(), tracked[0]);
 });
 
 test("claiming a prop requires a successful share invocation and only grants once", () => {

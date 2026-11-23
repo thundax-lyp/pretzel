@@ -1,9 +1,11 @@
+import { recordShareClick, startShareTracking } from "./share-tracking";
 import { WECHAT } from "cc/env";
 
 interface ShareCard {
     title: string;
     imageUrlId?: string;
     imageUrl?: string;
+    query?: string;
 }
 
 declare const GameGlobal: { flipZooShareCards?: ShareCard[] };
@@ -11,6 +13,7 @@ declare const wx: {
     getAccountInfoSync?: () => { miniProgram?: { version?: string } };
     shareAppMessage?: (card: ShareCard) => void;
     showShareMenu?: (options: { menus: string[] }) => void;
+    hideShareMenu?: (options: { menus: string[] }) => void;
     onShareAppMessage?: (handler: () => ShareCard) => void;
     offShareAppMessage?: (handler: () => ShareCard) => void;
     showModal?: (options: {
@@ -65,20 +68,39 @@ export function releaseVersion(): string | undefined {
     }
 }
 
+let stopShareTracking: (() => void) | undefined;
+
+export function trackedShareCard(won: boolean): ShareCard {
+    const card = shareCard(won);
+    return {
+        ...card,
+        query: [card.query, recordShareClick()].filter(Boolean).join("&"),
+    };
+}
+
 export function enableShareMenu(handler: () => ShareCard): void {
     if (!WECHAT) return;
-    wx.onShareAppMessage?.(handler);
-    wx.showShareMenu?.({ menus: ["shareAppMessage"] });
+    stopShareTracking?.();
+    wx.hideShareMenu?.({ menus: ["shareAppMessage", "shareTimeline"] });
+    stopShareTracking = startShareTracking(() => {
+        wx.onShareAppMessage?.(handler);
+        wx.showShareMenu?.({ menus: ["shareAppMessage"] });
+    });
 }
 
 export function disableShareMenu(handler: () => ShareCard): void {
-    if (WECHAT) wx.offShareAppMessage?.(handler);
+    if (!WECHAT) return;
+    stopShareTracking?.();
+    stopShareTracking = undefined;
+    wx.offShareAppMessage?.(handler);
 }
 
 export function openShare(won: boolean): "opened" | "unsupported" | "failed" {
-    if (!WECHAT || !wx.shareAppMessage) return "unsupported";
+    if (!WECHAT) return "unsupported";
     try {
-        wx.shareAppMessage(shareCard(won));
+        const card = trackedShareCard(won);
+        if (!wx.shareAppMessage) return "unsupported";
+        wx.shareAppMessage(card);
         return "opened";
     } catch {
         return "failed";

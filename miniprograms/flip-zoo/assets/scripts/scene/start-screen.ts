@@ -182,9 +182,11 @@ export class FlipZooStartScreen extends Component {
     private feedbackControl?: Node;
     private feedbackButton?: { destroy(): void };
     private readonly shareFromMenu = () =>
-        wechat.shareCard(
-            this.overlay?.name === "RoundResult" && this.round.status === "won",
+        wechat.trackedShareCard(
+            this.overlay?.name === "RoundResult" &&
+                this.round?.status === "won",
         );
+    private shareTrackingStarted = false;
     private readonly boardApi = createBoardApi(WECHAT);
     private nextBoard?: {
         requestedAt: number;
@@ -211,6 +213,10 @@ export class FlipZooStartScreen extends Component {
     private viewportPolicy?: number;
 
     async start(): Promise<void> {
+        if (WECHAT && hasCloudEnvironment() && !this.shareTrackingStarted) {
+            this.shareTrackingStarted = true;
+            wechat.enableShareMenu(this.shareFromMenu);
+        }
         this.fitViewport();
         const loading = label(this.node, "正在打开动物园…", 34);
         const loadingRoot = uiNode(this.node, "LoadingScreen", 750, 1334);
@@ -349,7 +355,6 @@ export class FlipZooStartScreen extends Component {
             void checkCloudConnection().catch(() => {
                 console.warn("FLIP ZOO cloud connection could not be verified");
             });
-            wechat.enableShareMenu(this.shareFromMenu);
         }
         this.resizeLayout();
         view.on("canvas-resize", this.resizeLayout, this);

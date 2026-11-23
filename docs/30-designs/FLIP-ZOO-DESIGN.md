@@ -6,6 +6,16 @@ Flip Zoo 使用一个 Cocos Creator 工程，用同一份场景、资源和 Type
 
 棋盘、消除、卡槽、道具等规则由两种构建共用。平台差异留在入口、数据来源与平台服务。调试入口、调参接口和模拟奖励只在开发预览中使用。正式 AppID 由该游戏的私有构建环境提供。
 
+## 分享渠道数据
+
+`wechat-platform.ts` 统一生成带渠道参数的分享卡片，`share-tracking.ts` 先写本地待上传队列，再上传到独立云函数 `flipZooShares`。菜单分享必须同步返回参数，因此先获取当前调用者身份，再开放右上角转发入口。每次点击产生一个独立 `eventId`，渠道值为 `MD5(openid + ":" + shareTime + ":" + eventId)`；即使同一毫秒点击也不会复用渠道。云端使用 `getWXContext()` 的 openid 重新计算并校验，忽略客户端提交的用户身份。
+
+CloudBase 集合 `flipZooShares` 保存 `openid`、`shareTime`、`channel`，`flipZooShareOpens` 保存 `openid`、`openTime`、`channel`。两表附带 `appid`、`eventId`、服务器接收时间 `receivedAt`，文档 ID 由应用、调用者、动作和事件 ID 计算，以便网络重试幂等。点击和打开时间是客户端 Unix 毫秒时间，服务器接收时间用于核对，不将客户端时钟作为可信安全依据。仅保存携带有效渠道的进入记录，无渠道和格式无效的进入不写入 `flipZooShareOpens`。
+
+小游戏通过 `getEnterOptionsSync()`（不可用时读取启动参数）读取当前入口，通过 `onShow` 读取后续进入；只有 `query.share_channel` 是合法 MD5 时才写入队列。上传失败保留本地队列，每 5 秒重试；账号变化时不将原账号队列上传成新用户记录。两表仅云函数可读写，不对客户端提供浏览其他用户 openid 的接口。
+
+`flipZooShares` 云函数的 `stats` 动作按 `appid + channel` 关联两表，并核对调用者是该渠道分享者。返回 `openCount`（带渠道进入次数）、`uniqueOpenUsers`（独立进入人数）、`returnCount`（排除分享者后的回流次数）、`returnUsers`（排除分享者后的独立回流人数）、`selfOpenCount`、`hasReturn` 及首次／最近进入时间。统计单位是带渠道进入事件，不以分享 API 返回代表真实转发成功；无渠道事件不参与统计。两表建立 `appid_channel` 联合索引。
+
 ## 界面与动效
 
 欢迎页使用蓝天草地背景，居中展示双行标题、动物合照和黄色「开始游戏」按钮。关卡上方展示关卡号与剩余牌数，青绿牌桌居中，卡槽与道具位于下方。
