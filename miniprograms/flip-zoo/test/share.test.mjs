@@ -218,12 +218,17 @@ test("revival records once, animates every triple, and finishes only after the t
                 .map((card) => card.id),
         );
     };
-    screen.flyCardToSlot = (card, slot, landed) => {
+    screen.flyCardToSlot = (card, slot, landed, _lifted, stackLevel = 0) => {
         flights.push(card.id);
-        landed();
+        assert.ok(slot < round.slotCapacity);
+        landed(stackLevel ? { node: { destroy() {} } } : undefined);
     };
-    screen.refreshSlots = () => {};
-    screen.playMatch = (kind) => matches.push(kind);
+    screen.refreshSlots = (kinds) =>
+        assert.ok(kinds.length <= round.slotCapacity);
+    screen.playMatch = (kind, indices, stacked = []) => {
+        assert.equal(indices.length + stacked.length, 3);
+        matches.push(kind);
+    };
     const scheduled = [];
     screen.scheduleOnce = (callback) => scheduled.push(callback);
     screen.finishAction = () => finishes.push(round.status);
@@ -456,3 +461,121 @@ test("a second-level round reports one leaderboard win even if its finish callba
     screen.finishAction(false);
     assert.equal(messages.length, 1);
 });
+
+for (const capacity of [6, 7]) {
+    for (const empty of [0, 1]) {
+        test(`revival stacks matching cards with ${capacity} slots and ${empty} free, preserving every waiting card`, async () => {
+            const rules = await import("../assets/scripts/gameplay/round.ts");
+            const occupied = capacity - empty;
+            const kinds = Array.from({ length: occupied * 3 }, (_, id) =>
+                Math.floor(id / 3),
+            );
+            const round = new rules.Round(
+                2,
+                "C",
+                kinds,
+                undefined,
+                [[[0, 0, kinds.length, 1]]],
+                true,
+                Array.from({ length: occupied }, (_, kind) => [
+                    kind * 3 + 1,
+                    kind * 3 + 2,
+                ]),
+                true,
+            );
+            if (capacity === 7) round.unlockNextSlot();
+            for (let kind = 0; kind < occupied; kind++) round.take(kind * 3);
+            assert.equal(round.status, "lost");
+            assert.equal(round.slots.length, occupied);
+            const screen = loadScreen(
+                {
+                    cc: {
+                        Component: class {},
+                        _decorator: { ccclass: () => (target) => target },
+                    },
+                    "cc/env": { WECHAT: true },
+                    "../services/board-api": { createBoardApi() {} },
+                    "../gameplay/round": rules,
+                },
+                {},
+                {},
+            );
+            const result = {};
+            Object.assign(screen, {
+                round,
+                overlay: result,
+                message: {},
+                fragmentRound: { actions: [] },
+            });
+            screen.closeOverlay = () => (screen.overlay = undefined);
+            screen.refreshBoard = () => {};
+            const scheduled = [];
+            const stacks = new Set();
+            let visible = [];
+            let expectedCards = occupied;
+            let stackFlights = 0;
+            let matches = 0;
+            let finishes = 0;
+            screen.refreshSlots = (frame) => {
+                assert.ok(
+                    frame.length <= capacity,
+                    "must never use locked or extra slots",
+                );
+                visible = [...frame];
+                assert.equal(
+                    frame.filter((kind) => kind !== undefined).length +
+                        stacks.size,
+                    expectedCards,
+                );
+            };
+            screen.flyCardToSlot = (
+                card,
+                slot,
+                landed,
+                _lifted,
+                stackLevel = 0,
+            ) => {
+                assert.equal(screen.animatingCards, true);
+                assert.ok(slot < capacity);
+                expectedCards++;
+                let stacked;
+                if (stackLevel) {
+                    assert.equal(
+                        visible[slot],
+                        card.kind,
+                        "only stack onto the same kind",
+                    );
+                    stackFlights++;
+                    stacked = {
+                        node: { destroy: () => stacks.delete(stacked) },
+                    };
+                    stacks.add(stacked);
+                }
+                landed(stacked);
+            };
+            screen.playMatch = (kind, indices, stacked = []) => {
+                assert.equal(indices.length + stacked.length, 3);
+                assert.ok(indices.every((slot) => visible[slot] === kind));
+                assert.equal(stacked.length, stacks.size);
+                expectedCards -= 3;
+                matches++;
+            };
+            screen.scheduleOnce = (callback) => scheduled.push(callback);
+            screen.finishAction = () => finishes++;
+            screen.completeRevive(result, round);
+            assert.equal(finishes, 0);
+            while (scheduled.length) scheduled.shift()();
+            assert.ok(stackFlights > 0);
+            assert.equal(matches, occupied);
+            assert.equal(expectedCards, 0);
+            assert.equal(stacks.size, 0);
+            assert.equal(finishes, 1);
+            assert.equal(screen.animatingCards, false);
+            assert.equal(round.slotCapacity, capacity);
+            assert.equal(round.slots.length, 0);
+            assert.deepEqual(screen.fragmentRound.actions, [
+                rules.REVIVE_ACTION,
+            ]);
+        });
+    }
+}

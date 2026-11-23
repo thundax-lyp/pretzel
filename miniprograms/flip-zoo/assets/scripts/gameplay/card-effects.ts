@@ -62,8 +62,9 @@ export function flyCardToSlot(
     source: Node,
     target: Node,
     kind: number,
-    onLanded: () => void,
+    onLanded: (stacked?: CardView) => void,
     lifted?: CardView,
+    stackLevel = 0,
 ): void {
     const { width, height } = target.getComponent(UITransform)!;
     const layerTransform = layer.getComponent(UITransform)!;
@@ -71,6 +72,8 @@ export function flyCardToSlot(
     const drawing = origin.getChildByName("Drawing") ?? origin;
     const start = layerTransform.convertToNodeSpaceAR(drawing.worldPosition);
     const end = layerTransform.convertToNodeSpaceAR(target.worldPosition);
+    end.x += (stackLevel * 3 * target.worldScale.x) / layer.worldScale.x;
+    end.y += (stackLevel * 9 * target.worldScale.y) / layer.worldScale.y;
     const position = new Vec3();
     const sourceScale = drawing.worldScale;
     const targetScale = target.worldScale;
@@ -124,6 +127,10 @@ export function flyCardToSlot(
         )
         .call(() => {
             if (!flight.node.isValid) return;
+            if (stackLevel > 0) {
+                onLanded(flight);
+                return;
+            }
             flight.node.active = false;
             flight.node.destroy();
             onLanded();
@@ -175,6 +182,7 @@ export function playMatch(
     art: ZooArtwork,
     kind: number,
     indices: readonly number[],
+    stacked: readonly CardView[] = [],
 ): void {
     const cue = titleLine(
         layer,
@@ -190,12 +198,17 @@ export function playMatch(
         .to(MATCH_DURATION - 0.12, { opacity: 0 })
         .call(() => cue.node.destroy())
         .start();
-    for (const index of indices) {
-        const slot = slots[index].node;
+    for (const view of [...indices.map((index) => slots[index]), ...stacked]) {
+        const slot = view.node;
         const { width, height } = slot.getComponent(UITransform)!;
-        const { x: scaleX, y: scaleY } = slot.scale;
+        const scaleX = slot.worldScale.x / layer.worldScale.x;
+        const scaleY = slot.worldScale.y / layer.worldScale.y;
         const effect = uiNode(layer, "MatchFlash");
-        effect.setPosition(slot.position.x, tray.position.y + slot.position.y);
+        effect.setPosition(
+            layer
+                .getComponent(UITransform)!
+                .convertToNodeSpaceAR(slot.worldPosition),
+        );
         effect.setScale(scaleX, scaleY, 1);
         const glow = effect.addComponent(Graphics);
         glow.fillColor = new Color(255, 220, 115, 170);

@@ -1098,8 +1098,9 @@ export class FlipZooStartScreen extends Component {
     private flyCardToSlot(
         card: Card,
         slotIndex: number,
-        onLanded: () => void,
+        onLanded: (stacked?: CardView) => void,
         lifted?: CardView,
+        stackLevel = 0,
     ): void {
         flyCardToSlot(
             this.matchLayer!,
@@ -1109,10 +1110,15 @@ export class FlipZooStartScreen extends Component {
             card.kind,
             onLanded,
             lifted,
+            stackLevel,
         );
     }
 
-    private playMatch(kind: number, indices: readonly number[]): void {
+    private playMatch(
+        kind: number,
+        indices: readonly number[],
+        stacked: readonly CardView[] = [],
+    ): void {
         this.audio.playMatch();
         playMatch(
             this.matchLayer!,
@@ -1121,6 +1127,7 @@ export class FlipZooStartScreen extends Component {
             this.art,
             kind,
             indices,
+            stacked,
         );
     }
 
@@ -1895,31 +1902,52 @@ export class FlipZooStartScreen extends Component {
             return;
         }
 
+        const waitingKinds = groups
+            .slice(index + 1)
+            .flatMap((waiting) =>
+                Array<number>(waiting.heldCount).fill(waiting.kind),
+            );
+        const stack = 3 + waitingKinds.length > this.round.slotCapacity;
+        // Keep every waiting card in a real slot. If the triple will not fit,
+        // incoming cards land on the same-kind anchor instead of extra slots.
+        const activeSlots = stack ? Math.max(1, group.heldCount) : 3;
         const kinds: (number | undefined)[] = Array.from(
-            { length: 3 },
+            { length: activeSlots },
             (_, slot) => (slot < group.heldCount ? group.kind : undefined),
         );
-        for (const waiting of groups.slice(index + 1)) {
-            for (let held = 0; held < waiting.heldCount; held += 1) {
-                kinds.push(waiting.kind);
-            }
-        }
+        kinds.push(...waitingKinds);
+        const stacked: CardView[] = [];
         this.refreshSlots(kinds);
         let landed = 0;
         const flyNext = () => {
             const card = group.boardCards[landed];
             if (card) {
-                const slot = group.heldCount + landed;
-                this.flyCardToSlot(card, slot, () => {
-                    kinds[slot] = group.kind;
-                    this.refreshSlots(kinds);
-                    landed += 1;
-                    flyNext();
-                });
+                const stackLevel = stack
+                    ? landed + (group.heldCount > 0 ? 1 : 0)
+                    : 0;
+                const slot = stack ? activeSlots - 1 : group.heldCount + landed;
+                this.flyCardToSlot(
+                    card,
+                    slot,
+                    (view) => {
+                        if (view) stacked.push(view);
+                        kinds[slot] = group.kind;
+                        this.refreshSlots(kinds);
+                        landed += 1;
+                        flyNext();
+                    },
+                    undefined,
+                    stackLevel,
+                );
                 return;
             }
-            this.playMatch(group.kind, [0, 1, 2]);
-            kinds.fill(undefined, 0, 3);
+            this.playMatch(
+                group.kind,
+                Array.from({ length: activeSlots }, (_, slot) => slot),
+                stacked,
+            );
+            stacked.forEach((view) => view.node.destroy());
+            kinds.fill(undefined, 0, activeSlots);
             this.refreshSlots(kinds);
             this.scheduleOnce(
                 () => this.playSlotClear(groups, index + 1),
