@@ -1,4 +1,4 @@
-import { Label, LabelOutline, Node, UITransform } from "cc";
+import { Graphics, Label, LabelOutline, Node, UITransform } from "cc";
 import type { ZooArtwork } from "../services/artwork";
 import { ButtonPress, scaleButton } from "./button-press";
 import { showRankingList } from "./leaderboard-view";
@@ -20,15 +20,16 @@ export function showResultCard(
     },
     feedback?: string,
 ): Node {
-    const card = uiNode(overlay, "ResultCard", 682, 1300);
+    const card = uiNode(overlay, "ResultCard", 682, feedback ? 1300 : 1260);
     fitResultCard(card, viewport);
+    const frameBottom = (won ? -470 : -570) - (feedback ? 80 : 0);
     picture(
         card,
         "ResultFrame",
         art.home.settings[0],
         682,
-        won ? 1040 : 1080,
-    ).node.setPosition(0, won ? -60 : -80);
+        460 - frameBottom,
+    ).node.setPosition(0, (460 + frameBottom) / 2);
 
     const illustration = won ? art.winPanda : art.sadPanda;
     const panda = picture(
@@ -60,28 +61,22 @@ export function showResultCard(
         titleLine(card, "第二关通关！", 291, 35, "#71431F", "#FFF1D4");
     }
 
-    const summary = picture(
-        card,
-        "ResultRanking",
-        art.home.settings[0],
-        608,
-        572,
-    ).node;
-    summary.setPosition(0, won ? -37 : -10);
-    const sign = picture(
-        summary,
-        "RankingHeading",
-        art.home.settings[1],
-        340,
-        94,
-    );
-    sign.node.setPosition(0, 264);
-    titleLine(sign.node, "好友本周榜", 0, 34, "#FFF9E0", "#63381D");
+    const summary = uiNode(card, "ResultRanking", 608, 572);
+    summary.setPosition(0, won ? -37 : 6);
+    titleLine(summary, "好友本周榜", 253, 32, "#71431F", "#FFF1D4");
+    const divider = uiNode(summary, "RankingDivider").addComponent(Graphics);
+    divider.strokeColor = color("#D7BA81");
+    divider.lineWidth = 2;
+    for (const side of [-1, 1]) {
+        divider.moveTo(side * 120, 253);
+        divider.lineTo(side * 252, 253);
+    }
+    divider.stroke();
     showRankingList(summary, controls, true);
     const all = controls.button(
         "查看全部排行 ›",
         0,
-        -246,
+        -225,
         350,
         actions.leaderboard,
         summary,
@@ -110,20 +105,20 @@ export function showResultCard(
         press.showPressed = scaleButton(visual, 0.95);
     };
     if (won) {
-        button("home-compact", "首页", -232, -449, 136, actions.home);
-        button("share", "分享", -47, -449, 206, actions.share);
-        button("challenge", "再次挑战", 185, -449, 230, actions.retry);
+        button("home-compact", "首页", -232, -365, 136, actions.home);
+        button("share", "分享", -47, -365, 206, actions.share);
+        button("challenge", "再次挑战", 185, -365, 230, actions.retry);
     } else {
-        button("home", "首页", -155, -365, 286, actions.home);
-        button("revive", "复活", 155, -365, 286, actions.revive);
-        button("restart", "重新挑战", 0, -493, 600, actions.retry);
+        button("home", "首页", -155, -313, 286, actions.home);
+        button("revive", "复活", 155, -313, 286, actions.revive);
+        button("restart", "重新挑战", 0, -441, 600, actions.retry);
     }
     if (feedback) {
         const notice = label(card, feedback, 23, "#71431F");
         notice.node.name = "SettlementFeedback";
         notice.overflow = Label.Overflow.RESIZE_HEIGHT;
-        notice.node.getComponent(UITransform)!.setContentSize(574, 70);
-        notice.node.setPosition(0, -548);
+        notice.node.getComponent(UITransform)!.setContentSize(574, 56);
+        notice.node.setPosition(0, won ? -476 : -570);
     }
     return panda.node;
 }
@@ -135,7 +130,7 @@ export function fitResultCard(
     const scale = Math.min(
         1,
         (viewport.width - 32) / 682,
-        (viewport.height - 64) / 1300,
+        (viewport.height - 64) / card.getComponent(UITransform)!.height,
     );
     card.setScale(scale, scale, 1);
 }
