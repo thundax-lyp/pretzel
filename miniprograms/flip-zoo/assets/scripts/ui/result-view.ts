@@ -22,7 +22,9 @@ export function showResultCard(
 ): Node {
     const card = uiNode(overlay, "ResultCard", 682, feedback ? 1300 : 1260);
     fitResultCard(card, viewport);
-    const frameBottom = (won ? -470 : -570) - (feedback ? 80 : 0);
+    const victoryContentOffset = 43;
+    const frameBottom =
+        (won ? -470 + victoryContentOffset : -570) - (feedback ? 80 : 0);
     picture(
         card,
         "ResultFrame",
@@ -57,12 +59,8 @@ export function showResultCard(
         "#FFEFAD",
         "#7B3D17",
     );
-    if (won) {
-        titleLine(card, "第二关通关！", 291, 35, "#71431F", "#FFF1D4");
-    }
-
     const summary = uiNode(card, "ResultRanking", 608, 572);
-    summary.setPosition(0, won ? -37 : 6);
+    summary.setPosition(0, 6);
     titleLine(summary, "好友本周榜", 253, 32, "#71431F", "#FFF1D4");
     const divider = uiNode(summary, "RankingDivider").addComponent(Graphics);
     divider.strokeColor = color("#D7BA81");
@@ -105,9 +103,10 @@ export function showResultCard(
         press.showPressed = scaleButton(visual, 0.95);
     };
     if (won) {
-        button("home-compact", "首页", -232, -365, 136, actions.home);
-        button("share", "分享", -47, -365, 206, actions.share);
-        button("challenge", "再次挑战", 185, -365, 230, actions.retry);
+        const buttonY = -365 + victoryContentOffset;
+        button("home-compact", "首页", -232, buttonY, 136, actions.home);
+        button("share", "分享", -47, buttonY, 206, actions.share);
+        button("challenge", "再次挑战", 185, buttonY, 230, actions.retry);
     } else {
         button("home", "首页", -155, -313, 286, actions.home);
         button("revive", "复活", 155, -313, 286, actions.revive);
@@ -118,7 +117,7 @@ export function showResultCard(
         notice.node.name = "SettlementFeedback";
         notice.overflow = Label.Overflow.RESIZE_HEIGHT;
         notice.node.getComponent(UITransform)!.setContentSize(574, 56);
-        notice.node.setPosition(0, won ? -476 : -570);
+        notice.node.setPosition(0, won ? -476 + victoryContentOffset : -570);
     }
     return panda.node;
 }
