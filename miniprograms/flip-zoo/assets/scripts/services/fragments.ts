@@ -1,6 +1,7 @@
 import { sys } from "cc";
 import type { MainBoardDeal } from "./board-api";
 import { callCloud } from "./cloud-health";
+import { syncLifetimeRank } from "./leaderboard";
 
 export type RoundAction = number | string;
 type Settlement =
@@ -47,6 +48,11 @@ async function finish(
     const pending = pendingRounds();
     delete pending[roundId];
     sys.localStorage.setItem(pendingKey, JSON.stringify(pending));
+    if (outcome.status === "granted" || outcome.status === "limit") {
+        void syncLifetimeRank().catch(() => {
+            console.warn("Lifetime leaderboard sync pending");
+        });
+    }
     return outcome;
 }
 

@@ -20,6 +20,11 @@
 - [Flip Zoo 提高难度的操作与效果评分](30-designs/FLIP-ZOO-DIFFICULTY-OPERATIONS.md)
 - [休闲消除类游戏 UI 与 UE 设计原则](30-designs/GAME-UI-UE-PRINCIPLES.md)
 
+## 验收与证据
+
+- [Flip Zoo 第二关难度验收状态](40-readiness/FLIP-ZOO-DIFFICULTY-READINESS.md)
+- [Flip Zoo 第二关难度校准报告](40-readiness/FLIP-ZOO-DIFFICULTY-CALIBRATION.md)
+
 ## 开发工具
 
 - [开发检查](../scripts/README.md)：安装、格式、lint 与验证命令。

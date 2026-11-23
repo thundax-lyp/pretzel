@@ -3,6 +3,7 @@ export const C_OPENING_CARD_COUNT = 12;
 export const PROPS = ["undo", "peek", "remove"] as const;
 export const INITIAL_SLOTS = 5;
 export const SLOT_LIMIT = 7;
+export const REVIVE_ACTION = "revive";
 export const SHARE_SLOT_ACTION = "unlock:share-slot";
 export const ANIMAL_KIND_COUNT = 20;
 export const FULL_EXPOSURE = 0b1111;
@@ -22,6 +23,24 @@ export interface Card {
     readonly top: number;
 }
 
+export function insertSlotCards(
+    held: readonly Card[],
+    incoming: readonly Card[],
+): Card[] {
+    const slots = [...held];
+    for (const card of incoming) {
+        let last = -1;
+        for (let index = slots.length - 1; index >= 0; index--) {
+            if (slots[index].kind === card.kind) {
+                last = index;
+                break;
+            }
+        }
+        slots.splice(last < 0 ? slots.length : last + 1, 0, card);
+    }
+    return slots;
+}
+
 export interface SlotClearGroup {
     readonly kind: number;
     readonly heldCount: number;
@@ -37,7 +56,7 @@ const MAIN_BOARD = [
         "bb8213e",
         "886332e",
         "e52261a",
-        "619d11d",
+        "6f9dffd",
         "d7eee55",
         "669644g",
         "444ahh7",
@@ -201,94 +220,31 @@ export function generateMainBoard(
     const blockers = deck.map((card) =>
         deck.filter((upper) => covers(upper, card)),
     );
-    const keyGroupCount = 2 + Math.floor(random() * 4);
     let bestDeal: ReturnType<typeof dealMainBoard> | undefined;
     let bestScore = -1;
     for (let attempt = 0; attempt < (layout ? 256 : 1); attempt += 1) {
-        const deal = dealMainBoard(
-            deck,
-            blockers,
-            keyGroupCount,
-            random,
-            previous,
-            layout,
-        );
+        const deal = dealMainBoard(deck, blockers, random, previous, layout);
         if (!layout) return deal;
         const score = peakDiversityScore(layout, deal.kinds);
         if (score <= bestScore || !verifiesPeakDeal(layout, deal)) continue;
         bestDeal = deal;
         bestScore = score;
-        if (
-            score ===
-            (PEAKS[layout].length - 2) * (ANIMAL_KIND_COUNT - keyGroupCount)
-        )
-            break;
+        if (score === (PEAKS[layout].length - 2) * ANIMAL_KIND_COUNT) break;
     }
     if (bestDeal) return bestDeal;
-    throw new Error(`Cannot deal ${layout} with ${keyGroupCount} key groups`);
+    throw new Error(`Cannot deal ${layout} without reserved kinds`);
 }
 
 function dealMainBoard(
     deck: readonly Card[],
     blockers: readonly (readonly Card[])[],
-    keyGroupCount: number,
     random: () => number,
     previous?: readonly number[],
     layout?: MainLayout,
 ): { kinds: number[]; clearOrder: number[] } {
     const counts = new Array<number>(ANIMAL_KIND_COUNT).fill(0);
     for (const kind of DEFAULT_BOARD_KINDS) counts[kind] += 1;
-    const reservedKinds = [counts.indexOf(3)];
-    const eligible = counts.flatMap((count, kind) => (count > 3 ? [kind] : []));
-    while (reservedKinds.length < keyGroupCount) {
-        const [kind] = eligible.splice(
-            Math.floor(random() * eligible.length),
-            1,
-        );
-        reservedKinds.push(kind);
-    }
-    for (const kind of reservedKinds.slice(1)) {
-        const [recipient] = eligible.splice(
-            Math.floor(random() * eligible.length),
-            1,
-        );
-        counts[recipient] += counts[kind] - 3;
-        counts[kind] = 3;
-    }
-
     const kinds = new Array<number>(deck.length);
-    const reservedGroups: Card[][] = [];
-    const alongRows = layout !== undefined || random() < 0.5;
-    const mirrored = layout === undefined && random() < 0.5;
-    // Separate layers into bands so reserved cards never depend on another
-    // reserved card, even through a chain of two overlapping ordinary cards.
-    const bands = layout
-        ? [
-              [0, 1],
-              [3, 4],
-              [7, 8],
-          ]
-        : [[0, 1], [3, 4], [6]];
-    for (const kind of reservedKinds) {
-        const group: Card[] = [];
-        for (let layer = 0; layer < MAIN_BOARD.length; layer += 1) {
-            const candidates = deck.filter((card) => {
-                const coordinate = Math.floor(alongRows ? card.y : card.x);
-                const edge = alongRows ? 8 : 6;
-                const position = mirrored ? edge - coordinate : coordinate;
-                return (
-                    card.layer === layer &&
-                    bands[layer].includes(position) &&
-                    kinds[card.id] === undefined
-                );
-            });
-            const card = candidates[Math.floor(random() * candidates.length)];
-            kinds[card.id] = kind;
-            group.push(card);
-        }
-        reservedGroups.push(group);
-    }
-
     const remaining = new Set(deck);
     const clearOrder: number[] = [];
     const exposed = (card: Card) =>
@@ -299,17 +255,8 @@ function dealMainBoard(
     };
     while (remaining.size > 0) {
         const moves = deck
-            .filter(
-                (card) =>
-                    remaining.has(card) &&
-                    kinds[card.id] === undefined &&
-                    exposed(card),
-            )
+            .filter((card) => remaining.has(card) && exposed(card))
             .map((card) => [card]);
-        for (const group of reservedGroups) {
-            if (remaining.has(group[0]) && group.every(exposed))
-                moves.push(group);
-        }
         const highest = layout
             ? Math.max(...moves.map(([card]) => card.layer))
             : undefined;
@@ -321,19 +268,14 @@ function dealMainBoard(
     }
 
     const triples = counts.flatMap((count, kind) =>
-        count === 3 ? [] : new Array<number>(count / 3).fill(kind),
+        new Array<number>(count / 3).fill(kind),
     );
     for (let index = triples.length - 1; index > 0; index -= 1) {
         const picked = Math.floor(random() * (index + 1));
         [triples[index], triples[picked]] = [triples[picked], triples[index]];
     }
-    // A whole reserved group clears in three takes even when an
-    // ordinary triple is waiting in up to two slots.
-    let ordinary = 0;
-    for (const id of clearOrder) {
-        if (kinds[id] === undefined) {
-            kinds[id] = triples[Math.floor(ordinary++ / 3)];
-        }
+    for (const [index, id] of clearOrder.entries()) {
+        kinds[id] = triples[Math.floor(index / 3)];
     }
     if (previous && kinds.every((kind, id) => kind === previous[id])) {
         // Rename two kinds with equal counts. The same path still clears,
@@ -354,12 +296,10 @@ function peakDiversityScore(
     layout: MainLayout,
     kinds: readonly number[],
 ): number {
-    const counts = new Array<number>(ANIMAL_KIND_COUNT).fill(0);
-    for (const kind of kinds) counts[kind] += 1;
     const layers = PEAKS[layout].map(() => new Set<number>());
     for (const card of PEAK_DECKS[layout]) {
         const kind = kinds[card.id];
-        if (counts[kind] > 3) layers[card.layer].add(kind);
+        layers[card.layer].add(kind);
     }
     let score = 0;
     for (let layer = 0; layer + 3 <= layers.length; layer += 1) {
@@ -377,11 +317,8 @@ function verifiesPeakDeal(
     deal: { kinds: number[]; clearOrder: number[] },
 ): boolean {
     const round = new Round(2, "C", deal.kinds, Math.random, layout);
-    const counts = new Array<number>(ANIMAL_KIND_COUNT).fill(0);
-    for (const kind of deal.kinds) counts[kind] += 1;
-    const ordinary = (card: Card) => counts[card.kind] > 3;
 
-    // Replay carries all unmatched cards across layers and reserved groups.
+    // Replay carries all unmatched cards across layers.
     for (const id of deal.clearOrder) {
         const card = round.cards[id];
         const groupLayers = round.slots
@@ -389,7 +326,7 @@ function verifiesPeakDeal(
             .map((slotted) => slotted.layer);
         const taken = round.take(id);
         if (taken === null) return false;
-        if (taken === 3 && ordinary(card)) {
+        if (taken === 3) {
             groupLayers.push(card.layer);
             if (Math.max(...groupLayers) - Math.min(...groupLayers) > 2)
                 return false;
@@ -407,7 +344,7 @@ export function isBoardKinds(value: unknown): value is number[] {
             return false;
         counts[kind] += 1;
     }
-    return counts.every((count) => count > 0 && count % 3 === 0);
+    return counts.every((count) => count >= 6 && count % 3 === 0);
 }
 
 export class Round {
@@ -425,6 +362,10 @@ export class Round {
     private readonly claimedProps = new Set<Prop>();
     private readonly usedProps = new Set<Prop>();
     private readonly board: readonly Card[];
+    private readonly covering: readonly (readonly {
+        card: Card;
+        mask: number;
+    }[])[];
     private slotted: Card[] = [];
     private capacity: number;
     private lastTaken: readonly Card[] | null = null;
@@ -475,6 +416,19 @@ export class Round {
                         kind: boardKinds[card.id],
                     }))
                   : mainDeck;
+        this.covering = this.board.map((card) =>
+            this.board
+                .filter((upper) => covers(upper, card))
+                .map((upper) => {
+                    const dx = upper.left - card.left;
+                    const dy = upper.top - card.top;
+                    const columns =
+                        dx < 0 ? 0b0101 : dx > 0 ? 0b1010 : FULL_EXPOSURE;
+                    const rows =
+                        dy < 0 ? 0b0011 : dy > 0 ? 0b1100 : FULL_EXPOSURE;
+                    return { card: upper, mask: columns & rows };
+                }),
+        );
         this.onBoard = new Set(this.cards.map((card) => card.id));
         if (level === 2 && group === "C") {
             const opening = layout
@@ -565,15 +519,17 @@ export class Round {
         return (
             this.level === 2 &&
             this.status === "lost" &&
-            this.capacity < this.slotLimit
+            this.slotted.length > 0
         );
     }
 
-    revive(): boolean {
-        if (!this.canRevive) return false;
-        this.capacity += 1;
+    revive(): readonly SlotClearGroup[] | undefined {
+        if (!this.canRevive) return undefined;
+        const groups = this.slotClearGroups();
+        if (!groups) return undefined;
         this.status = "playing";
-        return true;
+        this.applySlotClear(groups);
+        return groups;
     }
 
     canUse(prop: Prop): boolean {
@@ -645,13 +601,9 @@ export class Round {
     // quadrants; tiles touching only along an edge do not overlap.
     exposure(card: Card): number {
         let visible = FULL_EXPOSURE;
-        for (const other of this.cards) {
-            if (!covers(other, card) || !this.isOnBoard(other)) continue;
-            const dx = other.left - card.left;
-            const dy = other.top - card.top;
-            const columns = dx < 0 ? 0b0101 : dx > 0 ? 0b1010 : FULL_EXPOSURE;
-            const rows = dy < 0 ? 0b0011 : dy > 0 ? 0b1100 : FULL_EXPOSURE;
-            visible &= ~(columns & rows);
+        for (const cover of this.covering[card.id]) {
+            if (!this.isOnBoard(cover.card)) continue;
+            visible &= ~cover.mask;
             if (visible === 0) break;
         }
         return visible;
@@ -708,24 +660,27 @@ export class Round {
         return undefined;
     }
 
-    take(id: number): 0 | 3 | null {
+    take(id: number): 0 | 3 | 6 | null {
         const card = this.cards[id];
         if (!this.canTake(id)) return null;
 
         const partner = this.boundPartner(id);
         const taken = partner ? [card, partner] : [card];
-        const insertion = this.slotInsertionIndex(card.kind);
-        const matching =
-            taken.length +
-            this.slotted.filter((tile) => tile.kind === card.kind).length;
+        this.slotted = insertSlotCards(this.slotted, taken);
         this.removeBoardCards(taken, true);
         this.moves += 1;
-        this.slotted.splice(insertion, 0, ...taken);
-        this.lastTaken = matching < 3 ? taken : null;
-        if (matching >= 3) {
-            this.slotted.splice(insertion - matching + taken.length, 3);
+        let matched: 0 | 3 | 6 = 0;
+        for (const kind of new Set(taken.map((tile) => tile.kind))) {
+            const indices = this.slotted.flatMap((tile, index) =>
+                tile.kind === kind ? [index] : [],
+            );
+            if (indices.length < 3) continue;
+            for (const index of indices.slice(0, 3).reverse())
+                this.slotted.splice(index, 1);
+            matched = (matched + 3) as 3 | 6;
             this.firstMatchAt ??= this.moves;
         }
+        this.lastTaken = matched === 0 ? taken : null;
         if (this.remaining === 0) {
             this.status = "won";
         } else if (
@@ -736,57 +691,62 @@ export class Round {
         ) {
             this.status = "lost";
         }
-        return matching >= 3 ? 3 : 0;
+        return matched;
     }
 
     clearSlots(): readonly SlotClearGroup[] | undefined {
         if (!this.canUse("remove")) return undefined;
 
+        const groups = this.slotClearGroups();
+        if (!groups) return undefined;
+        this.usedProps.add("remove");
+        this.applySlotClear(groups);
+        return groups;
+    }
+
+    private slotClearGroups(): SlotClearGroup[] | undefined {
         const board = this.cards
             .filter((card) => this.isOnBoard(card))
             .sort((a, b) => b.layer - a.layer);
-        const groups: SlotClearGroup[] = [];
-        for (const { kind } of this.slotted) {
-            if (groups.some((group) => group.kind === kind)) continue;
-            const heldCount = this.slotted.filter(
-                (card) => card.kind === kind,
-            ).length;
-            const needed = 3 - heldCount;
-            const boardCards = board
-                .filter(
-                    (card) => card.kind === kind && !this.boundPartner(card.id),
-                )
-                .slice(0, needed);
-            if (needed === 2) {
-                for (const card of board) {
-                    if (card.kind !== kind) continue;
-                    const partner = this.boundPartner(card.id);
-                    if (partner?.kind !== kind || !this.isOnBoard(partner))
-                        continue;
-                    if (
-                        boardCards.length < needed ||
-                        (card.layer >= boardCards[0].layer &&
-                            card.layer > boardCards[1].layer)
-                    ) {
-                        boardCards.splice(0, boardCards.length, card, partner);
-                    }
-                    break;
-                }
+        const selected = new Set<Card>();
+        const totals = new Map<number, number>();
+        for (const card of this.slotted)
+            totals.set(card.kind, (totals.get(card.kind) ?? 0) + 1);
+        while (true) {
+            const pending = Array.from(totals).find(
+                ([, count]) => count % 3 !== 0,
+            );
+            if (!pending) break;
+            const [kind] = pending;
+            const card = board.find(
+                (tile) => tile.kind === kind && !selected.has(tile),
+            );
+            if (!card) return undefined;
+            const partner = this.boundPartner(card.id);
+            for (const tile of partner ? [card, partner] : [card]) {
+                if (selected.has(tile) || !this.isOnBoard(tile)) continue;
+                selected.add(tile);
+                totals.set(tile.kind, (totals.get(tile.kind) ?? 0) + 1);
             }
-            if (boardCards.length !== needed) return undefined;
-            groups.push({ kind, heldCount, boardCards });
         }
+        return Array.from(totals).map(([kind]) => ({
+            kind,
+            heldCount: this.slotted.filter((card) => card.kind === kind).length,
+            boardCards: Array.from(selected).filter(
+                (card) => card.kind === kind,
+            ),
+        }));
+    }
 
+    private applySlotClear(groups: readonly SlotClearGroup[]): void {
         this.removeBoardCards(
             groups.flatMap(({ boardCards }) => boardCards),
             false,
         );
         this.slotted = [];
         this.lastTaken = null;
-        this.usedProps.add("remove");
         this.firstMatchAt ??= "prop";
         if (this.remaining === 0) this.status = "won";
-        return groups;
     }
 
     private removeBoardCards(

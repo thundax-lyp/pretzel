@@ -4,6 +4,7 @@ const {
     Round,
     PROPS,
     SHARE_SLOT_ACTION,
+    REVIVE_ACTION,
 } = require("./rules/gameplay/round.js");
 const { MAIN_BOARD_POOL } = require("./rules/services/main-board-pool.js");
 const {
@@ -39,6 +40,10 @@ function verifyWin(deal, actions, shareLockedSlot) {
         return false;
     }
     for (const action of actions) {
+        if (action === REVIVE_ACTION) {
+            if (!round.revive()) return false;
+            continue;
+        }
         if (round.status !== "playing") return false;
         if (Number.isInteger(action)) {
             if (round.take(action) === null) return false;

@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { verifyBuiltRevival } from "./verify-built-revival.mjs";
 
 const project = fileURLToPath(new URL("../", import.meta.url));
 const [platform, ...flags] = process.argv.slice(2);
@@ -87,6 +88,7 @@ try {
         throw new Error(`Creator did not produce a fresh ${platform} build`);
     }
     if (wechat) {
+        verifyBuiltRevival(output);
         const projectConfig = JSON.parse(
             fs.readFileSync(path.join(output, "project.config.json"), "utf8"),
         );

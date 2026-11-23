@@ -31,7 +31,15 @@ const compilePlatform = compileModule(
 function loadScreen(imports, wx, gameGlobal) {
     const platform = {};
     const exports = {};
-    const require = (name) => imports[name] ?? {};
+    const require = (name) =>
+        imports[name] ??
+        (name === "./cloud-health"
+            ? { hasCloudEnvironment: () => true }
+            : name === "./share-tracking"
+              ? {
+                    recordShareClick: () => "share_channel=test-channel",
+                }
+              : {});
     compilePlatform(platform, require, wx, gameGlobal);
     compileScreen(exports, (name) =>
         name === "../services/wechat-platform" ? platform : require(name),
@@ -69,28 +77,105 @@ test("opening the share picker does not mutate the round", () => {
     screen.round = Object.freeze({ status: "lost", slotCapacity: 7 });
     screen.share();
     screen.share(true);
-    assert.deepEqual(calls, cards);
+    const tracked = cards.map((card) => ({
+        ...card,
+        query: "share_channel=test-channel",
+    }));
+    assert.deepEqual(calls, tracked);
     assert.deepEqual(screen.round, { status: "lost", slotCapacity: 7 });
     screen.overlay = { name: "RoundResult" };
-    assert.equal(screen.shareFromMenu(), cards[0]);
+    assert.deepEqual(screen.shareFromMenu(), tracked[0]);
     screen.round = Object.freeze({ status: "won", slotCapacity: 7 });
-    assert.equal(screen.shareFromMenu(), cards[1]);
+    assert.deepEqual(screen.shareFromMenu(), tracked[1]);
     screen.overlay = { name: "Leaderboard" };
-    assert.equal(screen.shareFromMenu(), cards[0]);
+    assert.deepEqual(screen.shareFromMenu(), tracked[0]);
 });
 
-test("claiming a prop requires a successful share invocation and only grants once", () => {
-    let shareCalls = 0;
-    const notices = [];
-    const wx = {
-        shareAppMessage() {
-            shareCalls += 1;
-            if (shareCalls === 1) throw new Error("unavailable");
+for (const prop of ["undo", "peek", "remove"]) {
+    test(`tapping unclaimed ${prop} shares directly, retries failure and grants once`, () => {
+        let calls = 0;
+        const notices = [];
+        const screen = loadScreen(
+            {
+                cc: {
+                    Component: class {},
+                    _decorator: { ccclass: () => (target) => target },
+                },
+                "cc/env": { WECHAT: true },
+                "../services/board-api": { createBoardApi() {} },
+                "../gameplay/round": { PROP_LABELS: { [prop]: prop } },
+            },
+            {
+                shareAppMessage() {
+                    if (++calls === 1) throw Error("unavailable");
+                },
+                showToast: ({ title }) => notices.push(title),
+            },
+            {},
+        );
+        let grants = 0;
+        screen.round = {
+            status: "playing",
+            canClaimProp: () => grants === 0,
+            claimProp: () => (++grants, true),
+            propUsesLeft: () => 0,
+        };
+        screen.openOverlay = () =>
+            assert.fail("Sharing must not open a confirmation dialog");
+        screen.refresh = () => {};
+        screen.message = {};
+        screen.fragmentRound = { actions: [] };
+        screen.onPropTouch(prop);
+        assert.deepEqual(notices, ["暂时无法打开分享"]);
+        assert.equal(grants, 0);
+        screen.onPropTouch(prop);
+        screen.onPropTouch(prop);
+        assert.equal(calls, 2);
+        assert.equal(grants, 1);
+        assert.deepEqual(screen.fragmentRound.actions, ["claim:" + prop]);
+    });
+}
+
+test("locked slots share directly and never unlock after a failed invocation", () => {
+    let calls = 0;
+    const screen = loadScreen(
+        {
+            cc: {
+                Component: class {},
+                _decorator: { ccclass: () => (target) => target },
+            },
+            "cc/env": { WECHAT: true },
+            "../services/board-api": { createBoardApi() {} },
+            "../gameplay/round": { SHARE_SLOT_ACTION: "share-slot" },
         },
-        showToast({ title }) {
-            notices.push(title);
+        {
+            shareAppMessage() {
+                if (++calls === 1) throw Error("unavailable");
+            },
+            showToast() {},
         },
+        {},
+    );
+    let unlocks = 0;
+    screen.round = {
+        status: "playing",
+        slotCapacity: 6,
+        unlockNextSlot: () => (++unlocks, true),
     };
+    screen.openOverlay = () =>
+        assert.fail("Sharing must not open a confirmation dialog");
+    screen.refresh = () => {};
+    screen.fragmentRound = { actions: [] };
+    screen.onSlotTouch(6);
+    assert.equal(unlocks, 0);
+    screen.onSlotTouch(6);
+    assert.equal(calls, 2);
+    assert.equal(unlocks, 1);
+    assert.deepEqual(screen.fragmentRound.actions, ["share-slot"]);
+});
+
+test("revival records once, animates every triple, and finishes only after the tray clears", async () => {
+    const rules = await import("../assets/scripts/gameplay/round.ts");
     const imports = {
         cc: {
             Component: class {},
@@ -98,59 +183,552 @@ test("claiming a prop requires a successful share invocation and only grants onc
         },
         "cc/env": { WECHAT: true },
         "../services/board-api": { createBoardApi() {} },
+        "../gameplay/round": rules,
     };
-    imports["../ui/button-icon"] = { drawButtonIcon() {} };
-    imports["../ui/nodes"] = {
-        label: () => ({
-            node: { getComponent: () => ({ setContentSize() {} }) },
-        }),
+    const screen = loadScreen(imports, {}, {});
+    const round = new rules.Round(
+        2,
+        "C",
+        [0, 0, 0, 0, 0, 0, 1, 1, 1, 2, 2, 2],
+        undefined,
+        [[[0, 0, 12, 1]]],
+        true,
+        [
+            [2, 3],
+            [4, 5],
+        ],
+        true,
+    );
+    for (const id of [0, 1, 6, 7, 9, 10]) round.take(id);
+    assert.equal(round.status, "lost");
+    screen.round = round;
+    const result = {};
+    screen.overlay = result;
+    screen.message = {};
+    screen.fragmentRound = { id: "round", actions: [] };
+    screen.closeOverlay = () => {
+        screen.overlay = undefined;
     };
-    imports.cc.Label = { Overflow: { RESIZE_HEIGHT: 0 } };
-    const screen = loadScreen(imports, wx, {});
-    const dialog = {};
-    let claimed = false;
-    let grantCount = 0;
-    const round = {
-        canClaimProp: () => !claimed,
-        claimProp() {
-            claimed = true;
-            grantCount += 1;
-            return true;
+    const flights = [];
+    const matches = [];
+    const finishes = [];
+    const boardRefreshes = [];
+    screen.refreshBoard = () => {
+        boardRefreshes.push(
+            round.cards
+                .filter((card) => round.isOnBoard(card))
+                .map((card) => card.id),
+        );
+    };
+    screen.flyCardToSlot = (card, slot, landed, _lifted, stackLevel = 0) => {
+        flights.push(card.id);
+        assert.ok(slot < round.slotCapacity);
+        landed(stackLevel ? { node: { destroy() {} } } : undefined);
+    };
+    screen.refreshSlots = (kinds) =>
+        assert.ok(kinds.length <= round.slotCapacity);
+    screen.playMatch = (kind, indices, stacked = []) => {
+        assert.equal(indices.length + stacked.length, 3);
+        matches.push(kind);
+    };
+    const scheduled = [];
+    screen.scheduleOnce = (callback) => scheduled.push(callback);
+    screen.finishAction = () => finishes.push(round.status);
+    screen.completeRevive(result, round);
+    assert.equal(screen.animatingCards, true);
+    assert.deepEqual(finishes, []);
+    screen.completeRevive(result, round);
+    assert.deepEqual(screen.fragmentRound.actions, [rules.REVIVE_ACTION]);
+    assert.deepEqual(boardRefreshes, [[]]);
+    while (scheduled.length) scheduled.shift()();
+    assert.deepEqual(flights, [2, 3, 4, 5, 8, 11]);
+    assert.deepEqual(matches, [0, 0, 1, 2]);
+    assert.deepEqual(finishes, ["won"]);
+    assert.equal(screen.animatingCards, false);
+    assert.equal(round.slots.length, 0);
+});
+
+function revivalShareFixture() {
+    const actions = new Map();
+    const lifecycle = { hide: new Set(), show: new Set() };
+    let shareCalls = 0;
+    let fail = false;
+    const wx = {
+        onHide: (callback) => lifecycle.hide.add(callback),
+        offHide: (callback) => lifecycle.hide.delete(callback),
+        onShow: (callback) => lifecycle.show.add(callback),
+        offShow: (callback) => lifecycle.show.delete(callback),
+        shareAppMessage() {
+            shareCalls += 1;
+            if (fail) throw Error("unavailable");
         },
     };
-    screen.round = round;
-    screen.gameRoot = {};
-    screen.openOverlay = () => (screen.overlay = dialog);
-    screen.closeOverlay = () => (screen.overlay = undefined);
-    screen.panel = () => ({});
-    screen.heading = () => {};
-    screen.drawPropIcon = () => ({
-        node: { setScale() {}, setPosition() {} },
+    const node = () => ({
+        setPosition() {},
+        getComponent: () => ({ setContentSize() {} }),
     });
-    screen.paintButton = () => {};
-    screen.refresh = () => {};
-    screen.message = {};
-    const actions = new Map();
-    screen.button = (name, _x, _y, _width, action) => {
-        actions.set(name, action);
-        return { caption: { node: { setPosition() {} } }, graphic: {} };
+    const imports = {
+        cc: {
+            Component: class {},
+            _decorator: { ccclass: () => (target) => target },
+        },
+        "cc/env": { WECHAT: true },
+        "../services/board-api": { createBoardApi() {} },
+        "../ui/nodes": {
+            picture: () => ({ node: node() }),
+            label: () => ({ node: node() }),
+            titleLine() {},
+        },
     };
+    const screen = loadScreen(imports, wx, {});
+    const result = {};
+    const round = { canRevive: true };
+    screen.art = { home: { settings: [{}, {}] } };
+    screen.overlay = result;
+    screen.round = round;
+    screen.openOverlay = () => {
+        screen.cancelRevivalShare?.();
+        screen.cancelRevivalShare = undefined;
+        return (screen.overlay = {});
+    };
+    screen.showResult = () => {
+        screen.cancelRevivalShare?.();
+        screen.cancelRevivalShare = undefined;
+        screen.overlay = result;
+    };
+    screen.paintButton = () => {};
+    screen.button = (text, _x, _y, _width, action) => {
+        actions.set(text, action);
+        return {};
+    };
+    let revivals = 0;
+    screen.completeRevive = (dialog, expectedRound) => {
+        assert.equal(screen.overlay, dialog);
+        assert.equal(screen.round, expectedRound);
+        revivals += 1;
+        screen.cancelRevivalShare?.();
+        screen.overlay = undefined;
+    };
+    return {
+        screen,
+        result,
+        actions,
+        emit: (type) => [...lifecycle[type]].forEach((callback) => callback()),
+        get shareCalls() {
+            return shareCalls;
+        },
+        get revivals() {
+            return revivals;
+        },
+        fail: () => (fail = true),
+        allow: () => (fail = false),
+        lifecycle,
+    };
+}
 
-    screen.showPropClaim("peek");
-    actions.get("×  关闭")();
-    actions.get("分享")();
-    assert.equal(shareCalls, 0);
+test("revival opens native sharing directly without an intermediate dialog", () => {
+    const f = revivalShareFixture();
+    f.screen.openOverlay = () =>
+        assert.fail("must not open a confirmation dialog");
+    f.screen.requestRevive(f.result);
+    assert.equal(f.shareCalls, 1);
+    assert.equal(f.revivals, 0);
+    assert.equal(f.screen.overlay, f.result);
+});
 
-    screen.showPropClaim("peek");
-    const share = actions.get("分享");
-    share();
-    assert.deepEqual(notices, ["暂时无法打开分享"]);
-    assert.equal(grantCount, 0);
-    assert.equal(screen.overlay, dialog);
+test("revival returns without a preceding hide event and completes only once", () => {
+    const f = revivalShareFixture();
+    f.screen.requestRevive(f.result);
+    f.screen.requestRevive(f.result);
+    assert.equal(f.shareCalls, 1);
+    assert.equal(f.revivals, 0);
+    f.emit("show");
+    f.emit("show");
+    assert.equal(f.revivals, 1);
+    assert.equal(f.lifecycle.hide.size, 0);
+    assert.equal(f.lifecycle.show.size, 0);
+});
 
-    share();
-    share();
-    assert.equal(shareCalls, 2);
-    assert.equal(grantCount, 1);
-    assert.equal(screen.overlay, undefined);
+test("revival also completes after a hide/show return", () => {
+    const f = revivalShareFixture();
+    f.screen.requestRevive(f.result);
+    f.emit("hide");
+    assert.equal(f.revivals, 0);
+    f.emit("show");
+    assert.equal(f.revivals, 1);
+});
+
+test("failed share calls can retry and leaving the result prevents late revival", () => {
+    const f = revivalShareFixture();
+    const notices = [];
+    f.screen.platformNotice = (message) => notices.push(message);
+    f.fail();
+    f.screen.requestRevive(f.result);
+    assert.equal(f.revivals, 0);
+    assert.equal(f.lifecycle.show.size, 0);
+    assert.deepEqual(notices, ["暂时无法打开分享，请重试"]);
+    f.allow();
+    f.screen.requestRevive(f.result);
+    f.emit("hide");
+    const lateReturns = [...f.lifecycle.show];
+    f.screen.openOverlay();
+    f.emit("show");
+    lateReturns.forEach((callback) => callback());
+    assert.equal(f.shareCalls, 2);
+    assert.equal(f.revivals, 0);
+    assert.notEqual(f.screen.overlay, f.result);
+});
+
+test("menu and direct sharing each create one tracked channel, including failed picker calls", () => {
+    let ready;
+    let handler;
+    let stopped = 0;
+    let clicks = 0;
+    const sent = [];
+    const wx = {
+        hideShareMenu() {},
+        showShareMenu() {},
+        onShareAppMessage: (callback) => (handler = callback),
+        offShareAppMessage: () => (handler = undefined),
+        shareAppMessage: (card) => sent.push(card),
+    };
+    const exports = {};
+    compilePlatform(
+        exports,
+        (name) =>
+            name === "cc/env"
+                ? { WECHAT: true }
+                : {
+                      recordShareClick: () =>
+                          `share_channel=${String(++clicks).padStart(32, "0")}`,
+                      hasCloudEnvironment: () => true,
+                      startShareTracking(callback) {
+                          ready = callback;
+                          return () => stopped++;
+                      },
+                  },
+        wx,
+        {},
+    );
+    const menu = () => exports.trackedShareCard(false);
+    exports.enableShareMenu(menu);
+    assert.equal(handler, undefined);
+    ready();
+    const first = handler();
+    const second = handler();
+    assert.notEqual(first.query, second.query);
+    assert.equal(exports.openShare(true), "opened");
+    assert.equal(clicks, 3);
+    assert.equal(sent.length, 1);
+    wx.shareAppMessage = () => {
+        throw Error("cancelled/unavailable");
+    };
+    assert.equal(exports.openShare(false), "failed");
+    assert.equal(clicks, 4);
+    exports.disableShareMenu(menu);
+    assert.equal(handler, undefined);
+    assert.equal(stopped, 1);
+});
+
+test("a second-level round reports one leaderboard win even if its finish callback repeats; tutorial clears do not count", () => {
+    const messages = [];
+    const screen = loadScreen(
+        {
+            cc: {
+                Component: class {},
+                _decorator: { ccclass: () => (target) => target },
+            },
+            "cc/env": { WECHAT: true },
+            "../services/board-api": { createBoardApi() {} },
+            "../ui/nodes": { color: (value) => value },
+        },
+        {
+            getOpenDataContext: () => ({
+                postMessage: (message) => messages.push(message),
+            }),
+        },
+        {},
+    );
+    screen.message = {};
+    screen.refresh = () => {};
+    screen.showResult = () => {};
+    screen.scheduleOnce = () => {};
+    screen.round = { level: 2, status: "won" };
+    screen.finishAction(false);
+    screen.finishAction(false);
+    assert.deepEqual(
+        messages.map((message) => message.action),
+        ["record-win"],
+    );
+    screen.round = { level: 1, status: "won" };
+    screen.finishAction(false);
+    assert.equal(messages.length, 1);
+});
+
+for (const capacity of [6, 7]) {
+    for (const empty of [0, 1]) {
+        test(`revival stacks matching cards with ${capacity} slots and ${empty} free, preserving every waiting card`, async () => {
+            const rules = await import("../assets/scripts/gameplay/round.ts");
+            const occupied = capacity - empty;
+            const kinds = Array.from({ length: occupied * 3 }, (_, id) =>
+                Math.floor(id / 3),
+            );
+            const round = new rules.Round(
+                2,
+                "C",
+                kinds,
+                undefined,
+                [[[0, 0, kinds.length, 1]]],
+                true,
+                Array.from({ length: occupied }, (_, kind) => [
+                    kind * 3 + 1,
+                    kind * 3 + 2,
+                ]),
+                true,
+            );
+            if (capacity === 7) round.unlockNextSlot();
+            for (let kind = 0; kind < occupied; kind++) round.take(kind * 3);
+            assert.equal(round.status, "lost");
+            assert.equal(round.slots.length, occupied);
+            const screen = loadScreen(
+                {
+                    cc: {
+                        Component: class {},
+                        _decorator: { ccclass: () => (target) => target },
+                    },
+                    "cc/env": { WECHAT: true },
+                    "../services/board-api": { createBoardApi() {} },
+                    "../gameplay/round": rules,
+                },
+                {},
+                {},
+            );
+            const result = {};
+            Object.assign(screen, {
+                round,
+                overlay: result,
+                message: {},
+                fragmentRound: { actions: [] },
+            });
+            screen.closeOverlay = () => (screen.overlay = undefined);
+            screen.refreshBoard = () => {};
+            const scheduled = [];
+            const stacks = new Set();
+            let visible = [];
+            let expectedCards = occupied;
+            let stackFlights = 0;
+            let matches = 0;
+            let finishes = 0;
+            screen.refreshSlots = (frame) => {
+                assert.ok(
+                    frame.length <= capacity,
+                    "must never use locked or extra slots",
+                );
+                visible = [...frame];
+                assert.equal(
+                    frame.filter((kind) => kind !== undefined).length +
+                        stacks.size,
+                    expectedCards,
+                );
+            };
+            screen.flyCardToSlot = (
+                card,
+                slot,
+                landed,
+                _lifted,
+                stackLevel = 0,
+            ) => {
+                assert.equal(screen.animatingCards, true);
+                assert.ok(slot < capacity);
+                expectedCards++;
+                let stacked;
+                if (stackLevel) {
+                    assert.equal(
+                        visible[slot],
+                        card.kind,
+                        "only stack onto the same kind",
+                    );
+                    stackFlights++;
+                    stacked = {
+                        node: { destroy: () => stacks.delete(stacked) },
+                    };
+                    stacks.add(stacked);
+                }
+                landed(stacked);
+            };
+            screen.playMatch = (kind, indices, stacked = []) => {
+                assert.equal(indices.length + stacked.length, 3);
+                assert.ok(indices.every((slot) => visible[slot] === kind));
+                assert.equal(stacked.length, stacks.size);
+                expectedCards -= 3;
+                matches++;
+            };
+            screen.scheduleOnce = (callback) => scheduled.push(callback);
+            screen.finishAction = () => finishes++;
+            screen.completeRevive(result, round);
+            assert.equal(finishes, 0);
+            while (scheduled.length) scheduled.shift()();
+            assert.ok(stackFlights > 0);
+            assert.equal(matches, occupied);
+            assert.equal(expectedCards, 0);
+            assert.equal(stacks.size, 0);
+            assert.equal(finishes, 1);
+            assert.equal(screen.animatingCards, false);
+            assert.equal(round.slotCapacity, capacity);
+            assert.equal(round.slots.length, 0);
+            assert.deepEqual(screen.fragmentRound.actions, [
+                rules.REVIVE_ACTION,
+            ]);
+        });
+    }
+}
+
+test("Web Demo claims props and unlocks slots directly without a share or ad confirmation", async () => {
+    const rules = await import("../assets/scripts/gameplay/round.ts");
+    let nativeShares = 0;
+    const screen = loadScreen(
+        {
+            cc: {
+                Component: class {},
+                _decorator: { ccclass: () => (target) => target },
+            },
+            "cc/env": { WECHAT: false },
+            "../services/board-api": { createBoardApi() {} },
+            "../gameplay/round": rules,
+        },
+        { shareAppMessage: () => nativeShares++ },
+        {},
+    );
+    const round = new rules.Round(
+        2,
+        "C",
+        undefined,
+        () => 0.5,
+        undefined,
+        true,
+    );
+    Object.assign(screen, {
+        round,
+        message: {},
+        fragmentRound: { actions: [] },
+    });
+    screen.openOverlay = () =>
+        assert.fail("Web simulation must execute directly");
+    screen.refresh = () => {};
+    for (const prop of rules.PROPS) {
+        screen.onPropTouch(prop);
+        assert.equal(round.canClaimProp(prop), false);
+        assert.equal(round.propUsesLeft(prop), 1);
+    }
+    assert.equal(round.slotCapacity, 5);
+    screen.onSlotTouch(6);
+    assert.equal(round.slotCapacity, 5, "unlock slots in order");
+    screen.onSlotTouch(5);
+    assert.equal(round.slotCapacity, 6);
+    screen.onSlotTouch(6);
+    assert.equal(round.slotCapacity, 7);
+    assert.equal(nativeShares, 0);
+    assert.deepEqual(screen.fragmentRound.actions, [
+        ...rules.PROPS.map((prop) => "claim:" + prop),
+        rules.SHARE_SLOT_ACTION,
+        rules.SHARE_SLOT_ACTION,
+    ]);
+});
+
+test("WeChat without a cloud environment shares and enables its menu without inventing an identity", () => {
+    const platform = {};
+    let menu;
+    let tracking = 0;
+    let records = 0;
+    let shows = 0;
+    let returned;
+    const sent = [];
+    const card = { title: "邀请", query: "existing=value" };
+    compilePlatform(
+        platform,
+        (name) =>
+            ({
+                "cc/env": { WECHAT: true },
+                "./cloud-health": { hasCloudEnvironment: () => false },
+                "./share-tracking": {
+                    recordShareClick() {
+                        records++;
+                        throw Error("Share identity is not ready");
+                    },
+                    startShareTracking() {
+                        tracking++;
+                    },
+                },
+            })[name],
+        {
+            shareAppMessage: (data) => sent.push(data),
+            onShareAppMessage: (handler) => (menu = handler),
+            offShareAppMessage: () => (menu = undefined),
+            showShareMenu: () => shows++,
+            hideShareMenu() {},
+            onShow: (handler) => (returned = handler),
+            offShow: () => (returned = undefined),
+        },
+        { flipZooShareCards: [card] },
+    );
+    const handler = () => platform.trackedShareCard(false);
+    platform.enableShareMenu(handler);
+    assert.equal(shows, 1);
+    assert.deepEqual(menu(), card);
+    assert.equal(platform.openShare(false), "opened");
+    let revivals = 0;
+    assert.equal(
+        typeof platform.openRevivalShare(() => revivals++),
+        "function",
+    );
+    returned();
+    assert.equal(revivals, 1);
+    assert.equal(records, 0);
+    assert.equal(tracking, 0);
+    assert.deepEqual(sent, [card, card]);
+    platform.disableShareMenu(handler);
+    assert.equal(menu, undefined);
+});
+
+test("configured cloud sharing never bypasses identity readiness", () => {
+    const platform = {};
+    let ready;
+    let identityReady = false;
+    let nativeShares = 0;
+    let menu;
+    compilePlatform(
+        platform,
+        (name) =>
+            ({
+                "cc/env": { WECHAT: true },
+                "./cloud-health": { hasCloudEnvironment: () => true },
+                "./share-tracking": {
+                    recordShareClick() {
+                        if (!identityReady)
+                            throw Error("Share identity is not ready");
+                        return "share_channel=" + "a".repeat(32);
+                    },
+                    startShareTracking(callback) {
+                        ready = callback;
+                        return () => {};
+                    },
+                },
+            })[name],
+        {
+            shareAppMessage: () => nativeShares++,
+            hideShareMenu() {},
+            showShareMenu() {},
+            onShareAppMessage: (handler) => (menu = handler),
+        },
+        {},
+    );
+    platform.enableShareMenu(() => platform.trackedShareCard(false));
+    assert.equal(menu, undefined);
+    assert.equal(platform.openShare(false), "failed");
+    assert.equal(nativeShares, 0);
+    identityReady = true;
+    ready();
+    assert.equal(menu().query, "share_channel=" + "a".repeat(32));
+    assert.equal(platform.openShare(false), "opened");
+    assert.equal(nativeShares, 1);
 });

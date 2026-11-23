@@ -81,8 +81,12 @@ function fixture(failure, allowHome = false) {
 test("loading artwork resolves from main-package resources without home subpackage", async () => {
     const { requested, load } = fixture();
     const art = await load();
-    assert.deepEqual(requested, ["home-loading/background/texture"]);
-    assert.ok(art.texture);
+    assert.deepEqual(requested, [
+        "home-loading/background/texture",
+        "home-loading/age-rating/texture",
+    ]);
+    assert.ok(art.background.texture);
+    assert.ok(art.ageRating.texture);
 });
 
 test("loading artwork propagates image failures to the retry UI", async () => {
@@ -96,10 +100,10 @@ test("progress waits for the home bundle and reaches completion after its textur
     const pending = state.loadGame((value) => progress.push(value));
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(progress[0], 0);
-    assert.equal(progress.at(-1), 10 / 19);
+    assert.equal(progress.at(-1), 10 / 28);
     state.releaseHome();
     await pending;
-    assert.equal(progress.length, 20);
+    assert.equal(progress.length, 29);
     assert.equal(progress.at(-1), 1);
     assert.ok(
         progress.every(

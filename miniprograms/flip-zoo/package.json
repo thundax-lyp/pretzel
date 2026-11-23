@@ -20,5 +20,8 @@
     "creator": {
         "version": "3.8.8"
     },
-    "uuid": "95bd4a69-6eff-41bb-b335-d95b7131b038"
+    "uuid": "95bd4a69-6eff-41bb-b335-d95b7131b038",
+    "dependencies": {
+        "js-md5": "0.11.0"
+    }
 }

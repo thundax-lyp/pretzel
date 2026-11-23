@@ -1,157 +1,195 @@
-import { FULL_EXPOSURE } from "../assets/scripts/gameplay/round.ts";
-
-const depth = 3;
-const beamWidth = 4;
+import {
+    ANIMAL_KIND_COUNT,
+    FULL_EXPOSURE,
+} from "../assets/scripts/gameplay/round.ts";
 
 export function createLookahead(cards, omniscient = false) {
-    // Geometry is independent of the animals printed on the cards.
-    const blockers = cards.map((card) =>
+    const cardCount = cards.length;
+    const blockers = cards.map((c) =>
         cards
             .filter(
-                (upper) =>
-                    upper.layer > card.layer &&
-                    Math.abs(upper.left - card.left) < 1 &&
-                    Math.abs(upper.top - card.top) < 1,
+                (u) =>
+                    u.layer > c.layer &&
+                    Math.abs(u.left - c.left) < 1 &&
+                    Math.abs(u.top - c.top) < 1,
             )
-            .map(({ id }) => id),
+            .map((u) => u.id),
     );
-    const blockedBy = cards.map(() => []);
-    for (const [id, upperIds] of blockers.entries()) {
-        for (const upper of upperIds) blockedBy[upper].push(id);
-    }
-    const neighbors = cards.map((card) =>
+    const below = cards.map(() => []);
+    for (let id = 0; id < cardCount; id++)
+        for (const upper of blockers[id]) below[upper].push(id);
+    const neighbors = cards.map((c) =>
         cards
             .filter(
-                (other) =>
-                    other.layer === card.layer &&
-                    Math.abs(other.x - card.x) + Math.abs(other.y - card.y) ===
-                        1,
+                (o) =>
+                    o.layer === c.layer &&
+                    Math.abs(o.x - c.x) + Math.abs(o.y - c.y) === 1,
             )
-            .map(({ id }) => id),
+            .map((o) => o.id),
     );
-
+    // Geometry and scratch arrays are reused without exposing hidden card faces.
+    const active = new Uint8Array(cardCount),
+        known = new Int16Array(cardCount),
+        partners = new Int16Array(cardCount),
+        counts = new Uint8Array(ANIMAL_KIND_COUNT);
     return (round) => {
-        const partners = new Map(
-            round.bindings.flatMap(([first, second]) => [
-                [first, second],
-                [second, first],
-            ]),
-        );
-        const partner = (id) => partners.get(id);
-        const revealsNeighbors = round.level === 1 || round.group !== "B";
-        const active = new Set();
-        for (const card of cards) {
-            if (round.isOnBoard(card)) active.add(card.id);
+        known.fill(-1);
+        partners.fill(-1);
+        counts.fill(0);
+        const bound = [];
+        for (const [a, b] of round.bindings) {
+            partners[a] = b;
+            partners[b] = a;
+            bound.push(a, b);
         }
-        const selectable = (id) =>
-            blockers[id].every((upper) => !active.has(upper));
-        const known = new Map();
-        for (const id of active) {
-            const card = cards[id];
-            if (omniscient) {
-                known.set(id, card.kind);
-                continue;
-            }
-            const unobstructed = selectable(id);
-            if (
-                round.isFaceUp(card, unobstructed ? FULL_EXPOSURE : 0) &&
-                (unobstructed || round.exposure(card) !== 0)
-            ) {
-                known.set(id, card.kind);
-            }
-        }
-        const startingSlots = round.slots.map(({ kind }) => kind);
+        for (let i = 0; i < cardCount; i++)
+            active[i] = +round.isOnBoard(cards[i]);
+        const selectable = (id) => {
+            for (const u of blockers[id]) if (active[u]) return false;
+            return true;
+        };
         const capacity = round.slotCapacity;
-        const canPick = (id, slots) => {
-            const other = partner(id);
+        const canPick = (id, size) => {
+            const other = partners[id];
             return (
-                active.has(id) &&
+                active[id] &&
                 selectable(id) &&
-                (other === undefined ||
-                    (slots.length + 2 <= capacity &&
-                        active.has(other) &&
+                (other < 0 ||
+                    (size + 2 <= capacity &&
+                        active[other] &&
                         selectable(other)))
             );
         };
-
-        function evaluate(id, slots, choices, remainingDepth) {
-            const other = partner(id);
-            const picked = other === undefined ? [id] : [id, other];
-            const kind = known.get(id) ?? known.get(other);
-            const held = slots.filter((animal) => animal === kind).length;
-            const match = kind !== undefined && held + picked.length >= 3;
-            const nextSlots =
-                kind === undefined
-                    ? [...slots, ...picked.map(() => undefined)]
-                    : [
-                          ...slots.filter((animal) => animal !== kind),
-                          ...Array((held + picked.length) % 3).fill(kind),
-                      ];
-            if (nextSlots.length === capacity)
-                return kind === undefined ? -800 : -1000;
-
-            for (const tile of picked) active.delete(tile);
-            const newChoices = [
-                ...new Set(picked.flatMap((tile) => blockedBy[tile])),
-            ].filter((other) => active.has(other) && selectable(other));
-            const unknownNeighbors = revealsNeighbors
-                ? [
-                      ...new Set(picked.flatMap((tile) => neighbors[tile])),
-                  ].filter(
-                      (other) =>
-                          active.has(other) &&
-                          !known.has(other) &&
-                          selectable(other),
-                  ).length
-                : 0;
-            const free = capacity - nextSlots.length;
+        for (let i = 0; i < cardCount; i++)
+            if (active[i]) {
+                const free = selectable(i);
+                if (
+                    omniscient ||
+                    (round.isFaceUp(cards[i], free ? FULL_EXPOSURE : 0) &&
+                        (free || round.exposure(cards[i]) !== 0))
+                )
+                    known[i] = cards[i].kind;
+            }
+        for (const c of round.slots) counts[c.kind]++;
+        function evaluate(id, size, choices, depth) {
+            const other = partners[id],
+                kind = known[id],
+                partnerKind = other < 0 ? -1 : known[other];
+            const heldCount = kind < 0 ? 0 : counts[kind],
+                partnerHeldCount = partnerKind < 0 ? 0 : counts[partnerKind];
+            if (kind >= 0) counts[kind]++;
+            if (other >= 0 && partnerKind >= 0) counts[partnerKind]++;
+            // Apply both incoming faces before testing capacity, then restore the search state.
+            let nextSlotCount = size + (other < 0 ? 1 : 2),
+                match = false;
+            if (kind >= 0 && counts[kind] >= 3) {
+                counts[kind] -= 3;
+                nextSlotCount -= 3;
+                match = true;
+            }
+            if (
+                partnerKind >= 0 &&
+                partnerKind !== kind &&
+                counts[partnerKind] >= 3
+            ) {
+                counts[partnerKind] -= 3;
+                nextSlotCount -= 3;
+                match = true;
+            }
+            const allKnown = kind >= 0 && (other < 0 || partnerKind >= 0);
+            const restore = () => {
+                if (kind >= 0) counts[kind] = heldCount;
+                if (partnerKind >= 0 && partnerKind !== kind)
+                    counts[partnerKind] = partnerHeldCount;
+            };
+            if (nextSlotCount >= capacity) {
+                restore();
+                return allKnown ? -1000 : -800;
+            }
+            active[id] = 0;
+            if (other >= 0) active[other] = 0;
+            const newChoices = [];
+            const seen = new Uint8Array(cardCount);
+            for (const p of other < 0 ? [id] : [id, other])
+                for (const tile of below[p])
+                    if (!seen[tile]) {
+                        seen[tile] = 1;
+                        if (active[tile] && selectable(tile))
+                            newChoices.push(tile);
+                    }
+            let unknownNeighbors = 0;
+            if (round.level === 1 || round.group !== "B") {
+                seen.fill(0);
+                for (const p of other < 0 ? [id] : [id, other])
+                    for (const tile of neighbors[p])
+                        if (!seen[tile]) {
+                            seen[tile] = 1;
+                            if (
+                                active[tile] &&
+                                known[tile] < 0 &&
+                                selectable(tile)
+                            )
+                                unknownNeighbors++;
+                        }
+            }
             const information = Math.min(
-                4,
-                unknownNeighbors + newChoices.length,
-            );
-            const risk = free === 1 ? 18 : free === 2 ? 6 : 0;
-            const score = (match ? 28 : 0) + information * 3 - risk;
+                    4,
+                    unknownNeighbors + newChoices.length,
+                ),
+                free = capacity - nextSlotCount;
+            const score =
+                (match ? 28 : 0) +
+                information * 3 -
+                (free === 1 ? 18 : free === 2 ? 6 : 0);
             let future = 0;
-            // Stop at an unknown pick. Its face and any subsequent revelations
-            // will enter the observation after applying the real move.
-            if (kind !== undefined && remainingDepth > 1) {
-                const nextChoices = [
-                    ...new Set([...choices, ...newChoices, ...partners.keys()]),
-                ].filter((tile) => canPick(tile, nextSlots));
-                const candidates = nextChoices.filter((other) =>
-                    known.has(other),
-                );
-                const priority = (other) =>
-                    nextSlots.filter((animal) => animal === known.get(other))
-                        .length;
-                candidates.sort((a, b) => priority(b) - priority(a));
-                if (candidates.length > 0) {
-                    future = Math.max(
-                        ...candidates
-                            .slice(0, beamWidth)
-                            .map((other) =>
-                                evaluate(
-                                    other,
-                                    nextSlots,
-                                    nextChoices,
-                                    remainingDepth - 1,
-                                ),
-                            ),
-                    );
+            if (allKnown && depth > 1) {
+                const next = [];
+                seen.fill(0);
+                for (const source of [choices, newChoices, bound])
+                    for (const tile of source)
+                        if (!seen[tile]) {
+                            seen[tile] = 1;
+                            if (canPick(tile, nextSlotCount)) next.push(tile);
+                        }
+                const candidates = next.filter((tile) => known[tile] >= 0);
+                candidates.sort((x, y) => counts[known[y]] - counts[known[x]]);
+                if (candidates.length) {
+                    future = -Infinity;
+                    for (const tile of candidates.slice(0, 4))
+                        future = Math.max(
+                            future,
+                            evaluate(tile, nextSlotCount, next, depth - 1),
+                        );
                 }
             }
-            for (const tile of picked) active.add(tile);
+            active[id] = 1;
+            if (other >= 0) active[other] = 1;
+            restore();
             return score + Math.max(-40, future) * 0.75;
         }
-
-        const choices = [...active].filter((id) => canPick(id, startingSlots));
-        return choices.map((id) => ({
-            id,
-            score: evaluate(id, startingSlots, choices, depth),
-            completesMatch:
-                known.has(id) &&
-                startingSlots.filter((kind) => kind === known.get(id)).length >=
-                    (partner(id) === undefined ? 2 : 1),
-        }));
+        const size = round.slots.length,
+            choices = [];
+        for (let i = 0; i < cardCount; i++)
+            if (canPick(i, size)) choices.push(i);
+        return choices.map((id) => {
+            const other = partners[id],
+                kind = known[id],
+                partnerKind = other < 0 ? -1 : known[other];
+            return {
+                id,
+                score: evaluate(id, size, choices, 3),
+                completesMatch:
+                    (kind >= 0 &&
+                        counts[kind] +
+                            1 +
+                            (other >= 0 && partnerKind === kind ? 1 : 0) >=
+                            3) ||
+                    (partnerKind >= 0 &&
+                        counts[partnerKind] +
+                            1 +
+                            (kind === partnerKind ? 1 : 0) >=
+                            3),
+            };
+        });
     };
 }

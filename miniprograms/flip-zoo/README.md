@@ -14,8 +14,6 @@ npm run preview
 
 打开 [本地试玩](http://127.0.0.1:8874/)。预览服务由 Node.js 提供，重新构建后刷新页面即可。如果 Creator 安装在其他位置，用 `COCOS_CREATOR_PATH` 指向 3.8.8 可执行文件。
 
-打开 [难度后台](http://127.0.0.1:8874/admin) 可调整第二关的命门组数和直接叠压组数。设置保存在本地预览目录 `local/difficulty.json`，重开第二关或切换 A/B/C 后生效。Creator 直接预览在本地生成牌局。
-
 玩法与道具见 [Flip Zoo 需求](../../docs/01-requirements/FLIP-ZOO-REQUIREMENTS.md)，布局和难度实现见 [工程文档导航](../../docs/README.md)。
 
 ## 微信小游戏
@@ -24,7 +22,7 @@ npm run preview
 
 微信小游戏第二关开局开放 6 格，第 7 格通过调起微信转发解锁，本局有效。槽满失败后可以重试或返回首页。
 
-背景音乐放在 `music` 分包。首页加载完成后，音乐音量大于零时加载并循环播放；点击「开始游戏」时会再次检查播放状态。消除音效随主包提供。微信构建分别检查主包 4 MB 和整包 30 MB。
+背景音乐放在 `music` 分包。首页加载完成后，音乐音量大于零时加载并循环播放；点击「开始游戏」时会再次检查播放状态。消除音效随主包提供。微信构建分别检查主包 4 MB 和整包 30 MB。构建脚本还会直接执行 Creator 输出的 `Round` 模块，核验 6／7 格、剩余 0／1 格时均可复活并完整补牌清槽，防止源码测试通过但正式转译产物失效。
 
 本地模拟器调试在仓库根目录的私有 `.env` 中设置 `FLIP_ZOO_WECHAT_TEST_APP_ID`，使用当前微信开发者工具账号可用的小游戏测试号。从仓库根目录执行以下命令，再把 `build/wechatgame-test` 作为小游戏项目导入微信开发者工具。
 
@@ -32,13 +30,15 @@ npm run preview
 node scripts/with-env.mjs --env-file .env -- npm --prefix miniprograms/flip-zoo run build:wechat -- --test
 ```
 
-首页和失败结算页可以直接转发。胜利结算时可从微信菜单转发通关卡片。第二关每种道具开局未领取，成功调用微信分享后领取一次，用完后本局不能再领。Web Demo 提供模拟分享。通过私有环境的 `FLIP_ZOO_SHARE_DEFAULT_*` 和 `FLIP_ZOO_SHARE_VICTORY_*` 配置普通卡片和通关卡片。审核图片的 ID 与 URL 必须成对提供。设置页可以打开微信客服和原生问题反馈。
+首页、胜利结算、失败复活、道具领取和扩槽均直接调起转发，不增加游戏内分享确认对话框；胜利按钮和胜利结算时的微信菜单使用通关卡片。清槽空位不足时，补牌叠放到槽内同款牌上并逐组三消，不扩充卡槽或占用锁定槽位。第二关每种道具开局未领取，成功调用微信分享后领取一次，用完后本局不能再领。Web Demo 提供模拟分享。通过私有环境的 `FLIP_ZOO_SHARE_DEFAULT_*` 和 `FLIP_ZOO_SHARE_VICTORY_*` 配置普通卡片和通关卡片。审核图片的 ID 与 URL 必须成对提供。设置页可以打开微信客服和原生问题反馈。
 
-第二关胜利后，开放数据域读取并更新本周的微信托管数据 `mgrank`。好友周榜按北京时间周一切换，读取同玩好友的本周成绩。胜负结算都展示好友周榜前三。历史榜暂未开放。
+分享、复活与清槽的完整约定见 [产品需求](../../docs/01-requirements/FLIP-ZOO-REQUIREMENTS.md#复活)，模块职责、叠牌动画与验证范围见 [游戏设计](../../docs/30-designs/FLIP-ZOO-DESIGN.md#分享复活与清槽)。
+
+第二关胜利后，开放数据域读取并更新本周的微信托管数据 `mgrank`，周榜按北京时间周一切换。历史榜使用独立托管字段 `mgrank_total`，展示好友累计通过第二关的次数，不随周切换清零。累计由 `flipZooRank` 按当前用户云端已验证结算记录计算，包含 `granted` 和 `limit` 结果；启动、成功结算和打开／刷新历史榜时同步。旧周分数不作为历史总分，朋友运行新版后会恢复并同步自己的累计。两榜均支持滚动、本人名次及刷新，胜负结算预览保留本周前三和本人行。
 
 微信构建从教学关开始。配置云环境的构建由云函数签发第二关固定牌局，每个账号在 40 副牌局中循环抽取。云函数重放操作校验清盘，每局最多发放 1 个动物碎片，每个账号按北京时间每天最多发放 60 个。家园从云函数读取碎片余额，网络失败的结算会在打开家园时重试。六种动物分别按各自配置控制兑换按钮；只有配置完整、活动和商品规格有效且有库存时才开放。兑换调用云函数创建微信礼物订单并打开领取组件。配置完整并部署后才可实际兑换；本地离线测试不代表真实礼物领取已验收。
 
-未配置云环境的微信构建在本地抽取固定牌局。Creator 直接预览使用本地生成的三层牌序，本地 Web Demo 通过 `HttpBoardAdapter` 读取 `GET /api/board`。A/B/C 对照、难度后台和模拟广告由 Web Demo 提供。
+未配置云环境的微信构建在本地抽取固定牌局。Creator 直接预览使用本地生成的三层牌序，本地 Web Demo 通过 `HttpBoardAdapter` 读取 `GET /api/board`。A/B/C 对照及本地模拟分享由 Web Demo 提供。
 
 ### 微信云开发
 
@@ -54,6 +54,16 @@ node scripts/with-env.mjs --env-file .env -- npm --prefix miniprograms/flip-zoo 
 暂存候选版本。集合权限设为仅云端可读写。发布技能负责创建集合并维护版本文档。
 
 运行 `node scripts/package-fragments.mjs` 生成 `build/cloud-functions/flip-zoo-fragments`，然后将该目录部署到同一云环境，云函数名称指定为 `flipZooFragments`，并安装云端依赖。云函数使用 `flipZooFragments` 集合保存牌局、发放记录和余额。集合权限应设为仅云端可读写。
+
+### 分享渠道记录
+
+运行 `node scripts/package-shares.mjs`，将生成的 `build/cloud-functions/flip-zoo-shares` 部署为事件型云函数 `flipZooShares`。使用 `Nodejs22.21`，依赖已在本地打包，部署时关闭云端安装。建立 `flipZooShares` 和 `flipZooShareOpens` 两个集合，数据库安全规则均设为仅云端可读写。该函数从微信调用上下文读取身份，生成／校验渠道 MD5，并按事件 ID 幂等写入分享点击和小游戏来源记录。分享卡片的 query 使用 `share_channel=<MD5>`；不携带用户 openid。只保存有效 `share_channel` 对应的进入记录；不保存无渠道或格式无效的普通打开，普通打开由微信后台统计。网络失败的客户端记录持久保留并重试，分享点击记录不代表实际转发成功。两表建立 `appid_channel` 联合索引（`appid`、`channel` 升序）。
+
+通过 `wx.cloud.callFunction({ name: "flipZooShares", data: { action: "stats", channel } })` 查询本人某次分享的回流闭环。返回带渠道进入次数、独立进入人数、外部回流次数／人数、分享者自开次数及首末进入时间；其他用户不能查询该分享的统计。`hasReturn` 仅在至少有一名分享者之外的用户带渠道进入后为 true。
+
+### 历史累计排行
+
+运行 `node scripts/package-rank.mjs`，将 `build/cloud-functions/flip-zoo-rank` 部署为事件型云函数 `flipZooRank`。使用 `Nodejs22.21`，依赖本地打包，关闭云端安装。函数从微信调用上下文确认用户，只读取 `flipZooFragments` 集合中该用户 `outcome.status` 为 `granted` 或 `limit` 的记录数，返回 `{ total }`，不修改余额或结算记录。该集合建立 `owner_outcome` 联合索引（`owner`、`outcome.status` 升序）。
 
 ### 动物兑换配置
 
@@ -87,18 +97,20 @@ SKU 留空时先查询活动中的 `product_info_list`，取与配置商品 ID �
 
 在 FLIP ZOO 工程目录下运行表中的命令，使用 Node.js 22。
 
-| 文件                    | 用途                                                                          | 入口                                             |
-| ----------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------ |
-| `build-cocos.mjs`       | 调用 Cocos Creator 构建 Web Demo 或微信小游戏。                               | `npm run build:web`、`npm run build:wechat`      |
-| `preview-web.mjs`       | 提供本地 Web 试玩、第二关牌局接口和难度设置页面。                             | `npm run preview`                                |
-| `difficulty-admin.html` | 调整 Web 第二关的命门组数和直接叠压组数。                                     | 预览服务启动后访问 `http://127.0.0.1:8874/admin` |
-| `difficulty.mjs`        | 校验难度参数，并按参数构造 Web 第二关的配牌。                                 | 由预览服务和模拟脚本导入                         |
-| `simulate-win-rate.mjs` | 批量运行无道具模拟，默认逐副输出微信第二关固定牌局的通关率和 30% 进度达标率。 | `npm run simulate:win-rate`                      |
-| `simulate-round.mjs`    | 复用游戏的 `Round` 规则运行单局，按可见牌推演策略选牌。                       | 由 `simulate-win-rate.mjs` 导入                  |
-| `visible-lookahead.mjs` | 根据可见牌、遮挡和卡槽向前推演，为候选取牌操作打分。                          | 由 `simulate-round.mjs` 导入                     |
-| `package-fragments.mjs` | 生成碎片云函数的本地部署包 `build/cloud-functions/flip-zoo-fragments`。       | `node scripts/package-fragments.mjs`             |
+| 文件                        | 用途                                                                          | 入口                                                            |
+| --------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `build-cocos.mjs`           | 调用 Cocos Creator 构建 Web Demo 或微信小游戏。                               | `npm run build:web`、`npm run build:wechat`                     |
+| `verify-built-revival.mjs`  | 执行 Creator 实际产物，核验满槽及剩余一格时的复活清槽。                       | 由 `build-cocos.mjs` 自动调用                                   |
+| `preview-web.mjs`           | 提供本地 Web 试玩与第二关牌局接口。                                           | `npm run preview`                                               |
+| `fixed-board-candidate.mjs` | 按几何 → AB → AA → A 构建 240 张候选并验证六格参考解，供离线调参导入。        | 导出 `createFixedBoardCandidate` 与 `verifyFixedBoardCandidate` |
+| `simulate-win-rate.mjs`     | 批量运行无道具模拟，默认逐副输出微信第二关固定牌局的通关率和 30% 进度达标率。 | `npm run simulate:win-rate`                                     |
+| `simulate-round.mjs`        | 复用游戏的 `Round` 规则运行单局，按可见牌推演策略选牌。                       | 由 `simulate-win-rate.mjs` 导入                                 |
+| `visible-lookahead.mjs`     | 根据可见牌、遮挡和卡槽向前推演，为候选取牌操作打分。                          | 由 `simulate-round.mjs` 导入                                    |
+| `package-fragments.mjs`     | 生成碎片云函数的本地部署包 `build/cloud-functions/flip-zoo-fragments`。       | `node scripts/package-fragments.mjs`                            |
 
 ## 难度推演
+
+当前牌库的逐副结果与复现参数见 [难度校准报告](../../docs/40-readiness/FLIP-ZOO-DIFFICULTY-CALIBRATION.md)，达标结论及未覆盖范围见 [难度验收状态](../../docs/40-readiness/FLIP-ZOO-DIFFICULTY-READINESS.md)。
 
 实现、指标口径和布局级评估设计见 [FLIP ZOO 难度推演说明](../../docs/30-designs/FLIP-ZOO-DESIGN.md#难度推演)。
 
@@ -107,7 +119,7 @@ SKU 留空时先查询活动中的 `product_info_list`，取与配置商品 ID �
 ```sh
 npm run simulate:win-rate
 npm run simulate:win-rate -- --rounds 1000 --seed 42 --error-rate 0.1
-npm run simulate:win-rate -- --source web --key-groups 2 --overlap-groups 1
+npm run simulate:win-rate -- --source web
 npm run simulate:win-rate -- --source tutorial
 npm run simulate:win-rate -- --max-binding-groups 2
 ```
@@ -134,12 +146,14 @@ npm run check
 | 业务用途                       | 源码位置                                                                      | 微信包归属   |
 | ------------------------------ | ----------------------------------------------------------------------------- | ------------ |
 | 首页与 LOADING 共用背景        | `assets/resources/home-loading/background.jpg`                                | 主包         |
+| LOADING 适龄提示标牌           | `assets/resources/home-loading/age-rating.png`                                | 主包         |
 | 牌桌背景、卡牌、道具与消除音效 | `assets/resources/gameplay/`                                                  | 主包         |
 | 胜利与失败结算插画             | `assets/resources/result/`                                                    | 主包         |
 | 共享图标、弹层纸纹与按钮音效   | `assets/resources/shared/`                                                    | 主包         |
 | 儿童隐私结构化全文             | `assets/resources/privacy/child-privacy-policy.json`                          | 主包         |
 | 首页、设置独立控件与家园动画   | `assets/home/buttons.png`、`assets/home/settings/`、`assets/home/collection/` | `home` 分包  |
 | 全局背景音乐                   | `assets/music/shared/background-music.mp3`                                    | `music` 分包 |
+| 教学完成过渡插画               | `assets/home/tutorial-transition.png`                                         | `home` 分包  |
 | 邀请与胜利分享卡               | `share/game-invite.jpg`、`share/victory-result.jpg`                           | 主包         |
 
 LOADING 背景先由主包加载并显示，再加载 `home` 分包。
