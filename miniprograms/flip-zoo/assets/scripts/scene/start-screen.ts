@@ -1573,7 +1573,7 @@ export class FlipZooStartScreen extends Component {
             expired = () => reject(new Error("Fragment settlement timed out"));
             this.scheduleOnce(expired, 6);
         });
-        let feedback = "碎片结算未完成，打开家园可重试";
+        let feedback: string | undefined;
         try {
             const result = await Promise.race([
                 settleFragmentRound(id, actions),
@@ -1588,12 +1588,10 @@ export class FlipZooStartScreen extends Component {
                 this.playFragmentReward(overlay, result.animal);
                 return;
             }
-            feedback =
-                result.status === "limit"
-                    ? "今日碎片已达上限"
-                    : "本局碎片校验未通过";
+            if (result.status === "limit") feedback = "今日碎片已达上限";
         } catch {
             // The pending settlement is retried when the player opens Home.
+            feedback = "碎片结算未完成，打开家园可重试";
         } finally {
             this.unschedule(expired);
         }
