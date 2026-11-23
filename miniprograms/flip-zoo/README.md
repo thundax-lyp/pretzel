@@ -22,7 +22,7 @@ npm run preview
 
 微信小游戏第二关开局开放 6 格，第 7 格通过调起微信转发解锁，本局有效。槽满失败后可以重试或返回首页。
 
-背景音乐放在 `music` 分包。首页加载完成后，音乐音量大于零时加载并循环播放；点击「开始游戏」时会再次检查播放状态。消除音效随主包提供。微信构建分别检查主包 4 MB 和整包 30 MB。
+背景音乐放在 `music` 分包。首页加载完成后，音乐音量大于零时加载并循环播放；点击「开始游戏」时会再次检查播放状态。消除音效随主包提供。微信构建分别检查主包 4 MB 和整包 30 MB。构建脚本还会直接执行 Creator 输出的 `Round` 模块，核验 6／7 格、剩余 0／1 格时均可复活并完整补牌清槽，防止源码测试通过但正式转译产物失效。
 
 本地模拟器调试在仓库根目录的私有 `.env` 中设置 `FLIP_ZOO_WECHAT_TEST_APP_ID`，使用当前微信开发者工具账号可用的小游戏测试号。从仓库根目录执行以下命令，再把 `build/wechatgame-test` 作为小游戏项目导入微信开发者工具。
 
@@ -98,6 +98,7 @@ SKU 留空时先查询活动中的 `product_info_list`，取与配置商品 ID �
 | 文件                        | 用途                                                                          | 入口                                                            |
 | --------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------- |
 | `build-cocos.mjs`           | 调用 Cocos Creator 构建 Web Demo 或微信小游戏。                               | `npm run build:web`、`npm run build:wechat`                     |
+| `verify-built-revival.mjs`  | 执行 Creator 实际产物，核验满槽及剩余一格时的复活清槽。                       | 由 `build-cocos.mjs` 自动调用                                   |
 | `preview-web.mjs`           | 提供本地 Web 试玩与第二关牌局接口。                                           | `npm run preview`                                               |
 | `fixed-board-candidate.mjs` | 按几何 → AB → AA → A 构建 240 张候选并验证六格参考解，供离线调参导入。        | 导出 `createFixedBoardCandidate` 与 `verifyFixedBoardCandidate` |
 | `simulate-win-rate.mjs`     | 批量运行无道具模拟，默认逐副输出微信第二关固定牌局的通关率和 30% 进度达标率。 | `npm run simulate:win-rate`                                     |

@@ -713,7 +713,9 @@ export class Round {
         for (const card of this.slotted)
             totals.set(card.kind, (totals.get(card.kind) ?? 0) + 1);
         while (true) {
-            const pending = [...totals].find(([, count]) => count % 3 !== 0);
+            const pending = Array.from(totals).find(
+                ([, count]) => count % 3 !== 0,
+            );
             if (!pending) break;
             const [kind] = pending;
             const card = board.find(
@@ -727,10 +729,12 @@ export class Round {
                 totals.set(tile.kind, (totals.get(tile.kind) ?? 0) + 1);
             }
         }
-        return [...totals].map(([kind]) => ({
+        return Array.from(totals).map(([kind]) => ({
             kind,
             heldCount: this.slotted.filter((card) => card.kind === kind).length,
-            boardCards: [...selected].filter((card) => card.kind === kind),
+            boardCards: Array.from(selected).filter(
+                (card) => card.kind === kind,
+            ),
         }));
     }
 
