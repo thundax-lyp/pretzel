@@ -83,6 +83,7 @@ import { SettingsView } from "../settings/settings-view";
 import { ZooAudio } from "../services/zoo-audio";
 import {
     FULL_EXPOSURE,
+    insertSlotCards,
     C_OPENING_CARD_COUNT,
     SHARE_SLOT_ACTION,
     GROUPS,
@@ -988,8 +989,11 @@ export class FlipZooStartScreen extends Component {
         card: Card,
         taken: readonly { card: Card; lifted: CardView }[],
     ): void {
-        const insertionIndex = this.round.slotInsertionIndex(card.kind);
-        const previous = this.round.slots.map((tile) => tile.kind);
+        const previousCards = [...this.round.slots];
+        const arranged = insertSlotCards(
+            previousCards,
+            taken.map(({ card: tile }) => tile),
+        );
         const matched = this.round.take(card.id);
         if (matched === null) {
             this.cancelBoardPress();
@@ -999,26 +1003,37 @@ export class FlipZooStartScreen extends Component {
         this.fragmentRound?.actions.push(card.id);
         if (this.round.level === 1) this.preloadMainBoard();
         this.animatingCards = true;
-        for (let index = insertionIndex; index < previous.length; index += 1) {
-            slideSlotCard(
-                this.slotTray!,
-                this.art,
-                this.slots[index].node,
-                this.slots[index + taken.length].node,
-                previous[index],
-            );
+        for (const [index, tile] of previousCards.entries()) {
+            const target = arranged.findIndex((card) => card.id === tile.id);
+            if (target !== index)
+                slideSlotCard(
+                    this.slotTray!,
+                    this.art,
+                    this.slots[index].node,
+                    this.slots[target].node,
+                    tile.kind,
+                );
         }
-        this.refreshSlots(previous.slice(0, insertionIndex));
+        this.refreshSlots(
+            arranged.map((tile, index) =>
+                previousCards[index]?.id === tile.id ? tile.kind : undefined,
+            ),
+        );
         let remainingFlights = taken.length;
         const onLanded = () => {
             remainingFlights -= 1;
             if (remainingFlights > 0) return;
             this.animatingCards = false;
             if (matched) {
-                const start =
-                    insertionIndex -
-                    previous.filter((kind) => kind === card.kind).length;
-                this.playMatch(card.kind, [start, start + 1, start + 2]);
+                for (const kind of new Set(
+                    taken.map(({ card: tile }) => tile.kind),
+                )) {
+                    const indices = arranged.flatMap((tile, index) =>
+                        tile.kind === kind ? [index] : [],
+                    );
+                    if (indices.length >= 3)
+                        this.playMatch(kind, indices.slice(0, 3));
+                }
             }
             this.message.string =
                 WECHAT && this.round.level === 2
@@ -1029,8 +1044,13 @@ export class FlipZooStartScreen extends Component {
             this.finishAction(matched > 0);
         };
         this.boardPress = undefined;
-        taken.forEach(({ card: tile, lifted }, index) =>
-            this.flyCardToSlot(tile, insertionIndex + index, onLanded, lifted),
+        taken.forEach(({ card: tile, lifted }) =>
+            this.flyCardToSlot(
+                tile,
+                arranged.findIndex((card) => card.id === tile.id),
+                onLanded,
+                lifted,
+            ),
         );
         this.refreshBoard();
     }
@@ -2012,6 +2032,28 @@ export class FlipZooStartScreen extends Component {
         groups: readonly SlotClearGroup[],
         index: number,
     ): void {
+        if (index === 0) {
+            this.refreshBoard();
+            groups = groups.flatMap((group) => {
+                const batches: SlotClearGroup[] = [];
+                let offset = 0;
+                let heldCount = group.heldCount;
+                while (offset < group.boardCards.length) {
+                    const count = 3 - heldCount;
+                    batches.push({
+                        kind: group.kind,
+                        heldCount,
+                        boardCards: group.boardCards.slice(
+                            offset,
+                            offset + count,
+                        ),
+                    });
+                    offset += count;
+                    heldCount = 0;
+                }
+                return batches;
+            });
+        }
         const group = groups[index];
         if (!group) {
             this.animatingCards = false;
@@ -2105,8 +2147,9 @@ export class FlipZooStartScreen extends Component {
             round.isSelectable(round.exposure(b));
         graphic.clear();
         graphic.lineWidth = 1.5;
-        graphic.fillColor = color("#ADBFB2");
-        graphic.strokeColor = color("#6D8276");
+        const advanced = a.kind !== b.kind;
+        graphic.fillColor = color(advanced ? "#EAC26C" : "#ADBFB2");
+        graphic.strokeColor = color(advanced ? "#9A622D" : "#6D8276");
         const railWidth = horizontal ? 42 : 9;
         const railHeight = horizontal ? 9 : 42;
         graphic.roundRect(

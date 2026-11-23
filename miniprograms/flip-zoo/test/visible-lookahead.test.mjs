@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { play } from "../scripts/simulate-round.mjs";
+import { Round } from "../assets/scripts/gameplay/round.ts";
 import { createLookahead } from "../scripts/visible-lookahead.mjs";
 
 test("lookahead avoids a full tray without reading dark or fully covered faces", () => {
@@ -58,4 +60,57 @@ test("omniscient lookahead scores dark faces and still excludes covered cards", 
         ],
     );
     assert.ok(choices[0].score > choices[1].score);
+});
+
+test("visible lookahead evaluates both different faces of an advanced pair", () => {
+    const r = new Round(
+        2,
+        "B",
+        [0, 0, 1, 1, 0, 1],
+        undefined,
+        [[[0, 0, 6, 1]]],
+        false,
+        [[4, 5]],
+        true,
+    );
+    for (const id of [0, 1, 2, 3]) r.take(id);
+    const scores = createLookahead(r.cards)(r);
+    assert.deepEqual(
+        scores.map(({ id, completesMatch }) => [id, completesMatch]),
+        [
+            [4, true],
+            [5, true],
+        ],
+    );
+    assert.equal(scores[0].score, scores[1].score);
+    assert.equal(r.take(4), 6);
+});
+
+test("reusing prepared geometry does not retain state between seeded games", () => {
+    const deal = {
+        boardKinds: [0, 0, 1, 1, 0, 1, 2, 2, 2],
+        layout: [[[0, 0, 9, 1]]],
+        bindings: [[4, 5]],
+    };
+    const template = new Round(
+        2,
+        "C",
+        deal.boardKinds,
+        undefined,
+        deal.layout,
+        false,
+        deal.bindings,
+        true,
+    );
+    const strategy = createLookahead(template.cards);
+    for (const seed of [1, 2, 3, 4, 1]) {
+        const options = {
+            ...deal,
+            group: "C",
+            seed,
+            errorRate: 0,
+            shareLockedSlot: true,
+        };
+        assert.deepEqual(play({ ...options, strategy }), play(options));
+    }
 });

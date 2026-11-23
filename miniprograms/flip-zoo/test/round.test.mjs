@@ -7,19 +7,6 @@ import {
     Round,
     isBoardKinds,
 } from "../assets/scripts/gameplay/round.ts";
-import {
-    DEFAULT_DIFFICULTY,
-    buildBoardKinds,
-    isDifficulty,
-} from "../scripts/difficulty.mjs";
-
-const difficulties = [1, 2, 3].flatMap((keyGroups) =>
-    Array.from({ length: keyGroups + 1 }, (_, overlapGroups) => ({
-        keyGroups,
-        overlapGroups,
-    })),
-);
-
 test("the tutorial has 12 flat tiles, 6 per type, and clears with five slots", () => {
     const round = new Round(1, "A");
     assert.equal(round.unlockNextSlot(), false);
@@ -204,117 +191,6 @@ test("the seventh tile can match when both slots have been unlocked", () => {
     }
 });
 
-test("the default and all nine difficulty settings are valid; bad counts are rejected", () => {
-    assert.deepEqual(DEFAULT_DIFFICULTY, { keyGroups: 1, overlapGroups: 0 });
-    assert.deepEqual(buildBoardKinds(DEFAULT_DIFFICULTY), DEFAULT_BOARD_KINDS);
-    assert.ok(difficulties.every(isDifficulty));
-    for (const [keyGroups, overlapGroups] of [
-        [0, 0],
-        [4, 0],
-        [2, 3],
-        [1, -1],
-        [3, 1.5],
-        ["1", 0],
-    ]) {
-        assert.equal(isDifficulty({ keyGroups, overlapGroups }), false);
-    }
-});
-
-test("all nine settings reserve exactly three copies per key kind and the requested overlaps", () => {
-    for (const difficulty of difficulties) {
-        const kindsForRound = buildBoardKinds(difficulty);
-        assert.equal(isBoardKinds(kindsForRound), true);
-        const round = new Round(2, "A", kindsForRound);
-        const base = new Round(
-            2,
-            "C",
-            buildBoardKinds({ ...difficulty, overlapGroups: 0 }),
-        );
-        assert.equal(round.cards.length, 189);
-        const byKind = (cards) => {
-            const groups = new Map();
-            for (const card of cards) {
-                if (!groups.has(card.kind)) groups.set(card.kind, []);
-                groups.get(card.kind).push(card);
-            }
-            return [...groups.entries()].sort(([a], [b]) => a - b);
-        };
-        const kinds = byKind(round.cards);
-        assert.equal(kinds.length, ANIMAL_KIND_COUNT);
-        assert.ok(kinds.every(([, cards]) => cards.length % 3 === 0));
-        assert.deepEqual(
-            kinds.map(([kind, cards]) => [kind, cards.length]),
-            byKind(base.cards).map(([kind, cards]) => [kind, cards.length]),
-        );
-        assert.deepEqual(
-            round.cards.map(({ id, left, top }) => [id, left, top]),
-            base.cards.map(({ id, left, top }) => [id, left, top]),
-        );
-        const keys = kinds.filter(([, cards]) => cards.length === 3);
-        assert.equal(keys.length, difficulty.keyGroups);
-        let overlapping = 0;
-        for (const [, cards] of keys) {
-            assert.deepEqual(
-                cards.map(({ layer }) => layer),
-                [0, 1, 2],
-            );
-            const pairs = cards.flatMap((lower, index) =>
-                cards
-                    .slice(index + 1)
-                    .filter(
-                        (upper) =>
-                            Math.abs(upper.left - lower.left) < 1 &&
-                            Math.abs(upper.top - lower.top) < 1,
-                    )
-                    .map((upper) => [lower.layer, upper.layer]),
-            );
-            assert.ok(pairs.length <= 1);
-            if (pairs.length) {
-                assert.deepEqual(pairs[0], [1, 2]);
-                overlapping += 1;
-            }
-        }
-        assert.equal(overlapping, difficulty.overlapGroups);
-    }
-});
-
-function takeWithFullInformation(round, preferTop = false) {
-    const available = round.cards.filter(
-        (card) =>
-            round.isOnBoard(card) && round.isSelectable(round.exposure(card)),
-    );
-    assert.ok(available.length > 0);
-    let best = available[0];
-    let bestScore = -1;
-    for (const card of available) {
-        const held = round.slots.filter(
-            (tile) => tile.kind === card.kind,
-        ).length;
-        const shown = available.filter(
-            (tile) => tile.kind === card.kind,
-        ).length;
-        let score = shown;
-        if (held === 2) score = 100;
-        else if (shown + held >= 3) score = 60 + held;
-        else if (held === 1 || shown === 2) score = 30 + held;
-        if (preferTop) score = score * 3 + card.layer;
-        if (score > bestScore) {
-            best = card;
-            bestScore = score;
-        }
-    }
-    assert.notEqual(round.take(best.id), null);
-}
-
-test("each difficulty has a legal five-slot clear with full information", () => {
-    for (const difficulty of difficulties) {
-        const round = new Round(2, "B", buildBoardKinds(difficulty));
-        while (round.status === "playing") takeWithFullInformation(round);
-        assert.equal(round.status, "won", JSON.stringify(difficulty));
-        assert.equal(round.moves, 189);
-    }
-});
-
 test("filling the active capacity without a match loses immediately", () => {
     for (const capacity of [5, 6, 7]) {
         const round = new Round(2, "A");
@@ -464,13 +340,9 @@ test("clear slots completes every group in first-entry order", () => {
 });
 
 test("clear slots completes a group across layers in highest-first order", () => {
-    const round = new Round(
-        2,
-        "A",
-        buildBoardKinds({ keyGroups: 3, overlapGroups: 1 }),
-    );
+    const round = new Round(2, "A", [...DEFAULT_BOARD_KINDS]);
     assert.equal(round.take(173), 0);
-    const matches = [110, 0].map((id) => round.cards[id]);
+    const matches = [125, 0].map((id) => round.cards[id]);
     assert.notEqual(matches[0].layer, matches[1].layer);
     assert.ok(
         matches.every((card) => !round.isSelectable(round.exposure(card))),
@@ -510,32 +382,26 @@ test("clear slots prefers a higher complete binding over lower single tiles", ()
     for (const id of [0, 1, 2]) assert.ok(round.isOnBoard(round.cards[id]));
 });
 
-test("clear slots preserves the board and use when any group cannot be completed", () => {
-    const kinds = buildBoardKinds({ keyGroups: 3, overlapGroups: 1 });
-    kinds[0] = kinds[1];
-    const round = new Round(2, "A", kinds);
-    assert.equal(round.take(128), 0);
-    assert.equal(round.take(173), 0);
-    const blocked = [0, 110].map((id) => round.cards[id]);
-    assert.ok(
-        blocked.every((card) => !round.isSelectable(round.exposure(card))),
-    );
+test("clear slots preserves every tile and the prop if any type cannot be completed", () => {
+    const round = new Round(2, "C", [0, 0, 0, 1, 1, 2], undefined, [
+        [[0, 0, 6, 1]],
+    ]);
+    round.take(0);
+    round.take(3);
     assert.equal(round.use("remove"), false);
     assert.equal(round.propUsesLeft("remove"), 1);
-    assert.equal(round.remaining, 189);
-    assert.ok(blocked.every((card) => round.isOnBoard(card)));
-    assert.equal(round.isOnBoard(round.cards[131]), true);
-    assert.equal(round.isOnBoard(round.cards[132]), true);
+    assert.equal(round.remaining, 6);
+    assert.ok([1, 2, 4, 5].every((id) => round.isOnBoard(round.cards[id])));
     assert.deepEqual(
         round.slots.map((card) => card.id),
-        [128, 173],
+        [0, 3],
     );
 });
 
 test("remove searches lower layers for a complete group", () => {
-    const kinds = buildBoardKinds({ keyGroups: 3, overlapGroups: 1 });
-    const movedKind = kinds[110];
-    kinds[110] = kinds[1];
+    const kinds = [...DEFAULT_BOARD_KINDS];
+    const movedKind = kinds[125];
+    kinds[125] = kinds[1];
     kinds[1] = movedKind;
     const round = new Round(2, "A", kinds);
     assert.equal(round.take(173), 0);
@@ -640,4 +506,186 @@ test("taking a bound pair into two matching held tiles removes only three", () =
     );
     assert.equal(round.remaining, 2);
     assert.equal(round.use("undo"), false);
+});
+
+test("advanced pairs insert both kinds and can resolve two triples atomically", () => {
+    for (const clicked of [4, 5]) {
+        const round = new Round(
+            2,
+            "C",
+            [0, 0, 1, 1, 0, 1],
+            undefined,
+            [[[0, 0, 6, 1]]],
+            false,
+            [[4, 5]],
+            true,
+        );
+        for (const id of [0, 1, 2, 3]) assert.equal(round.take(id), 0);
+        assert.equal(round.take(clicked), 6);
+        assert.deepEqual(round.slots, []);
+        assert.equal(round.status, "won");
+        assert.equal(round.canUse("undo"), false);
+    }
+});
+
+test("advanced pairs preserve the unmatched partner and undo the complete pair", () => {
+    const round = new Round(
+        2,
+        "C",
+        [0, 0, 1, 0, 1, 1],
+        undefined,
+        [[[0, 0, 6, 1]]],
+        false,
+        [[3, 4]],
+        true,
+    );
+    assert.equal(round.take(3), 0);
+    assert.deepEqual(
+        round.slots.map((c) => c.kind),
+        [0, 1],
+    );
+    assert.equal(round.use("undo"), true);
+    assert.ok([3, 4].every((id) => round.isOnBoard(round.cards[id])));
+    round.take(0);
+    round.take(1);
+    assert.equal(round.take(4), 3);
+    assert.deepEqual(
+        round.slots.map((c) => c.kind),
+        [1],
+    );
+    assert.equal(round.canUse("undo"), false);
+    round.take(2);
+    round.take(5);
+    assert.equal(round.status, "won");
+});
+
+test("slot clearing completes collateral kinds without splitting advanced pairs", () => {
+    const round = new Round(
+        2,
+        "C",
+        [0, 0, 0, 1, 1, 1, 2, 2, 2],
+        undefined,
+        [[[0, 0, 9, 1]]],
+        false,
+        [
+            [2, 3],
+            [5, 6],
+        ],
+        true,
+    );
+    round.take(0);
+    round.take(1);
+    const groups = round.clearSlots();
+    assert.ok(groups);
+    assert.deepEqual(
+        groups.map((g) => g.kind),
+        [0, 1, 2],
+    );
+    assert.equal(
+        new Set(groups.flatMap((g) => g.boardCards.map((c) => c.id))).size,
+        7,
+    );
+    for (const g of groups)
+        assert.equal((g.heldCount + g.boardCards.length) % 3, 0);
+    assert.equal(round.status, "won");
+});
+
+test("an advanced pair cannot use a lone empty slot even if a type would match", () => {
+    const round = new Round(
+        2,
+        "C",
+        [0, 1, 2, 3, 4, 0, 1, 5],
+        undefined,
+        [[[0, 0, 8, 1]]],
+        false,
+        [[5, 6]],
+        true,
+    );
+    for (const id of [0, 1, 2, 3, 4]) round.take(id);
+    assert.equal(round.status, "playing");
+    assert.equal(round.canTake(5), false);
+    assert.equal(round.take(6), null);
+    assert.ok([5, 6].every((id) => round.isOnBoard(round.cards[id])));
+});
+
+test("precomputed covering masks follow pair removal, undo and clearing", () => {
+    const r = new Round(
+        2,
+        "C",
+        [0, 0, 1, 1, 2, 2, 0, 1, 2],
+        undefined,
+        [[[0, 0, 3, 2]], [[0.5, 0.5, 2, 1]], [[1, 1, 1, 1]]],
+        false,
+        [[6, 7]],
+        true,
+    );
+    const check = () => {
+        for (const card of r.cards) {
+            let expected = 0;
+            for (const [bit, [x, y]] of [
+                [0.25, 0.25],
+                [0.75, 0.25],
+                [0.25, 0.75],
+                [0.75, 0.75],
+            ].entries()) {
+                const covered = r.cards.some(
+                    (upper) =>
+                        r.isOnBoard(upper) &&
+                        upper.layer > card.layer &&
+                        card.left + x >= upper.left &&
+                        card.left + x < upper.left + 1 &&
+                        card.top + y >= upper.top &&
+                        card.top + y < upper.top + 1,
+                );
+                if (!covered) expected |= 1 << bit;
+            }
+            assert.equal(r.exposure(card), expected, "card " + card.id);
+        }
+    };
+    check();
+    r.take(8);
+    check();
+    assert.equal(r.use("undo"), true);
+    check();
+    r.take(8);
+    r.take(6);
+    check();
+    assert.ok(r.clearSlots());
+    check();
+    assert.equal(r.status, "won");
+});
+
+test("unlocking the seventh slot allows an advanced pair to complete both held types", () => {
+    const r = new Round(
+        2,
+        "C",
+        [0, 0, 1, 1, 2, 0, 1, 2, 2],
+        undefined,
+        [[[0, 0, 9, 1]]],
+        false,
+        [[5, 6]],
+        true,
+    );
+    for (const id of [0, 1, 2, 3, 4]) r.take(id);
+    assert.equal(r.take(5), null);
+    assert.equal(r.unlockNextSlot(), true);
+    assert.equal(r.take(5), 6);
+    assert.deepEqual(
+        r.slots.map((c) => c.kind),
+        [2],
+    );
+    r.take(7);
+    r.take(8);
+    assert.equal(r.status, "won");
+});
+
+test("the default board has no three-copy reserved animal type", () => {
+    assert.equal(isBoardKinds([...DEFAULT_BOARD_KINDS]), true);
+    const counts = Map.groupBy(DEFAULT_BOARD_KINDS, (kind) => kind);
+    assert.equal(counts.size, ANIMAL_KIND_COUNT);
+    assert.ok(
+        [...counts.values()].every(
+            (cards) => cards.length >= 6 && cards.length % 3 === 0,
+        ),
+    );
 });

@@ -1,7 +1,8 @@
 import { parseArgs } from "node:util";
 import { MAIN_BOARD_POOL } from "../assets/scripts/services/main-board-pool.ts";
-import { buildBoardKinds, isDifficulty } from "./difficulty.mjs";
+import { Round, generateMainBoard } from "../assets/scripts/gameplay/round.ts";
 import { play } from "./simulate-round.mjs";
+import { createLookahead } from "./visible-lookahead.mjs";
 
 const { values } = parseArgs({
     options: {
@@ -10,8 +11,6 @@ const { values } = parseArgs({
         rounds: { type: "string", default: "100" },
         seed: { type: "string", default: "1" },
         "error-rate": { type: "string", default: "0" },
-        "key-groups": { type: "string" },
-        "overlap-groups": { type: "string" },
         "max-binding-groups": { type: "string" },
         "unlock-slot": { type: "boolean" },
         omniscient: { type: "boolean" },
@@ -21,7 +20,7 @@ const { values } = parseArgs({
 });
 if (values.help) {
     console.log(
-        "npm run simulate:win-rate -- [--source wechat|web|tutorial] [--board 1..40] [--rounds N] [--seed N] [--error-rate 0..1] [--key-groups N --overlap-groups N] [--max-binding-groups N] [--unlock-slot] [--omniscient] [--json]",
+        "npm run simulate:win-rate -- [--source wechat|web|tutorial] [--board 1..40] [--rounds N] [--seed N] [--error-rate 0..1] [--max-binding-groups N] [--unlock-slot] [--omniscient] [--json]",
     );
     process.exit(0);
 }
@@ -54,8 +53,6 @@ if (!/^\d+$/.test(values.seed) || seed < 1 || seed + rounds - 1 > 0xffffffff)
     throw new Error("The seed range must fit within 1 to 4294967295");
 if (!values["error-rate"].trim() || !(errorRate >= 0 && errorRate <= 1))
     throw new Error("--error-rate must be between 0 and 1");
-if (source !== "web" && (values["key-groups"] || values["overlap-groups"]))
-    throw new Error("Difficulty options apply only to Web boards");
 const bindingLimit = values["max-binding-groups"];
 const maxBindingGroups =
     bindingLimit === undefined ? undefined : Number(bindingLimit);
@@ -68,11 +65,12 @@ if (
     throw new Error(
         "--max-binding-groups requires a nonnegative integer and the WeChat source",
     );
-const difficulty = {
-    keyGroups: Number(values["key-groups"] ?? 1),
-    overlapGroups: Number(values["overlap-groups"] ?? 0),
-};
-if (!isDifficulty(difficulty)) throw new Error("Invalid Web difficulty");
+let previewState = 1;
+const previewKinds = () =>
+    generateMainBoard(() => {
+        previewState = (Math.imul(previewState, 1664525) + 1013904223) >>> 0;
+        return previewState / 2 ** 32;
+    }).kinds;
 
 const cases = {
     wechat: MAIN_BOARD_POOL.filter(
@@ -83,16 +81,28 @@ const cases = {
         boardKinds: kinds,
         bindings: bindings.slice(0, maxBindingGroups),
     })),
-    web: [{ name: "Web", boardKinds: buildBoardKinds(difficulty) }],
+    web: [{ name: "Web", boardKinds: previewKinds() }],
     tutorial: [{ name: "Tutorial", level: 1 }],
 }[source];
 
 const results = cases.map(({ name, ...board }) => {
     let wins = 0;
     let reached30 = 0;
+    const template = new Round(
+        board.level ?? 2,
+        "C",
+        board.boardKinds,
+        undefined,
+        board.layout,
+        false,
+        board.bindings,
+        shareLockedSlot,
+    );
+    const strategy = createLookahead(template.cards, values.omniscient);
     for (let index = 0; index < rounds; index += 1) {
         const result = play({
             ...board,
+            strategy,
             group: "C",
             seed: seed + index,
             errorRate,
@@ -104,7 +114,15 @@ const results = cases.map(({ name, ...board }) => {
     }
     return {
         board: name,
-        ...(board.bindings && { bindingGroupCount: board.bindings.length }),
+        ...(board.bindings && {
+            bindingGroupCount: board.bindings.length,
+            advancedBindingGroupCount: board.bindings.filter(
+                ([a, b]) => board.boardKinds[a] !== board.boardKinds[b],
+            ).length,
+            normalBindingGroupCount: board.bindings.filter(
+                ([a, b]) => board.boardKinds[a] === board.boardKinds[b],
+            ).length,
+        }),
         rounds,
         wins,
         winRate: wins / rounds,
@@ -133,7 +151,6 @@ const settings = {
     roundsPerBoard: rounds,
     errorRate,
     ...(maxBindingGroups !== undefined && { maxBindingGroups }),
-    ...(source === "web" && { difficulty }),
 };
 if (values.json) {
     console.log(JSON.stringify({ settings, results, summary }, null, 4));

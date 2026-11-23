@@ -14,8 +14,6 @@ npm run preview
 
 打开 [本地试玩](http://127.0.0.1:8874/)。预览服务由 Node.js 提供，重新构建后刷新页面即可。如果 Creator 安装在其他位置，用 `COCOS_CREATOR_PATH` 指向 3.8.8 可执行文件。
 
-打开 [难度后台](http://127.0.0.1:8874/admin) 可调整第二关的命门组数和直接叠压组数。设置保存在本地预览目录 `local/difficulty.json`，重开第二关或切换 A/B/C 后生效。Creator 直接预览在本地生成牌局。
-
 玩法与道具见 [Flip Zoo 需求](../../docs/01-requirements/FLIP-ZOO-REQUIREMENTS.md)，布局和难度实现见 [工程文档导航](../../docs/README.md)。
 
 ## 微信小游戏
@@ -55,6 +53,12 @@ node scripts/with-env.mjs --env-file .env -- npm --prefix miniprograms/flip-zoo 
 
 运行 `node scripts/package-fragments.mjs` 生成 `build/cloud-functions/flip-zoo-fragments`，然后将该目录部署到同一云环境，云函数名称指定为 `flipZooFragments`，并安装云端依赖。云函数使用 `flipZooFragments` 集合保存牌局、发放记录和余额。集合权限应设为仅云端可读写。
 
+### 分享渠道记录
+
+运行 `node scripts/package-shares.mjs`，将生成的 `build/cloud-functions/flip-zoo-shares` 部署为事件型云函数 `flipZooShares`。使用 `Nodejs22.21`，依赖已在本地打包，部署时关闭云端安装。建立 `flipZooShares` 和 `flipZooShareOpens` 两个集合，数据库安全规则均设为仅云端可读写。该函数从微信调用上下文读取身份，生成／校验渠道 MD5，并按事件 ID 幂等写入分享点击和小游戏来源记录。分享卡片的 query 使用 `share_channel=<MD5>`；不携带用户 openid。只保存有效 `share_channel` 对应的进入记录；不保存无渠道或格式无效的普通打开，普通打开由微信后台统计。网络失败的客户端记录持久保留并重试，分享点击记录不代表实际转发成功。两表建立 `appid_channel` 联合索引（`appid`、`channel` 升序）。
+
+通过 `wx.cloud.callFunction({ name: "flipZooShares", data: { action: "stats", channel } })` 查询本人某次分享的回流闭环。返回带渠道进入次数、独立进入人数、外部回流次数／人数、分享者自开次数及首末进入时间；其他用户不能查询该分享的统计。`hasReturn` 仅在至少有一名分享者之外的用户带渠道进入后为 true。
+
 ### 动物兑换配置
 
 兑换采用微信小店的商家配置模式。活动必须绑定当前正式小游戏 AppID，并包含指定商品与 SKU，处于活动有效期内且库存充足。客户端使用基础库 3.8.12 以上、微信 iOS／Android 8.0.60 以上；Windows／Mac 微信不支持礼物组件。
@@ -87,16 +91,15 @@ SKU 留空时先查询活动中的 `product_info_list`，取与配置商品 ID �
 
 在 FLIP ZOO 工程目录下运行表中的命令，使用 Node.js 22。
 
-| 文件                    | 用途                                                                          | 入口                                             |
-| ----------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------ |
-| `build-cocos.mjs`       | 调用 Cocos Creator 构建 Web Demo 或微信小游戏。                               | `npm run build:web`、`npm run build:wechat`      |
-| `preview-web.mjs`       | 提供本地 Web 试玩、第二关牌局接口和难度设置页面。                             | `npm run preview`                                |
-| `difficulty-admin.html` | 调整 Web 第二关的命门组数和直接叠压组数。                                     | 预览服务启动后访问 `http://127.0.0.1:8874/admin` |
-| `difficulty.mjs`        | 校验难度参数，并按参数构造 Web 第二关的配牌。                                 | 由预览服务和模拟脚本导入                         |
-| `simulate-win-rate.mjs` | 批量运行无道具模拟，默认逐副输出微信第二关固定牌局的通关率和 30% 进度达标率。 | `npm run simulate:win-rate`                      |
-| `simulate-round.mjs`    | 复用游戏的 `Round` 规则运行单局，按可见牌推演策略选牌。                       | 由 `simulate-win-rate.mjs` 导入                  |
-| `visible-lookahead.mjs` | 根据可见牌、遮挡和卡槽向前推演，为候选取牌操作打分。                          | 由 `simulate-round.mjs` 导入                     |
-| `package-fragments.mjs` | 生成碎片云函数的本地部署包 `build/cloud-functions/flip-zoo-fragments`。       | `node scripts/package-fragments.mjs`             |
+| 文件                        | 用途                                                                          | 入口                                                            |
+| --------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `build-cocos.mjs`           | 调用 Cocos Creator 构建 Web Demo 或微信小游戏。                               | `npm run build:web`、`npm run build:wechat`                     |
+| `preview-web.mjs`           | 提供本地 Web 试玩与第二关牌局接口。                                           | `npm run preview`                                               |
+| `fixed-board-candidate.mjs` | 按几何 → AB → AA → A 构建 240 张候选并验证六格参考解，供离线调参导入。        | 导出 `createFixedBoardCandidate` 与 `verifyFixedBoardCandidate` |
+| `simulate-win-rate.mjs`     | 批量运行无道具模拟，默认逐副输出微信第二关固定牌局的通关率和 30% 进度达标率。 | `npm run simulate:win-rate`                                     |
+| `simulate-round.mjs`        | 复用游戏的 `Round` 规则运行单局，按可见牌推演策略选牌。                       | 由 `simulate-win-rate.mjs` 导入                                 |
+| `visible-lookahead.mjs`     | 根据可见牌、遮挡和卡槽向前推演，为候选取牌操作打分。                          | 由 `simulate-round.mjs` 导入                                    |
+| `package-fragments.mjs`     | 生成碎片云函数的本地部署包 `build/cloud-functions/flip-zoo-fragments`。       | `node scripts/package-fragments.mjs`                            |
 
 ## 难度推演
 
@@ -107,7 +110,7 @@ SKU 留空时先查询活动中的 `product_info_list`，取与配置商品 ID �
 ```sh
 npm run simulate:win-rate
 npm run simulate:win-rate -- --rounds 1000 --seed 42 --error-rate 0.1
-npm run simulate:win-rate -- --source web --key-groups 2 --overlap-groups 1
+npm run simulate:win-rate -- --source web
 npm run simulate:win-rate -- --source tutorial
 npm run simulate:win-rate -- --max-binding-groups 2
 ```

@@ -8,13 +8,14 @@ import { createBoardApi } from "../assets/scripts/services/board-api.ts";
 import { isInsideCardOutline } from "../assets/scripts/gameplay/card-outline.ts";
 import {
     ANIMAL_KIND_COUNT,
+    DEFAULT_BOARD_KINDS,
     MAIN_LAYOUTS,
     Round,
     generateMainBoard,
     isBoardKinds,
+    insertSlotCards,
 } from "../assets/scripts/gameplay/round.ts";
 import clearOrders from "./fixed-board-clear-orders.json" with { type: "json" };
-import { buildBoardKinds } from "../scripts/difficulty.mjs";
 
 function usePreviewOrigin(context) {
     Object.defineProperty(globalThis, "location", {
@@ -71,7 +72,7 @@ test("WeChat draws each saved board without contacting the preview server", asyn
             [...counts.values()].every((cards) => cards.length % 3 === 0),
         );
         const keyKinds = [...counts].filter(([, cards]) => cards.length === 3);
-        assert.ok(keyKinds.length <= 3, expected.name);
+        assert.equal(keyKinds.length, 0, expected.name);
         assert.ok(bindings.length <= 20, expected.name);
         const round = new Round(
             2,
@@ -84,20 +85,27 @@ test("WeChat draws each saved board without contacting the preview server", asyn
             true,
         );
         assert.equal(round.slotCapacity, 6);
-        for (const [kind] of keyKinds) {
-            assert.deepEqual(
-                round.cards
-                    .filter((card) => card.kind === kind)
-                    .map((card) => card.layer),
-                [0, 1, 2],
+        const advanced = bindings.filter(([a, b]) => kinds[a] !== kinds[b]);
+        for (const layer of [1, 2, 3]) {
+            assert.ok(
+                advanced.some(([id]) => round.cards[id].layer === layer),
                 expected.name,
             );
         }
+        assert.ok(
+            bindings.every(([id]) => round.cards[id].layer > 0),
+            expected.name,
+        );
+        assert.ok(
+            bindings.some(([a, b]) => kinds[a] === kinds[b]),
+            expected.name,
+        );
         const faceUp = round.cards.filter((card) => round.isFaceUp(card));
         const boundIds = bindings.flat();
         assert.equal(new Set(boundIds).size, boundIds.length, expected.name);
         const lowerBindings = bindings.filter(
-            ([first]) => round.cards[first].layer < 3,
+            ([first]) =>
+                round.cards[first].layer >= 1 && round.cards[first].layer <= 3,
         ).length;
         assert.ok(
             bindings.length === 0 || lowerBindings > bindings.length / 2,
@@ -106,7 +114,7 @@ test("WeChat draws each saved board without contacting the preview server", asyn
         for (const [first, second] of bindings) {
             const a = round.cards[first];
             const b = round.cards[second];
-            assert.equal(a.kind, b.kind, expected.name);
+
             assert.equal(a.layer, b.layer, expected.name);
             assert.equal(
                 Math.abs(a.x - b.x) + Math.abs(a.y - b.y),
@@ -127,7 +135,16 @@ test("WeChat draws each saved board without contacting the preview server", asyn
         assert.ok(!layouts.has(layoutKey), expected.name);
         layouts.add(layoutKey);
         const layers = Map.groupBy(round.cards, ({ layer }) => layer);
-        assert.equal(round.cards.length, 189, expected.name);
+        assert.equal(round.cards.length, 240, expected.name);
+        let earlyCount = 0;
+        for (const cards of [...layers.values()].reverse()) {
+            if (earlyCount >= Math.ceil(round.cards.length * 0.15)) break;
+            assert.ok(
+                new Set(cards.map((card) => card.kind)).size <= 12,
+                expected.name,
+            );
+            earlyCount += cards.length;
+        }
         assert.ok(layers.size >= 2 && layers.size <= 9, expected.name);
         const layerCounts = [...layers.values()].map((cards) => cards.length);
         assert.ok(Math.max(...layerCounts) <= 35, expected.name);
@@ -202,14 +219,18 @@ test("WeChat draws each saved board without contacting the preview server", asyn
                 continue;
             const card = round.cards[id];
             const partner = round.boundPartner(id);
-            const matching = round.slots.filter(
-                (held) => held.kind === card.kind,
+            const arranged = insertSlotCards(
+                round.slots,
+                partner ? [card, partner] : [card],
             );
-            matching.push(card);
-            if (partner) matching.push(partner);
             assert.notEqual(round.take(id), null, expected.name);
-            if (matching.length === 3) {
-                const layers = matching.map(({ layer }) => layer);
+            for (const kind of new Set([
+                card.kind,
+                ...(partner ? [partner.kind] : []),
+            ])) {
+                const matching = arranged.filter((tile) => tile.kind === kind);
+                if (matching.length < 3) continue;
+                const layers = matching.slice(0, 3).map(({ layer }) => layer);
                 assert.ok(
                     Math.max(...layers) - Math.min(...layers) <= 2,
                     expected.name,
@@ -241,38 +262,16 @@ test("generated deals clear with five slots using the actual Round rules", () =>
             return counts;
         }, Array(ANIMAL_KIND_COUNT).fill(0));
     for (let seed = 1; seed <= 60; seed += 1) {
-        const count = 2 + (seed % 4);
         let state = seed;
-        let first = true;
         const random = () => {
-            if (first) {
-                first = false;
-                return (count - 2 + 0.5) / 4;
-            }
             state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
             return state / 2 ** 32;
         };
         const { kinds, clearOrder } = generateMainBoard(random);
         assert.ok(isBoardKinds(kinds));
         const counts = histogram(kinds);
-        assert.equal(counts.filter((copies) => copies === 3).length, count);
+        assert.ok(counts.every((copies) => copies >= 6 && copies % 3 === 0));
         const round = new Round(2, "C", kinds);
-        for (const [kind, copies] of counts.entries()) {
-            if (copies !== 3) continue;
-            const reserved = round.cards.filter((card) => card.kind === kind);
-            assert.deepEqual(
-                reserved.map(({ layer }) => layer),
-                [0, 1, 2],
-            );
-            for (const [index, lower] of reserved.entries()) {
-                for (const upper of reserved.slice(index + 1)) {
-                    assert.ok(
-                        Math.abs(upper.left - lower.left) >= 1 ||
-                            Math.abs(upper.top - lower.top) >= 1,
-                    );
-                }
-            }
-        }
         for (const id of clearOrder) {
             const card = round.cards[id];
             assert.equal(round.cardAt(card.left + 0.5, card.top + 0.5), card);
@@ -308,20 +307,14 @@ test("peak layouts open seven slots and cannot expand after a full tray", () => 
     }
 });
 
-test("each peak shape fits the table and clears across all four key-group counts", () => {
+test("each peak shape fits the table and clears without reserved key kinds", () => {
     const overlap = (a, b) =>
         Math.max(0, 1 - Math.abs(a.left - b.left)) *
         Math.max(0, 1 - Math.abs(a.top - b.top));
     for (const [index, layout] of MAIN_LAYOUTS.entries()) {
         for (let sample = 0; sample < 20; sample += 1) {
-            const count = 2 + (sample % 4);
             let state = 1 + sample + 20 * index;
-            let first = true;
             const random = () => {
-                if (first) {
-                    first = false;
-                    return (count - 2 + 0.5) / 4;
-                }
                 state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
                 return state / 2 ** 32;
             };
@@ -395,23 +388,8 @@ test("each peak shape fits the table and clears across all four key-group counts
                 assert.ok(eligible.every((card) => revealed.includes(card)));
             }
             const byKind = Map.groupBy(round.cards, (card) => card.kind);
-            const keys = [...byKind.values()].filter(
-                (cards) => cards.length === 3,
-            );
             assert.equal(byKind.size, ANIMAL_KIND_COUNT);
-            assert.equal(keys.length, count);
-            for (const cards of keys) {
-                assert.deepEqual(
-                    cards.map((card) => card.layer),
-                    [0, 1, 2],
-                );
-                assert.equal(
-                    overlap(cards[0], cards[1]) +
-                        overlap(cards[1], cards[2]) +
-                        overlap(cards[0], cards[2]),
-                    0,
-                );
-            }
+            assert.ok([...byKind.values()].every((cards) => cards.length >= 6));
             const isOrdinary = (card) => byKind.get(card.kind).length > 3;
             assert.equal(round.slotCapacity, 7);
             assert.equal(round.hasProgress, false);
@@ -450,10 +428,16 @@ test("each peak shape fits the table and clears across all four key-group counts
 
 test("Web preview loads the existing HTTP payload and surfaces failures", async (context) => {
     usePreviewOrigin(context);
-    const board = buildBoardKinds({ keyGroups: 3, overlapGroups: 2 });
+    const board = generateMainBoard(() => 0.5).kinds;
+    const reserved = [...DEFAULT_BOARD_KINDS];
+    for (const id of reserved
+        .flatMap((kind, id) => (kind === 15 ? [id] : []))
+        .slice(0, 3))
+        reserved[id] = 1;
     const responses = [
         Response.json(board),
         Response.json({ error: "unavailable" }, { status: 503 }),
+        Response.json(reserved),
         Response.json([0]),
     ];
     const fetch = context.mock.method(globalThis, "fetch", async () =>
@@ -464,5 +448,6 @@ test("Web preview loads the existing HTTP payload and surfaces failures", async 
     assert.deepEqual(await api.loadMainBoard(), { kinds: board });
     assert.equal(fetch.mock.calls[0].arguments[0], "/api/board");
     await assert.rejects(api.loadMainBoard(), /503/);
+    await assert.rejects(api.loadMainBoard(), /Invalid board/);
     await assert.rejects(api.loadMainBoard(), /Invalid board/);
 });
