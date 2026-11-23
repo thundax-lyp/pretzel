@@ -1676,11 +1676,15 @@ export class FlipZooStartScreen extends Component {
         ).node;
         heading.setPosition(0, 90);
         titleLine(heading, "教学完成！", -4, 57, "#FFEFAD", "#7B3D17");
-        titleLine(card, "正在进入第二关…", -48, 32, "#71431F", "#FFF1D4");
-        picture(card, "TutorialPaw", this.art.paw, 60).node.setPosition(
-            0,
-            -151,
-        );
+        const transition = this.art.home.tutorialTransition;
+        picture(
+            card,
+            "TutorialTransition",
+            transition,
+            490,
+            (490 * transition.originalSize.height) /
+                transition.originalSize.width,
+        ).node.setPosition(0, -105);
         this.celebrate(card, panda, false);
         tween(panda)
             .to(0.42, { position: new Vec3(0, 250, 0) }, { easing: "quadOut" })

@@ -153,6 +153,7 @@ npm run check
 | 儿童隐私结构化全文             | `assets/resources/privacy/child-privacy-policy.json`                          | 主包         |
 | 首页、设置独立控件与家园动画   | `assets/home/buttons.png`、`assets/home/settings/`、`assets/home/collection/` | `home` 分包  |
 | 全局背景音乐                   | `assets/music/shared/background-music.mp3`                                    | `music` 分包 |
+| 教学完成过渡插画               | `assets/home/tutorial-transition.png`                                         | `home` 分包  |
 | 邀请与胜利分享卡               | `share/game-invite.jpg`、`share/victory-result.jpg`                           | 主包         |
 
 LOADING 背景先由主包加载并显示，再加载 `home` 分包。
