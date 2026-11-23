@@ -1648,18 +1648,50 @@ export class FlipZooStartScreen extends Component {
 
     private showTutorialClear(): void {
         const overlay = this.openOverlay("TutorialClear");
-        this.panel(overlay, "ClearCard", 38, 490, 306, "#FFF9E0", "#859F73");
-        const badge = picture(overlay, "ClearBadge", this.art.paw, 96).node;
-        badge.setPosition(0, 121);
-        this.celebrate(overlay, badge, false);
-        const title = label(overlay, "教学完成！", 43, "#56351C");
-        title.isBold = true;
-        title.node.setPosition(0, 30);
-        label(overlay, "正在进入第二关", 26, "#684824").node.setPosition(
+        const card = uiNode(overlay, "TutorialClearCard", 650, 760);
+        this.fitTutorialClearCard(card);
+        // Draw the panda behind the paper so its body stays inside the frame.
+        const panda = picture(
+            card,
+            "TutorialPanda",
+            this.art.winPanda,
+            (238 * this.art.winPanda.originalSize.width) /
+                this.art.winPanda.originalSize.height,
+            238,
+        ).node;
+        panda.setPosition(0, 176);
+        picture(
+            card,
+            "TutorialFrame",
+            this.art.home.settings[0],
+            630,
+            420,
+        ).node.setPosition(0, -30);
+        const heading = picture(
+            card,
+            "TutorialHeading",
+            this.art.home.settings[1],
+            510,
+            140,
+        ).node;
+        heading.setPosition(0, 90);
+        titleLine(heading, "教学完成！", -4, 57, "#FFEFAD", "#7B3D17");
+        titleLine(card, "正在进入第二关…", -48, 32, "#71431F", "#FFF1D4");
+        picture(card, "TutorialPaw", this.art.paw, 60).node.setPosition(
             0,
-            -34,
+            -151,
         );
-        this.scheduleOnce(this.advanceToMainBoard, 0.55);
+        this.celebrate(card, panda, false);
+        tween(panda)
+            .to(0.42, { position: new Vec3(0, 250, 0) }, { easing: "quadOut" })
+            .start();
+        this.scheduleOnce(this.advanceToMainBoard, 1.25);
+    }
+
+    private fitTutorialClearCard(card: Node): void {
+        const { width, height } = this.screenSize();
+        const scale = Math.min(1, (width - 32) / 650, (height - 64) / 760);
+        card.setScale(scale, scale, 1);
     }
 
     private showResult(won: boolean, feedback?: string): void {
@@ -2188,6 +2220,8 @@ export class FlipZooStartScreen extends Component {
         if (leaderboard) fitLeaderboardCard(leaderboard, this.screenSize());
         const result = this.overlay?.getChildByName("ResultCard");
         if (result) fitResultCard(result, this.screenSize());
+        const tutorial = this.overlay?.getChildByName("TutorialClearCard");
+        if (tutorial) this.fitTutorialClearCard(tutorial);
         this.fitScreenArtwork(this.overlay?.getChildByName("SettingsArtwork"));
         this.fitScreenArtwork(
             this.overlay?.getChildByName("CollectionArtwork"),
