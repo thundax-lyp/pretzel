@@ -579,3 +579,55 @@ for (const capacity of [6, 7]) {
         });
     }
 }
+
+test("Web Demo claims props and unlocks slots directly without a share or ad confirmation", async () => {
+    const rules = await import("../assets/scripts/gameplay/round.ts");
+    let nativeShares = 0;
+    const screen = loadScreen(
+        {
+            cc: {
+                Component: class {},
+                _decorator: { ccclass: () => (target) => target },
+            },
+            "cc/env": { WECHAT: false },
+            "../services/board-api": { createBoardApi() {} },
+            "../gameplay/round": rules,
+        },
+        { shareAppMessage: () => nativeShares++ },
+        {},
+    );
+    const round = new rules.Round(
+        2,
+        "C",
+        undefined,
+        () => 0.5,
+        undefined,
+        true,
+    );
+    Object.assign(screen, {
+        round,
+        message: {},
+        fragmentRound: { actions: [] },
+    });
+    screen.openOverlay = () =>
+        assert.fail("Web simulation must execute directly");
+    screen.refresh = () => {};
+    for (const prop of rules.PROPS) {
+        screen.onPropTouch(prop);
+        assert.equal(round.canClaimProp(prop), false);
+        assert.equal(round.propUsesLeft(prop), 1);
+    }
+    assert.equal(round.slotCapacity, 5);
+    screen.onSlotTouch(6);
+    assert.equal(round.slotCapacity, 5, "unlock slots in order");
+    screen.onSlotTouch(5);
+    assert.equal(round.slotCapacity, 6);
+    screen.onSlotTouch(6);
+    assert.equal(round.slotCapacity, 7);
+    assert.equal(nativeShares, 0);
+    assert.deepEqual(screen.fragmentRound.actions, [
+        ...rules.PROPS.map((prop) => "claim:" + prop),
+        rules.SHARE_SLOT_ACTION,
+        rules.SHARE_SLOT_ACTION,
+    ]);
+});
