@@ -1176,63 +1176,14 @@ export class FlipZooStartScreen extends Component {
     }
 
     private onSlotTouch(index: number): void {
-        if (WECHAT) {
-            if (
-                !this.canTapSlot(index) ||
-                !this.share() ||
-                !this.round.unlockNextSlot()
-            )
-                return;
-            this.fragmentRound?.actions.push(SHARE_SLOT_ACTION);
-            this.refresh();
-            return;
-        }
-        if (index > this.round.slotCapacity) {
+        if (!this.canTapSlot(index)) return;
+        if (!WECHAT && index > this.round.slotCapacity) {
             this.message.string = `请先解锁第 ${this.round.slotCapacity + 1} 格`;
             return;
         }
-        this.showMockAd(
-            `看完解锁第 ${index + 1} 格，本局有效`,
-            () => {
-                if (!this.round.unlockNextSlot()) return;
-                this.message.string = `已解锁第 ${this.round.slotCapacity} 格`;
-                this.refresh();
-            },
-            () => {},
-        );
-    }
-
-    private showMockAd(
-        description: string,
-        complete: () => void,
-        cancel: () => void,
-    ): void {
-        const dialog = this.openOverlay("MockAd");
-        this.panel(dialog, "AdCard", 0, 606, 308, "#FFF9E0", "#859F73");
-        label(dialog, "模拟激励广告", 40, "#56351C").node.setPosition(0, 79);
-        label(dialog, description, 27, "#503918").node.setPosition(0, 12);
-        this.button(
-            "取消",
-            -134,
-            -81,
-            232,
-            () => {
-                this.closeOverlay();
-                cancel();
-            },
-            dialog,
-        );
-        this.button(
-            "模拟看完",
-            134,
-            -81,
-            232,
-            () => {
-                this.closeOverlay();
-                complete();
-            },
-            dialog,
-        );
+        if ((WECHAT && !this.share()) || !this.round.unlockNextSlot()) return;
+        this.fragmentRound?.actions.push(SHARE_SLOT_ACTION);
+        this.refresh();
     }
 
     private openOverlay(name: string, dimBackground = true): Node {
@@ -1849,93 +1800,6 @@ export class FlipZooStartScreen extends Component {
         graphic.fill();
     }
 
-    private showPropClaim(prop: Prop): void {
-        const round = this.round;
-        const dialog = this.openOverlay("PropClaim");
-        const [fill, border, height] = (
-            {
-                undo: ["#66BFF6", "#307FBF", 510],
-                peek: ["#FFC84F", "#B57122", 475],
-                remove: ["#F0AB54", "#648C47", 680],
-            } as const
-        )[prop];
-        const card = this.panel(
-            dialog,
-            "PropClaimCard",
-            prop === "remove" ? -55 : -18,
-            600,
-            height,
-            "#FFF9E5",
-            border,
-        );
-        const descriptions: Record<Prop, string> = {
-            undo: "最后一张入槽且未消除的牌回到桌面原位，保持正面。已触发三消时不能撤回。",
-            peek: "翻开所有无遮挡暗牌。不足三张时从高层受压暗牌补，受压牌仍需移开上层牌才能入槽。",
-            remove: "从桌面优先取高层同款，可跨层补齐槽内牌。所有组都能补齐时逐组消除，否则保留原状。",
-        };
-        this.heading(
-            card,
-            PROP_LABELS[prop] + "道具",
-            height / 2,
-            fill,
-            border,
-            "ribbon",
-        );
-        if (prop === "undo")
-            picture(card, "PropIcon", this.art.undo, 106).node.setPosition(
-                0,
-                116,
-            );
-        else {
-            const icon = this.drawPropIcon(card, prop).node;
-            icon.setScale(1.55, 1.55, 1);
-            icon.setPosition(0, height / 2 - 135);
-        }
-        const rules = label(card, descriptions[prop], 30, "#56351C");
-        rules.overflow = Label.Overflow.RESIZE_HEIGHT;
-        rules.node.getComponent(UITransform)!.setContentSize(480, 0);
-        const share = this.button(
-            WECHAT ? "分享" : "模拟分享",
-            -133,
-            -height / 2 + 61,
-            232,
-            () => {
-                if (
-                    this.overlay !== dialog ||
-                    this.round !== round ||
-                    !round.canClaimProp(prop)
-                )
-                    return;
-                if ((WECHAT && !this.share()) || !round.claimProp(prop)) return;
-                this.fragmentRound?.actions.push("claim:" + prop);
-                this.closeOverlay();
-                this.message.string = "已获得" + PROP_LABELS[prop] + "道具";
-                this.refresh();
-            },
-            card,
-            84,
-        );
-        this.paintButton(share, false, true, "green");
-        share.caption.node.setPosition(22, 0);
-        drawButtonIcon(
-            share.graphic.node,
-            "share",
-            WECHAT ? -52 : -76,
-            0,
-            30,
-            "#FFFFFF",
-        );
-        this.button(
-            "×  关闭",
-            133,
-            -height / 2 + 61,
-            232,
-            () => this.closeOverlay(),
-            card,
-            84,
-        );
-    }
-
     private onPropTouch(prop: Prop): void {
         if (
             this.overlay ||
@@ -1945,7 +1809,11 @@ export class FlipZooStartScreen extends Component {
         )
             return;
         if (this.round.canClaimProp(prop)) {
-            this.showPropClaim(prop);
+            if ((WECHAT && !this.share()) || !this.round.claimProp(prop))
+                return;
+            this.fragmentRound?.actions.push("claim:" + prop);
+            this.message.string = "已获得" + PROP_LABELS[prop] + "道具";
+            this.refresh();
             return;
         }
         if (!this.round.propUsesLeft(prop)) {

@@ -89,80 +89,87 @@ test("opening the share picker does not mutate the round", () => {
     assert.deepEqual(screen.shareFromMenu(), tracked[0]);
 });
 
-test("claiming a prop requires a successful share invocation and only grants once", () => {
-    let shareCalls = 0;
-    const notices = [];
-    const wx = {
-        shareAppMessage() {
-            shareCalls += 1;
-            if (shareCalls === 1) throw new Error("unavailable");
-        },
-        showToast({ title }) {
-            notices.push(title);
-        },
-    };
-    const imports = {
-        cc: {
-            Component: class {},
-            _decorator: { ccclass: () => (target) => target },
-        },
-        "cc/env": { WECHAT: true },
-        "../services/board-api": { createBoardApi() {} },
-    };
-    imports["../ui/button-icon"] = { drawButtonIcon() {} };
-    imports["../ui/nodes"] = {
-        label: () => ({
-            node: { getComponent: () => ({ setContentSize() {} }) },
-        }),
-    };
-    imports.cc.Label = { Overflow: { RESIZE_HEIGHT: 0 } };
-    const screen = loadScreen(imports, wx, {});
-    const dialog = {};
-    let claimed = false;
-    let grantCount = 0;
-    const round = {
-        canClaimProp: () => !claimed,
-        claimProp() {
-            claimed = true;
-            grantCount += 1;
-            return true;
-        },
-    };
-    screen.round = round;
-    screen.gameRoot = {};
-    screen.openOverlay = () => (screen.overlay = dialog);
-    screen.closeOverlay = () => (screen.overlay = undefined);
-    screen.panel = () => ({});
-    screen.heading = () => {};
-    screen.drawPropIcon = () => ({
-        node: { setScale() {}, setPosition() {} },
+for (const prop of ["undo", "peek", "remove"]) {
+    test(`tapping unclaimed ${prop} shares directly, retries failure and grants once`, () => {
+        let calls = 0;
+        const notices = [];
+        const screen = loadScreen(
+            {
+                cc: {
+                    Component: class {},
+                    _decorator: { ccclass: () => (target) => target },
+                },
+                "cc/env": { WECHAT: true },
+                "../services/board-api": { createBoardApi() {} },
+                "../gameplay/round": { PROP_LABELS: { [prop]: prop } },
+            },
+            {
+                shareAppMessage() {
+                    if (++calls === 1) throw Error("unavailable");
+                },
+                showToast: ({ title }) => notices.push(title),
+            },
+            {},
+        );
+        let grants = 0;
+        screen.round = {
+            status: "playing",
+            canClaimProp: () => grants === 0,
+            claimProp: () => (++grants, true),
+            propUsesLeft: () => 0,
+        };
+        screen.openOverlay = () =>
+            assert.fail("Sharing must not open a confirmation dialog");
+        screen.refresh = () => {};
+        screen.message = {};
+        screen.fragmentRound = { actions: [] };
+        screen.onPropTouch(prop);
+        assert.deepEqual(notices, ["暂时无法打开分享"]);
+        assert.equal(grants, 0);
+        screen.onPropTouch(prop);
+        screen.onPropTouch(prop);
+        assert.equal(calls, 2);
+        assert.equal(grants, 1);
+        assert.deepEqual(screen.fragmentRound.actions, ["claim:" + prop]);
     });
-    screen.paintButton = () => {};
-    screen.refresh = () => {};
-    screen.message = {};
-    const actions = new Map();
-    screen.button = (name, _x, _y, _width, action) => {
-        actions.set(name, action);
-        return { caption: { node: { setPosition() {} } }, graphic: {} };
+}
+
+test("locked slots share directly and never unlock after a failed invocation", () => {
+    let calls = 0;
+    const screen = loadScreen(
+        {
+            cc: {
+                Component: class {},
+                _decorator: { ccclass: () => (target) => target },
+            },
+            "cc/env": { WECHAT: true },
+            "../services/board-api": { createBoardApi() {} },
+            "../gameplay/round": { SHARE_SLOT_ACTION: "share-slot" },
+        },
+        {
+            shareAppMessage() {
+                if (++calls === 1) throw Error("unavailable");
+            },
+            showToast() {},
+        },
+        {},
+    );
+    let unlocks = 0;
+    screen.round = {
+        status: "playing",
+        slotCapacity: 6,
+        unlockNextSlot: () => (++unlocks, true),
     };
-
-    screen.showPropClaim("peek");
-    actions.get("×  关闭")();
-    actions.get("分享")();
-    assert.equal(shareCalls, 0);
-
-    screen.showPropClaim("peek");
-    const share = actions.get("分享");
-    share();
-    assert.deepEqual(notices, ["暂时无法打开分享"]);
-    assert.equal(grantCount, 0);
-    assert.equal(screen.overlay, dialog);
-
-    share();
-    share();
-    assert.equal(shareCalls, 2);
-    assert.equal(grantCount, 1);
-    assert.equal(screen.overlay, undefined);
+    screen.openOverlay = () =>
+        assert.fail("Sharing must not open a confirmation dialog");
+    screen.refresh = () => {};
+    screen.fragmentRound = { actions: [] };
+    screen.onSlotTouch(6);
+    assert.equal(unlocks, 0);
+    screen.onSlotTouch(6);
+    assert.equal(calls, 2);
+    assert.equal(unlocks, 1);
+    assert.deepEqual(screen.fragmentRound.actions, ["share-slot"]);
 });
 
 test("revival records once, animates every triple, and finishes only after the tray clears", async () => {

@@ -8,6 +8,8 @@ Flip Zoo 使用一个 Cocos Creator 工程，用同一份场景、资源和 Type
 
 ## 分享渠道数据
 
+首页、胜利结算、失败复活、道具领取、扩槽及微信菜单均直接进入微信原生分享流程，不增加游戏内分享确认对话框。道具和扩槽在成功调起分享后发放，复活在返回游戏后清槽；Web Demo 直接模拟对应操作。
+
 `wechat-platform.ts` 统一生成带渠道参数的分享卡片，`share-tracking.ts` 先写本地待上传队列，再上传到独立云函数 `flipZooShares`。菜单分享必须同步返回参数，因此先获取当前调用者身份，再开放右上角转发入口。每次点击产生一个独立 `eventId`，渠道值为 `MD5(openid + ":" + shareTime + ":" + eventId)`；即使同一毫秒点击也不会复用渠道。云端使用 `getWXContext()` 的 openid 重新计算并校验，忽略客户端提交的用户身份。
 
 CloudBase 集合 `flipZooShares` 保存 `openid`、`shareTime`、`channel`，`flipZooShareOpens` 保存 `openid`、`openTime`、`channel`。两表附带 `appid`、`eventId`、服务器接收时间 `receivedAt`，文档 ID 由应用、调用者、动作和事件 ID 计算，以便网络重试幂等。点击和打开时间是客户端 Unix 毫秒时间，服务器接收时间用于核对，不将客户端时钟作为可信安全依据。仅保存携带有效渠道的进入记录，无渠道和格式无效的进入不写入 `flipZooShareOpens`。
