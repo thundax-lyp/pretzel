@@ -689,3 +689,46 @@ test("WeChat without a cloud environment shares and enables its menu without inv
     platform.disableShareMenu(handler);
     assert.equal(menu, undefined);
 });
+
+test("configured cloud sharing never bypasses identity readiness", () => {
+    const platform = {};
+    let ready;
+    let identityReady = false;
+    let nativeShares = 0;
+    let menu;
+    compilePlatform(
+        platform,
+        (name) =>
+            ({
+                "cc/env": { WECHAT: true },
+                "./cloud-health": { hasCloudEnvironment: () => true },
+                "./share-tracking": {
+                    recordShareClick() {
+                        if (!identityReady)
+                            throw Error("Share identity is not ready");
+                        return "share_channel=" + "a".repeat(32);
+                    },
+                    startShareTracking(callback) {
+                        ready = callback;
+                        return () => {};
+                    },
+                },
+            })[name],
+        {
+            shareAppMessage: () => nativeShares++,
+            hideShareMenu() {},
+            showShareMenu() {},
+            onShareAppMessage: (handler) => (menu = handler),
+        },
+        {},
+    );
+    platform.enableShareMenu(() => platform.trackedShareCard(false));
+    assert.equal(menu, undefined);
+    assert.equal(platform.openShare(false), "failed");
+    assert.equal(nativeShares, 0);
+    identityReady = true;
+    ready();
+    assert.equal(menu().query, "share_channel=" + "a".repeat(32));
+    assert.equal(platform.openShare(false), "opened");
+    assert.equal(nativeShares, 1);
+});
