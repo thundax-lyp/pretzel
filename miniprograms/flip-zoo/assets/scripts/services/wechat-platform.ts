@@ -1,5 +1,6 @@
 import { WECHAT } from "cc/env";
 import { recordShareClick, startShareTracking } from "./share-tracking";
+import { hasCloudEnvironment } from "./cloud-health";
 
 type RankAction =
     | "show-week"
@@ -91,6 +92,7 @@ let stopShareTracking: (() => void) | undefined;
 
 export function trackedShareCard(won: boolean): ShareCard {
     const card = shareCard(won);
+    if (!hasCloudEnvironment()) return card;
     return {
         ...card,
         query: [card.query, recordShareClick()].filter(Boolean).join("&"),
@@ -101,10 +103,13 @@ export function enableShareMenu(handler: () => ShareCard): void {
     if (!WECHAT) return;
     stopShareTracking?.();
     wx.hideShareMenu?.({ menus: ["shareAppMessage", "shareTimeline"] });
-    stopShareTracking = startShareTracking(() => {
+    const enable = () => {
         wx.onShareAppMessage?.(handler);
         wx.showShareMenu?.({ menus: ["shareAppMessage"] });
-    });
+    };
+    stopShareTracking = undefined;
+    if (hasCloudEnvironment()) stopShareTracking = startShareTracking(enable);
+    else enable();
 }
 
 export function disableShareMenu(handler: () => ShareCard): void {

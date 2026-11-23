@@ -33,11 +33,13 @@ function loadScreen(imports, wx, gameGlobal) {
     const exports = {};
     const require = (name) =>
         imports[name] ??
-        (name === "./share-tracking"
-            ? {
-                  recordShareClick: () => "share_channel=test-channel",
-              }
-            : {});
+        (name === "./cloud-health"
+            ? { hasCloudEnvironment: () => true }
+            : name === "./share-tracking"
+              ? {
+                    recordShareClick: () => "share_channel=test-channel",
+                }
+              : {});
     compilePlatform(platform, require, wx, gameGlobal);
     compileScreen(exports, (name) =>
         name === "../services/wechat-platform" ? platform : require(name),
@@ -399,6 +401,7 @@ test("menu and direct sharing each create one tracked channel, including failed 
                 : {
                       recordShareClick: () =>
                           `share_channel=${String(++clicks).padStart(32, "0")}`,
+                      hasCloudEnvironment: () => true,
                       startShareTracking(callback) {
                           ready = callback;
                           return () => stopped++;
@@ -630,4 +633,59 @@ test("Web Demo claims props and unlocks slots directly without a share or ad con
         rules.SHARE_SLOT_ACTION,
         rules.SHARE_SLOT_ACTION,
     ]);
+});
+
+test("WeChat without a cloud environment shares and enables its menu without inventing an identity", () => {
+    const platform = {};
+    let menu;
+    let tracking = 0;
+    let records = 0;
+    let shows = 0;
+    let returned;
+    const sent = [];
+    const card = { title: "邀请", query: "existing=value" };
+    compilePlatform(
+        platform,
+        (name) =>
+            ({
+                "cc/env": { WECHAT: true },
+                "./cloud-health": { hasCloudEnvironment: () => false },
+                "./share-tracking": {
+                    recordShareClick() {
+                        records++;
+                        throw Error("Share identity is not ready");
+                    },
+                    startShareTracking() {
+                        tracking++;
+                    },
+                },
+            })[name],
+        {
+            shareAppMessage: (data) => sent.push(data),
+            onShareAppMessage: (handler) => (menu = handler),
+            offShareAppMessage: () => (menu = undefined),
+            showShareMenu: () => shows++,
+            hideShareMenu() {},
+            onShow: (handler) => (returned = handler),
+            offShow: () => (returned = undefined),
+        },
+        { flipZooShareCards: [card] },
+    );
+    const handler = () => platform.trackedShareCard(false);
+    platform.enableShareMenu(handler);
+    assert.equal(shows, 1);
+    assert.deepEqual(menu(), card);
+    assert.equal(platform.openShare(false), "opened");
+    let revivals = 0;
+    assert.equal(
+        typeof platform.openRevivalShare(() => revivals++),
+        "function",
+    );
+    returned();
+    assert.equal(revivals, 1);
+    assert.equal(records, 0);
+    assert.equal(tracking, 0);
+    assert.deepEqual(sent, [card, card]);
+    platform.disableShareMenu(handler);
+    assert.equal(menu, undefined);
 });

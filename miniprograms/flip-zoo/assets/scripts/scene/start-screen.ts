@@ -218,12 +218,13 @@ export class FlipZooStartScreen extends Component {
     private viewportPolicy?: number;
 
     async start(): Promise<void> {
-        if (WECHAT && hasCloudEnvironment() && !this.shareTrackingStarted) {
+        if (WECHAT && !this.shareTrackingStarted) {
             this.shareTrackingStarted = true;
             wechat.enableShareMenu(this.shareFromMenu);
-            void syncLifetimeRank().catch(() => {
-                console.warn("Lifetime leaderboard sync pending");
-            });
+            if (hasCloudEnvironment())
+                void syncLifetimeRank().catch(() => {
+                    console.warn("Lifetime leaderboard sync pending");
+                });
         }
         this.fitViewport();
         const loading = label(this.node, "正在打开动物园…", 34);
