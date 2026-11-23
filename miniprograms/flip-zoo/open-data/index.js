@@ -636,8 +636,9 @@ function showRanking(preview, history, version) {
 let pendingWrites = Promise.resolve();
 let historyWriteFailed = false;
 let requestedHistory = false;
+let fullRankingView = false;
 wx.onMessage(({ action, rows, total, x, y }) => {
-    if (action === "rank-pointer" && rankingList && !rankingList.preview) {
+    if (action === "rank-pointer" && fullRankingView) {
         const layout = rankLayout();
         if (
             !Number.isFinite(x) ||
@@ -698,6 +699,7 @@ wx.onMessage(({ action, rows, total, x, y }) => {
         );
         if (offset !== rankingList.offset) drawRanking();
     } else if (action === "loading-history") {
+        fullRankingView = true;
         requestedHistory = true;
         rankingList = undefined;
         avatars.clear();
@@ -708,6 +710,7 @@ wx.onMessage(({ action, rows, total, x, y }) => {
         rankingList = undefined;
         draw("累计次数同步失败，请点击刷新");
     } else if (["show-week", "show-preview", "show-history"].includes(action)) {
+        fullRankingView = action !== "show-preview";
         requestedHistory = action === "show-history";
         rankingList = undefined;
         avatars.clear();

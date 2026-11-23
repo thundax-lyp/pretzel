@@ -75,6 +75,7 @@ function fixture({
     );
     const writes = [];
     const pending = [];
+    const friendRequests = [];
     let failWrite = false;
     let receive;
     const wx = {
@@ -85,6 +86,7 @@ function fixture({
             return canvas;
         },
         getFriendCloudStorage(callback) {
+            friendRequests.push([...callback.keyList]);
             const respond = () => {
                 if (fail) callback.fail();
                 else
@@ -151,6 +153,8 @@ function fixture({
         writes,
         storage,
         failWrites: (value) => (failWrite = value),
+        failFriends: (value) => (fail = value),
+        friendRequests,
         resolveFriends: async (index) => {
             pending[index]();
             await new Promise((resolve) => setImmediate(resolve));
@@ -339,4 +343,46 @@ test("lifetime refresh failure does not prevent loading the weekly board", async
     await f.send({ action: "show-history" });
     await f.send({ action: "rank-error" });
     assert.deepEqual(f.labels, ["刷新失败，请重试"]);
+});
+
+for (const failure of ["refresh", "write", "friends"]) {
+    test(`history ${failure} failure leaves the weekly tab usable`, async () => {
+        const f = fixture({ history: [30] });
+        await f.send({ action: "show-history" });
+        if (failure === "refresh") await f.send({ action: "rank-error" });
+        if (failure === "write") {
+            f.failWrites(true);
+            await f.send({ action: "sync-history", total: 40 });
+            await f.send({ action: "show-history" });
+        }
+        if (failure === "friends") {
+            f.failFriends(true);
+            await f.send({ action: "show-history" });
+            f.failFriends(false);
+        }
+        const before = f.friendRequests.length;
+        await f.send({
+            action: "rank-pointer",
+            x: 200,
+            y: f.layout().top + 124,
+        });
+        assert.equal(f.friendRequests.length, before + 1);
+        assert.deepEqual(f.friendRequests.at(-1), ["mgrank"]);
+        assert.ok(f.labels.includes("本周通关"));
+    });
+}
+
+test("tabs can switch while friend data is pending, and previews ignore tab pointers", async () => {
+    const f = fixture({ deferred: true, history: [30] });
+    await f.send({ action: "show-week" });
+    await f.send({ action: "rank-pointer", x: 482, y: f.layout().top + 124 });
+    assert.equal(f.friendRequests.length, 2);
+    assert.deepEqual(f.friendRequests[1], ["mgrank_total"]);
+    await f.resolveFriends(1);
+    await f.resolveFriends(0);
+    assert.ok(f.labels.includes("累计通关"));
+    await f.send({ action: "show-preview" });
+    const before = f.friendRequests.length;
+    await f.send({ action: "rank-pointer", x: 482, y: f.layout().top + 124 });
+    assert.equal(f.friendRequests.length, before);
 });
