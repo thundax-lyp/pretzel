@@ -155,7 +155,7 @@ npm run check
 
 | 业务用途                       | 源码位置                                                                      | 微信包归属   |
 | ------------------------------ | ----------------------------------------------------------------------------- | ------------ |
-| 首页与 LOADING 共用背景        | `assets/resources/home-loading/background.jpg`                                | 主包         |
+| 首页与 LOADING 共用背景        | `assets/resources/home-loading/background.png`                                | 主包         |
 | LOADING 适龄提示标牌           | `assets/resources/home-loading/age-rating.png`                                | 主包         |
 | 牌桌背景、卡牌、道具与消除音效 | `assets/resources/gameplay/`                                                  | 主包         |
 | 胜利与失败结算插画             | `assets/resources/result/`                                                    | 主包         |
@@ -164,13 +164,13 @@ npm run check
 | 首页、设置独立控件与家园动画   | `assets/home/buttons.png`、`assets/home/settings/`、`assets/home/collection/` | `home` 分包  |
 | 全局背景音乐                   | `assets/music/shared/background-music.mp3`                                    | `music` 分包 |
 | 教学完成过渡插画               | `assets/home/tutorial-transition.png`                                         | `home` 分包  |
-| 邀请与胜利分享卡               | `share/game-invite.jpg`、`share/victory-result.jpg`                           | 主包         |
+| 邀请与胜利分享卡               | `share/game-invite.png`、`share/victory-result.png`                           | 主包         |
 
 LOADING 背景先由主包加载并显示，再加载 `home` 分包。
 
 ### 分享素材与儿童隐私
 
-普通和胜利分享卡使用 [share/game-invite.jpg](share/game-invite.jpg) 与 [share/victory-result.jpg](share/victory-result.jpg)，均为 500 × 400。微信构建将两张图复制进代码包。可通过既有的分享配置指定平台审核通过的图片编号与地址。
+普通和胜利分享卡使用 [share/game-invite.png](share/game-invite.png) 与 [share/victory-result.png](share/victory-result.png)，均为 500 × 400。微信构建将两张图复制进代码包。可通过既有的分享配置指定平台审核通过的图片编号与地址。
 
 弹层纸纹改编自 [ambientCG Paper 001](https://ambientcg.com/view?id=Paper001)，采用 [CC0 1.0](https://docs.ambientcg.com/license/)。标题装饰和胜负熊猫为本项目生成的插画。
 
