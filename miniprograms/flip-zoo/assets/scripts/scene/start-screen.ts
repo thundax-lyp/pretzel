@@ -1,6 +1,5 @@
 import {
     _decorator,
-    BlockInputEvents,
     Color,
     Component,
     Graphics,
@@ -20,11 +19,10 @@ import {
     type SpriteFrame,
     Tween,
 } from "cc";
-import {
-    showLeaderboardCard,
-    fitLeaderboardCard,
-} from "../ui/leaderboard-view";
-import { fitResultCard, showResultCard } from "../ui/result-view";
+import { LeaderboardDialog } from "../ui/leaderboard-view";
+import { Dialog } from "../ui/dialog";
+import { RoundResultDialog } from "../ui/result-view";
+import { TutorialClearDialog } from "../ui/tutorial-clear-dialog";
 import * as wechat from "../services/wechat-platform";
 import { callCloud } from "../services/cloud-health";
 import { syncLifetimeRank } from "../services/leaderboard";
@@ -82,8 +80,13 @@ import {
     ClearCelebration,
     openGardenGate,
 } from "../gameplay/clear-celebration";
+import { HomeCollectionDialog } from "../home/home-collection-dialog";
 import { showWelcome } from "../home/welcome-view";
-import { SettingsView } from "../settings/settings-view";
+import {
+    ConfirmAbandonDialog,
+    SettingsDialog,
+    SettingsView,
+} from "../settings/settings-view";
 import { ZooAudio } from "../services/zoo-audio";
 import {
     FULL_EXPOSURE,
@@ -656,33 +659,39 @@ export class FlipZooStartScreen extends Component {
                 (this.round.status !== "playing" && !this.failedBoardGroup))
         )
             return;
-        const dialog = this.openOverlay("AudioSettings");
+        const layer = this.openOverlay("AudioSettings");
         this.settingsView ??= new SettingsView(
             this.audio,
             this.art.home.settings,
         );
-        this.feedbackControl = this.settingsView.show(dialog, {
-            version: wechat.releaseVersion(),
-            contact: () => {
-                const opened = wechat.openCustomerService(() =>
-                    this.platformNotice("暂时无法打开客服"),
-                );
-                if (!opened) this.platformNotice("请在微信小游戏内联系客服");
+        const dialog = new SettingsDialog(
+            layer,
+            this.art.home,
+            this.settingsView,
+            {
+                version: wechat.releaseVersion(),
+                contact: () => {
+                    const opened = wechat.openCustomerService(() =>
+                        this.platformNotice("暂时无法打开客服"),
+                    );
+                    if (!opened)
+                        this.platformNotice("请在微信小游戏内联系客服");
+                },
+                feedback: () =>
+                    this.platformNotice(
+                        WECHAT
+                            ? "当前环境暂不支持问题反馈"
+                            : "请在微信小游戏内提交反馈",
+                    ),
+                privacy: () => this.showPrivacy(fromWelcome),
+                abandon: fromWelcome ? undefined : () => this.confirmAbandon(),
+                back: () => {
+                    if (fromWelcome) this.showWelcome();
+                    else this.closeOverlay();
+                },
             },
-            feedback: () =>
-                this.platformNotice(
-                    WECHAT
-                        ? "当前环境暂不支持问题反馈"
-                        : "请在微信小游戏内提交反馈",
-                ),
-            privacy: () => this.showPrivacy(fromWelcome),
-            abandon: fromWelcome ? undefined : () => this.confirmAbandon(),
-            back: () => {
-                if (fromWelcome) this.showWelcome();
-                else this.closeOverlay();
-            },
-        });
-        this.fitScreenArtwork(dialog.getChildByName("SettingsArtwork"));
+        );
+        this.feedbackControl = dialog.feedbackControl;
         this.syncFeedbackButton();
     }
 
@@ -710,13 +719,13 @@ export class FlipZooStartScreen extends Component {
     }
 
     private confirmAbandon(): void {
-        const dialog = this.openOverlay("ConfirmAbandon");
-        this.settingsView.confirmAbandon(
-            dialog,
+        const layer = this.openOverlay("ConfirmAbandon");
+        new ConfirmAbandonDialog(
+            layer,
+            this.art.home,
             () => this.closeOverlay(),
             () => this.returnHome(),
         );
-        this.fitScreenArtwork(dialog.getChildByName("SettingsArtwork"));
     }
 
     private restartRound(): void {
@@ -1206,29 +1215,10 @@ export class FlipZooStartScreen extends Component {
     private openOverlay(name: string, dimBackground = true): Node {
         this.cancelBoardPress();
         this.closeOverlay();
-        const overlay = uiNode(this.node, name, 750, 1334);
+        const overlay = Dialog.open(this.node, name, dimBackground);
         this.overlay = overlay;
-        const { width, height } = this.screenSize();
-        overlay.getComponent(UITransform)!.setContentSize(width, height);
-        overlay.addComponent(BlockInputEvents);
-        if (dimBackground) {
-            const backdrop = uiNode(overlay, "DialogBackdrop");
-            backdrop.addComponent(Graphics);
-            this.drawDialogBackdrop(backdrop, width, height);
-        }
+        Dialog.resize(overlay, this.screenSize());
         return overlay;
-    }
-
-    private drawDialogBackdrop(
-        node: Node,
-        width: number,
-        height: number,
-    ): void {
-        const graphic = node.getComponent(Graphics)!;
-        graphic.clear();
-        graphic.fillColor = color("#00000080");
-        graphic.rect(-width / 2, -height / 2, width, height);
-        graphic.fill();
     }
 
     private closeOverlay(): void {
@@ -1238,8 +1228,7 @@ export class FlipZooStartScreen extends Component {
         this.feedbackButton = undefined;
         this.feedbackControl = undefined;
         if (!this.overlay) return;
-        this.overlay.removeFromParent();
-        this.overlay.destroy();
+        Dialog.close(this.overlay);
         this.overlay = undefined;
     }
 
@@ -1316,51 +1305,59 @@ export class FlipZooStartScreen extends Component {
 
     private showHomeCollection(): void {
         const overlay = this.openOverlay("HomeCollection");
+        new HomeCollectionDialog(
+            overlay,
+            this.art.home,
+            (body, width) => this.renderHomeCollection(overlay, body, width),
+            () => this.showWelcome(),
+        );
+    }
+
+    private renderHomeCollection(
+        overlay: Node,
+        body: Node,
+        width: number,
+    ): void {
         let redeemBusy = false;
         const giftButtons: {
             detail: Label;
             setEnabled(value: boolean): void;
         }[] = [];
-        const artwork = uiNode(overlay, "CollectionArtwork", 1152, 2048);
-        this.panel(
-            artwork,
-            "CollectionPanel",
-            -37,
-            792,
-            1290,
-            "#FFF2D8",
-            "#A9905D",
-        );
-        this.heading(artwork, "我的家园", 602, "#E6AC43", "#8F552B", "ribbon");
-        this.fitScreenArtwork(artwork);
-        const close = this.button(
-            "×",
-            346,
-            578,
-            98,
-            () => this.showWelcome(),
-            artwork,
-            98,
-        );
-        this.paintButton(close, false, true, "cream");
-        const balances = [578, 775, 972, 1167, 1361, 1560].map((y, index) => {
+        const rowWidth = 730;
+        const rowHeight = 174;
+        const rowPitch = 196;
+        const listHeight = (FRAGMENT_ANIMALS.length - 1) * rowPitch + rowHeight;
+        const scale = width / rowWidth;
+        const artwork = uiNode(body, "CollectionArtwork", rowWidth, listHeight);
+        artwork.setScale(scale, scale, 1);
+        const resizeContent = (extraHeight = 0) => {
+            artwork.setPosition(0, (extraHeight * scale) / 2);
+            body.getComponent(UITransform)!.setContentSize(
+                width,
+                (listHeight + extraHeight) * scale,
+            );
+        };
+        resizeContent();
+
+        const balances = FRAGMENT_ANIMALS.map((animal, index) => {
+            const y = (listHeight - rowHeight) / 2 - index * rowPitch;
             this.panel(
                 artwork,
                 `AnimalRow${index}`,
-                1024 - y,
-                730,
-                174,
+                y,
+                rowWidth,
+                rowHeight,
                 "#FFF2D8",
                 "#E1CAA0",
             );
             this.showHomeAnimal(artwork, y, index);
             const cover = uiNode(artwork, "FragmentRow", 470, 135);
-            cover.setPosition(110, 1024 - y);
+            cover.setPosition(110, y);
             const background = cover.addComponent(Graphics);
             background.fillColor = color("#FFF2D8");
             background.roundRect(-235, -67, 470, 134, 15);
             background.fill();
-            const name = label(cover, FRAGMENT_ANIMALS[index], 43, "#56351C");
+            const name = label(cover, animal, 43, "#56351C");
             name.isBold = true;
             const value = label(cover, "碎片：—", 38, "#684824");
             for (const [caption, offset] of [
@@ -1505,13 +1502,15 @@ export class FlipZooStartScreen extends Component {
                 balances.forEach((value) => {
                     value.string = "读取失败";
                 });
+                resizeContent(96);
                 const retry = this.button(
                     "重试",
                     0,
-                    -636,
+                    -listHeight / 2 - 52,
                     450,
                     () => {
                         retry.node.destroy();
+                        resizeContent();
                         void load();
                     },
                     artwork,
@@ -1535,7 +1534,7 @@ export class FlipZooStartScreen extends Component {
 
     private showHomeAnimal(artwork: Node, y: number, animal: number): void {
         const viewport = uiNode(artwork, "HomeAnimal", 194, 162);
-        viewport.setPosition(-238, 1024 - y);
+        viewport.setPosition(-238, y);
         viewport.addComponent(Mask);
         const [rest, ...poses] = this.art.home.collectionAnimals[animal];
         const { width, height } = rest.originalSize;
@@ -1653,84 +1652,45 @@ export class FlipZooStartScreen extends Component {
     }
 
     private showTutorialClear(): void {
-        const overlay = this.openOverlay("TutorialClear");
-        const card = uiNode(overlay, "TutorialClearCard", 650, 760);
-        this.fitTutorialClearCard(card);
-        // Draw the panda behind the paper so its body stays inside the frame.
-        const panda = picture(
-            card,
-            "TutorialPanda",
-            this.art.winPanda,
-            (238 * this.art.winPanda.originalSize.width) /
-                this.art.winPanda.originalSize.height,
-            238,
-        ).node;
-        panda.setPosition(0, 176);
-        picture(
-            card,
-            "TutorialFrame",
-            this.art.home.settings[0],
-            630,
-            420,
-        ).node.setPosition(0, -30);
-        const heading = picture(
-            card,
-            "TutorialHeading",
-            this.art.home.settings[1],
-            510,
-            140,
-        ).node;
-        heading.setPosition(0, 90);
-        titleLine(heading, "教学完成！", -4, 57, "#FFEFAD", "#7B3D17");
-        const transition = this.art.home.tutorialTransition;
-        picture(
-            card,
-            "TutorialTransition",
-            transition,
-            490,
-            (490 * transition.originalSize.height) /
-                transition.originalSize.width,
-        ).node.setPosition(0, -105);
-        this.celebrate(card, panda, false);
-        tween(panda)
-            .to(0.42, { position: new Vec3(0, 250, 0) }, { easing: "quadOut" })
-            .start();
+        const dialog = new TutorialClearDialog(
+            this.openOverlay("TutorialClear"),
+            this.art,
+        );
+        const panda = dialog.panda;
+        const end = panda.position.clone();
+        panda.setPosition(end.x, end.y - 74, end.z);
+        this.celebrate(dialog.panel, panda, false);
+        tween(panda).to(0.42, { position: end }, { easing: "quadOut" }).start();
         this.scheduleOnce(this.advanceToMainBoard, 1.25);
-    }
-
-    private fitTutorialClearCard(card: Node): void {
-        const { width, height } = this.screenSize();
-        const scale = Math.min(1, (width - 32) / 650, (height - 64) / 760);
-        card.setScale(scale, scale, 1);
     }
 
     private showResult(won: boolean, feedback?: string): void {
         const result = this.openOverlay("RoundResult");
-        const panda = showResultCard(
+        const actions = {
+            home: () => this.returnHome(),
+            share: () => {
+                if (this.overlay === result) this.share(true);
+            },
+            retry: () => {
+                if (this.overlay !== result) return;
+                this.closeOverlay();
+                this.restartRound();
+            },
+            revive: () => this.requestRevive(result),
+            leaderboard: () =>
+                this.showLeaderboard(false, () =>
+                    this.showResult(won, feedback),
+                ),
+        };
+        const dialog = new RoundResultDialog(
             result,
             this.art,
             this.controls,
-            this.screenSize(),
             won,
-            {
-                home: () => this.returnHome(),
-                share: () => {
-                    if (this.overlay === result) this.share(true);
-                },
-                retry: () => {
-                    if (this.overlay !== result) return;
-                    this.closeOverlay();
-                    this.restartRound();
-                },
-                revive: () => this.requestRevive(result),
-                leaderboard: () =>
-                    this.showLeaderboard(false, () =>
-                        this.showResult(won, feedback),
-                    ),
-            },
+            actions,
             feedback,
         );
-        if (won) this.celebrate(panda.parent!, panda, true);
+        if (won) this.celebrate(dialog.panel, dialog.panda, true);
     }
 
     private requestRevive(result: Node): void {
@@ -1824,11 +1784,9 @@ export class FlipZooStartScreen extends Component {
         history = false,
         back = () => this.showWelcome(),
     ): void {
-        showLeaderboardCard(
+        new LeaderboardDialog(
             this.openOverlay("Leaderboard"),
-            this.controls,
             this.art,
-            this.screenSize(),
             history,
             back,
         );
@@ -2217,25 +2175,11 @@ export class FlipZooStartScreen extends Component {
                         y * this.pageScale(height),
                     );
             }
-            if (root === this.overlay) {
-                root.getComponent(UITransform)!.setContentSize(width, height);
-                const backdrop = root.getChildByName("DialogBackdrop");
-                if (backdrop) this.drawDialogBackdrop(backdrop, width, height);
-            }
+            if (root === this.overlay) Dialog.resize(root, { width, height });
         }
         this.fitScreenArtwork(this.welcome?.getChildByName("WelcomeArtwork"));
         const version = this.welcome?.getChildByName("ReleaseVersion");
         if (version) this.positionWelcomeVersion(version);
-        const leaderboard = this.overlay?.getChildByName("LeaderboardCard");
-        if (leaderboard) fitLeaderboardCard(leaderboard, this.screenSize());
-        const result = this.overlay?.getChildByName("ResultCard");
-        if (result) fitResultCard(result, this.screenSize());
-        const tutorial = this.overlay?.getChildByName("TutorialClearCard");
-        if (tutorial) this.fitTutorialClearCard(tutorial);
-        this.fitScreenArtwork(this.overlay?.getChildByName("SettingsArtwork"));
-        this.fitScreenArtwork(
-            this.overlay?.getChildByName("CollectionArtwork"),
-        );
         if (WECHAT) this.layoutWeChatGame(height);
         this.syncFeedbackButton();
     }

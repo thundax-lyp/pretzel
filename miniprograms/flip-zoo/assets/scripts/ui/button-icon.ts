@@ -9,7 +9,8 @@ type ButtonIcon =
     | "retry"
     | "feedback"
     | "support"
-    | "abandon";
+    | "abandon"
+    | "back";
 
 export function drawButtonIcon(
     parent: Node,
@@ -27,6 +28,17 @@ export function drawButtonIcon(
     graphic.strokeColor = graphic.fillColor;
     graphic.lineWidth = 5;
     switch (icon) {
+        case "back":
+            graphic.lineCap = Graphics.LineCap.ROUND;
+            graphic.lineJoin = Graphics.LineJoin.ROUND;
+            graphic.moveTo(6, -15);
+            graphic.bezierCurveTo(22, -13, 20, 8, 6, 8);
+            graphic.lineTo(-16, 8);
+            graphic.moveTo(-5, 18);
+            graphic.lineTo(-16, 8);
+            graphic.lineTo(-5, -2);
+            graphic.stroke();
+            break;
         case "menu":
             for (const line of [-11, 0, 11])
                 graphic.roundRect(-16, line - 3, 32, 6, 3);

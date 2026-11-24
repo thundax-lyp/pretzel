@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { runInNewContext } from "node:vm";
+import { leaderboardFooterBottom } from "../assets/scripts/ui/leaderboard-layout.ts";
 
 function fixture({
     self = 9,
@@ -12,13 +13,14 @@ function fixture({
 } = {}) {
     const labels = [];
     const fills = [];
+    const tabRects = [];
     const drawing = {
         clearRect() {
             labels.length = 0;
             fills.length = 0;
+            tabRects.length = 0;
         },
         fillText(text) {
-            if (["好友排行榜", "本周榜", "历史榜"].includes(text)) return;
             labels.push(text);
         },
         strokeText() {},
@@ -30,7 +32,10 @@ function fixture({
         arcTo() {},
         closePath() {},
         clip() {},
-        drawImage() {},
+        drawImage(image, x, y, width, height) {
+            if (image.path === "open-data/tabs.png")
+                tabRects.push([x, y, width, height]);
+        },
         fill() {},
         stroke() {},
         arc() {},
@@ -133,7 +138,8 @@ function fixture({
         },
         createImage() {
             return {
-                set src(_url) {
+                set src(path) {
+                    this.path = path;
                     queueMicrotask(() => this.onload());
                 },
             };
@@ -163,6 +169,7 @@ function fixture({
         },
         labels,
         fills,
+        tabRects,
         async send(message) {
             receive(message);
             await new Promise((resolve) => setImmediate(resolve));
@@ -328,9 +335,21 @@ test("adaptive panel keeps its button clearance and tab hit area follows its top
     const f = fixture({ count: 1, self: 0, history: [20] });
     await f.send({ action: "show-week" });
     const before = f.layout();
-    assert.equal(before.bottom - (f.canvas.height / 2 + 250 + 38), 68);
+    assert.deepEqual(f.tabRects, [
+        [0, 81, 262, 81],
+        [262, 0, 262, 81],
+    ]);
+    assert.equal(
+        before.bottom - (f.canvas.height / 2 - leaderboardFooterBottom),
+        68,
+    );
     await f.send({ action: "rank-pointer", x: 482, y: before.top + 124 });
     assert.ok(f.labels.includes("累计通关"));
+    assert.deepEqual(f.tabRects, [
+        [0, 0, 262, 81],
+        [262, 81, 262, 81],
+    ]);
+    assert.ok(!f.labels.includes("本周榜") && !f.labels.includes("历史榜"));
     await f.send({ action: "refresh-rank" });
     assert.ok(f.labels.includes("累计通关"));
     assert.equal(f.layout().height, 720);

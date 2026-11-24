@@ -1,13 +1,14 @@
 import {
     Graphics,
     Node,
-    Sprite,
     UITransform,
     Vec3,
     type EventTouch,
     type SpriteFrame,
 } from "cc";
 import type { ZooAudio, VolumeChannel } from "../services/zoo-audio";
+import type { ZooArtwork } from "../services/artwork";
+import { Dialog } from "../ui/dialog";
 import { color, label, picture, uiNode } from "../ui/nodes";
 import { ButtonPress, scaleButton } from "../ui/button-press";
 
@@ -20,61 +21,107 @@ interface SettingsActions {
     back(): void;
 }
 
+export class SettingsDialog extends Dialog {
+    readonly feedbackControl: Node;
+
+    constructor(
+        layer: Node,
+        art: ZooArtwork["home"],
+        view: SettingsView,
+        actions: SettingsActions,
+    ) {
+        let feedbackControl!: Node;
+        super(layer, {
+            frame: art.settings[0],
+            titleBoard: art.settings[1],
+            titleImage: art.settingsTitle,
+            content: (body, width) => {
+                feedbackControl = view.renderContent(body, width, actions);
+            },
+            onBackdropPress: actions.back,
+        });
+        this.feedbackControl = feedbackControl;
+    }
+}
+
+export class ConfirmAbandonDialog extends Dialog {
+    constructor(
+        layer: Node,
+        art: ZooArtwork["home"],
+        onContinue: () => void,
+        onAbandon: () => void,
+    ) {
+        super(layer, {
+            frame: art.settings[0],
+            titleBoard: art.settings[1],
+            titleImage: art.abandonConfirm.title,
+            actionHeight: 98,
+            content: (body, width) => {
+                body.getComponent(UITransform)!.setContentSize(width, 110);
+                label(body, "结束本局并返回首页", 38, "#56351C");
+            },
+            actions: [
+                { image: art.abandonConfirm.continue, onPress: onContinue },
+                { image: art.abandonConfirm.abandon, onPress: onAbandon },
+            ],
+        });
+    }
+}
+
 export class SettingsView {
     constructor(
         private readonly audio: ZooAudio,
         private readonly sprites: readonly SpriteFrame[],
     ) {}
 
-    show(dialog: Node, actions: SettingsActions): Node {
-        const footerShift = actions.abandon ? 0 : 160;
-        const artwork = uiNode(dialog, "SettingsArtwork", 1152, 2048);
-        picture(
-            artwork,
-            "SettingsPanel",
-            this.sprites[0],
-            850,
-            1150 - footerShift,
-        ).node.setPosition(0, -14 + footerShift / 2);
-        this.dialogTitle(artwork, "设置", 495, actions.back);
-        for (const [index, text, y] of [
-            [7, "音效高低", 345],
-            [8, "音乐高低", 205],
+    renderContent(body: Node, width: number, actions: SettingsActions): Node {
+        const version = actions.version?.trim();
+        const rowPitch = 105;
+        const height =
+            242 + rowPitch * (actions.abandon ? 3 : 2) + (version ? 36 : 0);
+        body.getComponent(UITransform)!.setContentSize(width, height);
+        let y = height / 2 - 42;
+        for (const [index, text, channel] of [
+            [7, "音效高低", "sfx"],
+            [8, "音乐高低", "music"],
         ] as const) {
             picture(
-                artwork,
+                body,
                 text + "图标",
                 this.sprites[index],
-                85,
-                85,
-            ).node.setPosition(-291, y);
-            const caption = label(artwork, text, 42, "#56351C");
+                62,
+            ).node.setPosition(-249, y);
+            const caption = label(body, text, 33, "#56351C");
             caption.isBold = true;
-            caption.node.setPosition(-130, y);
+            caption.node.setPosition(-129, y);
+            this.createVolumeRow(body, channel, y);
+            y -= 88;
         }
-        this.createVolumeRow(artwork, "sfx", 345);
-        this.createVolumeRow(artwork, "music", 205);
+        y -= 15;
         const feedback = this.rowButton(
-            artwork,
+            body,
             "问题反馈",
-            34,
+            y,
             4,
             actions.feedback,
         );
-        this.rowButton(artwork, "联系客服", -127, 5, actions.contact);
+        y -= rowPitch;
+        this.rowButton(body, "联系客服", y, 5, actions.contact);
         if (actions.abandon) {
-            this.rowButton(artwork, "放弃挑战", -293, 6, actions.abandon);
+            y -= rowPitch;
+            this.rowButton(body, "放弃挑战", y, 6, actions.abandon);
         }
+        y -= 81;
         const privacy = label(
-            artwork,
+            body,
             "儿童隐私保护声明及监护人须知",
-            30,
+            23,
             "#386B8F",
         );
         privacy.node.name = "ChildPrivacyLink";
         privacy.isUnderline = true;
-        privacy.node.setPosition(0, -429 + footerShift);
-        privacy.node.getComponent(UITransform)!.setContentSize(680, 75);
+        privacy.node.setPosition(0, y);
+        privacy.node.getComponent(UITransform)!.setContentSize(width - 32, 44);
         const press = privacy.node.addComponent(ButtonPress);
         const scale = scaleButton(privacy.node, 0.98);
         press.action = actions.privacy;
@@ -83,37 +130,12 @@ export class SettingsView {
             privacy.color = color(pressed ? "#20425B" : "#386B8F");
             scale(pressed);
         };
-        const version = actions.version?.trim();
-        if (version) {
-            label(artwork, "版本 " + version, 24, "#886849").node.setPosition(
+        if (version)
+            label(body, "版本 " + version, 19, "#886849").node.setPosition(
                 0,
-                -480 + footerShift,
+                y - 37,
             );
-        }
         return feedback;
-    }
-
-    private dialogTitle(
-        parent: Node,
-        text: string,
-        y: number,
-        onClose: () => void,
-    ): void {
-        const sign = picture(parent, "DialogTitle", this.sprites[1], 490, 188);
-        sign.node.setPosition(0, y);
-        const caption = label(sign.node, text, 52, "#FFFFFF");
-        caption.isBold = true;
-        caption.node.getComponent(UITransform)!.setContentSize(360, 90);
-        this.imageButton(
-            parent,
-            "关闭对话框",
-            369,
-            y - 16,
-            110,
-            110,
-            3,
-            onClose,
-        );
     }
 
     private imageButton(
@@ -157,8 +179,8 @@ export class SettingsView {
             text,
             0,
             y,
-            490,
-            160,
+            390,
+            105,
             2,
             action,
         );
@@ -166,50 +188,13 @@ export class SettingsView {
             button,
             text + "图标",
             this.sprites[icon],
-            88,
-            88,
-        ).node.setPosition(-117, 0);
-        const caption = label(button, text, 44, "#56351C");
+            65,
+            65,
+        ).node.setPosition(-105, 0);
+        const caption = label(button, text, 34, "#56351C");
         caption.isBold = true;
-        caption.node.setPosition(55, 0);
+        caption.node.setPosition(42, 0);
         return button;
-    }
-
-    confirmAbandon(
-        dialog: Node,
-        onCancel: () => void,
-        onAbandon: () => void,
-    ): void {
-        const artwork = uiNode(dialog, "SettingsArtwork", 1152, 2048);
-        const frame = this.sprites[0];
-        frame.insetLeft = 100;
-        frame.insetRight = 100;
-        frame.insetTop = 100;
-        frame.insetBottom = 100;
-        const panel = picture(artwork, "AbandonCard", frame, 850, 500);
-        panel.type = Sprite.Type.SLICED;
-        this.dialogTitle(artwork, "放弃挑战？", 250, onCancel);
-        label(artwork, "结束本局并返回首页", 42, "#56351C").node.setPosition(
-            0,
-            60,
-        );
-        for (const [text, x, action, ink] of [
-            ["继续挑战", -200, onCancel, "#56351C"],
-            ["放弃挑战", 200, onAbandon, "#8A3523"],
-        ] as const) {
-            const button = this.imageButton(
-                artwork,
-                text,
-                x,
-                -105,
-                340,
-                116,
-                2,
-                action,
-            );
-            const caption = label(button, text, 42, ink);
-            caption.isBold = true;
-        }
     }
 
     private createVolumeRow(
@@ -218,9 +203,9 @@ export class SettingsView {
         y: number,
     ): void {
         const name = channel === "music" ? "音乐音量" : "音效音量";
-        const width = 340;
+        const width = 258;
         const track = uiNode(parent, name, width + 40, 60);
-        track.setPosition(170, y);
+        track.setPosition(145, y);
         const graphic = track.addComponent(Graphics);
         const draw = (volume: number) => {
             const fill = (width * volume) / 100;

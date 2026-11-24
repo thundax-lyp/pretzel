@@ -276,6 +276,8 @@ function drawResultRanking(context, width, height, entries, own) {
 }
 
 let panelArt;
+let rankingTitle;
+let rankingTabs;
 let redraw = () => {};
 
 function rankLayout() {
@@ -306,6 +308,18 @@ function drawPanel(context, canvasWidth) {
             redraw();
         };
         image.src = "open-data/panel.png";
+        const title = wx.createImage();
+        title.onload = () => {
+            rankingTitle = title;
+            redraw();
+        };
+        title.src = "open-data/title.png";
+        const tabs = wx.createImage();
+        tabs.onload = () => {
+            rankingTabs = tabs;
+            redraw();
+        };
+        tabs.src = "open-data/tabs.png";
     }
     if (!panelArt?.loaded) return layout;
     const image = panelArt.image;
@@ -337,31 +351,33 @@ function drawPanel(context, canvasWidth) {
             width,
             height,
         );
-    const text = (value, x, y, size, selected) => {
-        context.textAlign = "center";
-        context.textBaseline = "middle";
-        context.font = "bold " + size + "px sans-serif";
-        context.lineWidth = 3;
-        context.strokeStyle = "#63381D";
-        if (selected) context.strokeText(value, x, y);
-        context.fillStyle = selected ? "#FFF4C4" : "#71431F";
-        context.fillText(value, x, y);
-    };
     imageRect([719, 71, 514, 178], canvasWidth / 2, layout.top + 14, 556, 164);
-    text("好友排行榜", canvasWidth / 2, layout.top + 14, 55, true);
-    for (const [history, x, caption] of [
-        [false, canvasWidth / 2 - 141, "本周榜"],
-        [true, canvasWidth / 2 + 141, "历史榜"],
-    ]) {
-        const selected = history === requestedHistory;
-        imageRect(
-            selected ? [719, 71, 514, 178] : [724, 306, 508, 157],
-            x,
-            layout.top + 124,
-            262,
-            81,
+    if (rankingTitle)
+        context.drawImage(
+            rankingTitle,
+            canvasWidth / 2 - 205,
+            layout.top - 37.25,
+            410,
+            102.5,
         );
-        text(caption, x, layout.top + 124, 34, selected);
+    if (rankingTabs) {
+        // Columns are week/history; rows are light/dark.
+        for (const [column, history, x] of [
+            [0, false, canvasWidth / 2 - 141],
+            [1, true, canvasWidth / 2 + 141],
+        ]) {
+            context.drawImage(
+                rankingTabs,
+                column * 262,
+                history === requestedHistory ? 81 : 0,
+                262,
+                81,
+                x - 131,
+                layout.top + 124 - 40.5,
+                262,
+                81,
+            );
+        }
     }
     return layout;
 }

@@ -100,10 +100,10 @@ test("progress waits for the home bundle and reaches completion after its textur
     const pending = state.loadGame((value) => progress.push(value));
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(progress[0], 0);
-    assert.equal(progress.at(-1), 10 / 29);
+    assert.equal(progress.at(-1), 10 / 37);
     state.releaseHome();
     await pending;
-    assert.equal(progress.length, 30);
+    assert.equal(progress.length, 38);
     assert.equal(progress.at(-1), 1);
     assert.ok(
         progress.every(
