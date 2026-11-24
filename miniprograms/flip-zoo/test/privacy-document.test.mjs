@@ -21,10 +21,10 @@ test("structured policy preserves all nonempty lines of the supplied document", 
         ...document.dates.map((date) => `${date.label}：${date.value}`),
         ...document.blocks.map((block) => block.text),
     ].join("\n");
-    // SHA-256 of the original supplied TXT after trimming lines and omitting blank lines.
+    // SHA-256 of the approved policy text with the corrected publication date.
     assert.equal(
         createHash("sha256").update(text).digest("hex"),
-        "6f724b8a4ac3a4b2ac31af0ddf3536ed656f1fa1aaf3baba4d4c454a21031ec7",
+        "f7cde0f48fc53316fd395a94a889aac295df381e38b7ee091ffec9a832be26c8",
     );
     assert.equal(
         document.blocks.filter(
