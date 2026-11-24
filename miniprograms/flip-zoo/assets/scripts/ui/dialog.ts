@@ -90,6 +90,7 @@ export class Dialog {
         if (options.onBackdropPress && backdrop) {
             this.panel.addComponent(BlockInputEvents);
             const press = backdrop.addComponent(ButtonPress);
+            press.excludedRegion = this.panel.getComponent(UITransform)!;
             press.action = options.onBackdropPress;
             press.showPressed = () => {};
         }

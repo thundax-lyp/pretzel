@@ -18,6 +18,7 @@ export class ButtonPress extends Component {
 
     action!: () => void;
     available = () => true;
+    excludedRegion?: UITransform;
     showPressed!: (pressed: boolean) => void;
     private touchId: number | null = null;
 
@@ -44,7 +45,13 @@ export class ButtonPress extends Component {
 
     private onStart(event: EventTouch): void {
         const id = event.getID();
-        if (id === null || this.touchId !== null || !this.available()) return;
+        if (
+            id === null ||
+            this.touchId !== null ||
+            !this.available() ||
+            !this.isInside(event)
+        )
+            return;
         this.touchId = id;
         this.showPressed(true);
         this.node.dispatchEvent(new Event(ButtonPress.PRESSED, true));
@@ -70,9 +77,10 @@ export class ButtonPress extends Component {
     }
 
     private isInside(event: EventTouch): boolean {
-        return this.getComponent(UITransform)!.hitTest(
-            event.getLocation(),
-            event.windowId,
+        const point = event.getLocation();
+        return (
+            this.getComponent(UITransform)!.hitTest(point, event.windowId) &&
+            !this.excludedRegion?.hitTest(point, event.windowId)
         );
     }
 }
