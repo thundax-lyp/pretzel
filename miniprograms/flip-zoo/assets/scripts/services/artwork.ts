@@ -14,6 +14,7 @@ export interface ZooArtwork {
         settings: readonly SpriteFrame[];
         rankingButtons: readonly [SpriteFrame, SpriteFrame];
         tutorialTransition: SpriteFrame;
+        gardenGate: readonly SpriteFrame[];
         collectionAnimals: readonly (readonly SpriteFrame[])[];
     };
     readonly raisedTile: SpriteFrame;
@@ -126,8 +127,8 @@ export async function loadZooArtwork(
     onProgress: (progress: number) => void = () => {},
 ): Promise<ZooArtwork> {
     let completed = 0;
-    // Ten main-package textures, one home bundle and seventeen home textures.
-    const advance = () => onProgress(++completed / 28);
+    // Ten main-package textures, one home bundle and eighteen home textures.
+    const advance = () => onProgress(++completed / 29);
     const trackedTexture = async (name: string) => {
         const texture = await loadTexture(name);
         advance();
@@ -240,6 +241,7 @@ async function loadHomeArtwork(
             "ranking-buttons/wood-active",
             "ranking-buttons/paper",
             "tutorial-transition",
+            "garden-gate",
         ].map(
             (name) =>
                 new Promise<Texture2D>((resolve, reject) => {
@@ -260,6 +262,7 @@ async function loadHomeArtwork(
     const poses = textures.slice(0, 6).map((sheet) => slice(sheet, 2, 3));
     return {
         tutorialTransition: slice(textures[14], 1, 1)[0],
+        gardenGate: slice(textures[15], 2, 1),
         resultButtons: {
             home: slice(textures[6], 1, 1)[0],
             revive: slice(textures[7], 1, 1)[0],

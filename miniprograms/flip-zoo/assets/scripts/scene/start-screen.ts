@@ -78,7 +78,10 @@ import {
     titleLine,
     uiNode,
 } from "../ui/nodes";
-import { ClearCelebration, shatterMirror } from "../gameplay/clear-celebration";
+import {
+    ClearCelebration,
+    openGardenGate,
+} from "../gameplay/clear-celebration";
 import { showWelcome } from "../home/welcome-view";
 import { SettingsView } from "../settings/settings-view";
 import { ZooAudio } from "../services/zoo-audio";
@@ -779,11 +782,17 @@ export class FlipZooStartScreen extends Component {
             if (deal.roundId)
                 this.fragmentRound = { id: deal.roundId, actions: [] };
             if (fromTutorial) {
-                const mirror = this.openOverlay("MirrorTransition", false);
+                const gate = this.openOverlay("GardenGateTransition", false);
                 const { width, height } = this.screenSize();
-                shatterMirror(mirror, width, height, () => {
-                    if (this.overlay === mirror) this.closeOverlay();
-                });
+                openGardenGate(
+                    gate,
+                    this.art.home.gardenGate,
+                    width,
+                    height,
+                    () => {
+                        if (this.overlay === gate) this.closeOverlay();
+                    },
+                );
             }
         }
     }
