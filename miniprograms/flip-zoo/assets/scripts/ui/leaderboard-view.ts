@@ -53,6 +53,7 @@ export function showRankingList(
     list.setPosition(0, preview ? -2 : 0);
     list.setSiblingIndex(0);
     let historySync: Promise<void> | undefined;
+    let refreshing = false;
     const sync = () => {
         historySync ??= syncLifetimeRank().finally(() => {
             historySync = undefined;
@@ -62,7 +63,7 @@ export function showRankingList(
     const syncOnEntry = () => {
         if (preview || !art) return;
         void sync().catch(() => {
-            if (version === rankingRequest && list.isValid)
+            if (!refreshing && version === rankingRequest && list.isValid)
                 postRankMessage("history-error");
         });
     };
@@ -107,6 +108,8 @@ export function showRankingList(
                 postRankMessage(preview ? "show-preview" : "show-week");
                 return;
             }
+            if (refreshing) return;
+            refreshing = true;
             postRankMessage("loading-rank");
             void sync()
                 .then(() => {
@@ -116,6 +119,9 @@ export function showRankingList(
                 .catch(() => {
                     if (version === rankingRequest && list.isValid)
                         postRankMessage("rank-error");
+                })
+                .finally(() => {
+                    refreshing = false;
                 });
         };
         if (!preview) {

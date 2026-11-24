@@ -163,8 +163,9 @@ test("refresh reuses in-flight sync and closing its view suppresses late refresh
     const f = fixture(),
         view = f.show(false, true);
     view.refresh();
+    view.refresh();
     assert.equal(f.pending.length, 1);
-    assert.equal(f.messages.at(-1), "loading-rank");
+    assert.deepEqual(f.messages, ["show-history", "loading-rank"]);
     view.list.isValid = false;
     const before = f.messages.length;
     f.pending[0].resolve();

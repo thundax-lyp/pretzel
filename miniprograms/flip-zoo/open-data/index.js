@@ -95,6 +95,7 @@ const visibleRows = 5;
 const rowHeight = 96;
 let request = 0;
 let rankingList;
+let lastHistoryRanking;
 const avatars = new Map();
 
 function drawAvatar(url, context, x, y, size, rank) {
@@ -553,9 +554,38 @@ function drawRanking() {
     );
 }
 
+function showHistoryFailure(message) {
+    rankingList = lastHistoryRanking;
+    if (rankingList) drawRanking();
+    else draw(message);
+}
+
+function warnHistoryFailure(operation, error) {
+    const code = error?.errCode ?? error?.errno;
+    const numericCode =
+        typeof code === "string" && /^-?\d{1,10}$/.test(code)
+            ? Number(code)
+            : code;
+    console.warn(
+        `[FLIP ZOO] history leaderboard ${operation} failed`,
+        Number.isSafeInteger(numericCode) && Math.abs(numericCode) <= 9999999999
+            ? numericCode
+            : "unknown",
+    );
+}
+
 function showRanking(preview, history, version) {
     if (version !== request) return;
-    draw(history ? "正在加载好友历史榜…" : "正在加载好友周榜…", [], preview);
+    if (history && lastHistoryRanking) {
+        rankingList = lastHistoryRanking;
+        drawRanking();
+    } else {
+        draw(
+            history ? "正在加载好友历史榜…" : "正在加载好友周榜…",
+            [],
+            preview,
+        );
+    }
     wx.getFriendCloudStorage({
         keyList: [history ? totalRankKey : rankKey],
         success: async ({ data }) => {
@@ -618,10 +648,14 @@ function showRanking(preview, history, version) {
                 preview,
                 history,
             };
+            if (history) lastHistoryRanking = rankingList;
             drawRanking();
         },
-        fail: () => {
-            if (version === request)
+        fail: (error) => {
+            if (history) warnHistoryFailure("getFriendCloudStorage", error);
+            if (version !== request) return;
+            if (history) showHistoryFailure("加载失败，请点击刷新");
+            else
                 draw(
                     preview
                         ? "排行加载失败，请重新打开"
@@ -637,7 +671,11 @@ let pendingWrites = Promise.resolve();
 let historyWriteFailed = false;
 let requestedHistory = false;
 let fullRankingView = false;
+let refreshingRank = false;
+let refreshGeneration = 0;
 wx.onMessage(({ action, rows, total, x, y }) => {
+    if (["show-week", "show-history", "show-preview"].includes(action))
+        refreshingRank = false;
     if (action === "rank-pointer" && fullRankingView) {
         const layout = rankLayout();
         if (
@@ -650,22 +688,28 @@ wx.onMessage(({ action, rows, total, x, y }) => {
         if (x < width / 2 - 272 || x > width / 2 + 272) return;
         action = x < width / 2 ? "show-week" : "show-history";
     }
-    if (action === "refresh-rank")
+    if (action === "refresh-rank") {
+        refreshingRank = false;
         action = requestedHistory ? "show-history" : "show-week";
+    }
     if (action === "loading-rank") {
-        rankingList = undefined;
+        refreshingRank = true;
+        ++refreshGeneration;
         ++request;
-        draw("正在刷新好友榜…");
+        if (!requestedHistory || !lastHistoryRanking) {
+            rankingList = undefined;
+            draw("正在刷新好友榜…");
+        }
         return;
     }
+    if (action === "rank-error") refreshingRank = false;
     if (action === "rank-error" && !requestedHistory) {
         showRanking(false, false, ++request);
         return;
     }
     if (action === "rank-error") {
-        rankingList = undefined;
         ++request;
-        draw("刷新失败，请重试");
+        showHistoryFailure("刷新失败，请重试");
         return;
     }
     if (action === "record-win") {
@@ -677,22 +721,33 @@ wx.onMessage(({ action, rows, total, x, y }) => {
         Number.isSafeInteger(total) &&
         total >= 0
     ) {
+        const generation = refreshGeneration;
+        const duringRefresh = refreshingRank;
         pendingWrites = pendingWrites
             .then(() => syncHistory(total))
             .then(() => {
                 historyWriteFailed = false;
-                if (fullRankingView && requestedHistory) {
-                    rankingList = undefined;
+                if (
+                    fullRankingView &&
+                    requestedHistory &&
+                    !duringRefresh &&
+                    !refreshingRank &&
+                    generation === refreshGeneration
+                )
                     showRanking(false, true, ++request);
-                }
             })
-            .catch(() => {
+            .catch((error) => {
                 historyWriteFailed = true;
-                console.warn("Unable to update the lifetime leaderboard");
-                if (fullRankingView && requestedHistory) {
-                    rankingList = undefined;
+                warnHistoryFailure("syncHistory storage", error);
+                if (
+                    fullRankingView &&
+                    requestedHistory &&
+                    !duringRefresh &&
+                    !refreshingRank &&
+                    generation === refreshGeneration
+                ) {
                     ++request;
-                    draw("累计次数同步失败，请点击刷新");
+                    showHistoryFailure("累计次数同步失败，请点击刷新");
                 }
             });
     } else if (
@@ -716,8 +771,7 @@ wx.onMessage(({ action, rows, total, x, y }) => {
         draw("正在同步累计通关次数…");
     } else if (action === "history-error" && requestedHistory) {
         ++request;
-        rankingList = undefined;
-        draw("累计次数同步失败，请点击刷新");
+        showHistoryFailure("累计次数同步失败，请点击刷新");
     } else if (["show-week", "show-preview", "show-history"].includes(action)) {
         fullRankingView = action !== "show-preview";
         requestedHistory = action === "show-history";
@@ -726,8 +780,12 @@ wx.onMessage(({ action, rows, total, x, y }) => {
         const version = ++request;
         void pendingWrites.then(() => {
             if (version !== request) return;
-            if (action === "show-history" && historyWriteFailed) {
-                draw("累计次数同步失败，请点击刷新");
+            if (requestedHistory && refreshingRank) {
+                showHistoryFailure("正在刷新好友榜…");
+                return;
+            }
+            if (requestedHistory && historyWriteFailed) {
+                showHistoryFailure("累计次数同步失败，请点击刷新");
                 return;
             }
             showRanking(
