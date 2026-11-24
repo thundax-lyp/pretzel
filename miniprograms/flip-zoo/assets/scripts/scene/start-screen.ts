@@ -32,7 +32,7 @@ import {
     supportsStoreGift,
     openStoreGift,
     giftMessage,
-    giftEnabled,
+    giftControl,
     giftDiagnostic,
     type GiftPlatform,
     type GiftResult,
@@ -1465,6 +1465,10 @@ export class FlipZooStartScreen extends Component {
             return value;
         });
         const load = async () => {
+            giftButtons.forEach((control) => {
+                control.setEnabled(false);
+                control.detail.string = "读取中…";
+            });
             balances.forEach((value) => {
                 value.string = "读取中…";
             });
@@ -1482,18 +1486,12 @@ export class FlipZooStartScreen extends Component {
                 if (this.overlay !== overlay) return;
                 gifts.forEach((gift, index) => {
                     const control = giftButtons[index];
-                    const enabled = giftEnabled(gift);
+                    const { enabled, detail } = giftControl(
+                        gift,
+                        amounts[index],
+                    );
                     control.setEnabled(enabled);
-                    control.detail.string =
-                        gift.status === "ready"
-                            ? "继续领取"
-                            : gift.status === "pending"
-                              ? "重试确认"
-                              : amounts[index] < (gift.cost ?? 1000)
-                                ? "碎片不足"
-                                : !enabled
-                                  ? "暂未开放"
-                                  : `${gift.cost}碎片`;
+                    control.detail.string = detail;
                 });
                 balances.forEach((value, index) => {
                     value.string = `碎片：${amounts[index]}`;
