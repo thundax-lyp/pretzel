@@ -73,9 +73,30 @@ for (const retired of ["admin-web", "frontend", "miniprogram"]) {
         fail(directory, "place game applications in miniprograms/<game>");
 }
 const all = files(root);
+const unsupportedGameImage =
+    /\.(?:apng|avif|bmp|cur|dds|exr|gif|hdr|heic|heif|ico|jpe?g|jxl|ktx2?|pvr|psd|tga|tiff?|webp)(?:\.meta)?$/i;
 for (const file of all) {
-    if (!file.endsWith(".scene")) continue;
     const parts = path.relative(root, file).split(path.sep);
+    const name = path.basename(file);
+    if (
+        parts[0] === "miniprograms" &&
+        parts.length > 2 &&
+        unsupportedGameImage.test(name)
+    ) {
+        fail(file, "use .png or .svg for game images");
+    }
+    if (
+        parts[0] === "miniprograms" &&
+        parts[2] === "assets" &&
+        parts.length > 3 &&
+        !name.startsWith(".") &&
+        !/^[a-z0-9]+(?:-[a-z0-9]+)*(?:\.(?:d\.ts|[a-z0-9]+))?(?:\.meta)?$/.test(
+            name,
+        )
+    ) {
+        fail(file, "use lowercase kebab-case Cocos asset filenames");
+    }
+    if (!file.endsWith(".scene")) continue;
     const assets = parts.lastIndexOf("assets");
     if (assets >= 0 && parts[assets + 1] === "scenes") {
         const game = path.join(root, ...parts.slice(0, assets));
@@ -134,6 +155,6 @@ if (errors.length) {
     process.exitCode = 1;
 } else {
     console.log(
-        "Structure lint passed: custom directory names, game directories and document tree.",
+        "Structure lint passed: custom directory names, game directories, Cocos asset filenames and document tree.",
     );
 }

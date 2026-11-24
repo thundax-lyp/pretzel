@@ -131,8 +131,8 @@ try {
                 imageUrl:
                     imageUrl ||
                     (victory
-                        ? "share/victory-result.jpg"
-                        : "share/game-invite.jpg"),
+                        ? "share/victory-result.png"
+                        : "share/game-invite.png"),
             };
         });
         fs.writeFileSync(
@@ -217,8 +217,8 @@ try {
             useCustomBg: "true",
             fitWidth: "false",
             fitHeight: "false",
-            logoName: resourcePath("home-loading/background.jpg"),
-            bgName: resourcePath("home-loading/background.jpg"),
+            logoName: resourcePath("home-loading/background.png"),
+            bgName: resourcePath("home-loading/background.png"),
             progressBarColor: "[255 / 255, 199 / 255, 85 / 255, 1]",
             progressBackground: "[111 / 255, 63 / 255, 106 / 255, 1]",
         };

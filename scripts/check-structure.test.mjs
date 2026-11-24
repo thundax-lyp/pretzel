@@ -83,6 +83,78 @@ test("checks game names and required Cocos project paths", (t) => {
     assert.match(result.stderr, /missing-scenes: missing Cocos assets\/scenes/);
 });
 
+test("accepts lowercase kebab-case Cocos asset and sidecar filenames", (t) => {
+    const result = fixture(t, {
+        "miniprograms/sample-game/assets/home/animals-action-01.png": "",
+        "miniprograms/sample-game/assets/home/animals-action-01.png.meta": "",
+        "miniprograms/sample-game/assets/home.meta": "",
+        "miniprograms/sample-game/assets/resources/shared/button-press.mp3": "",
+        "miniprograms/sample-game/assets/scripts/creator-env.d.ts": "",
+        "miniprograms/sample-game/assets/.DS_Store": "",
+        "miniprograms/sample-game/build/Generated_Asset.png": "",
+    });
+    assert.equal(result.status, 0, result.stderr);
+});
+
+test("game images use PNG or SVG, including packaged share images", (t) => {
+    const files = {
+        "miniprograms/sample-game/assets/art/table.png": "",
+        "miniprograms/sample-game/assets/art/tile.svg": "",
+        "miniprograms/sample-game/assets/art/tile.svg.meta": "",
+        "miniprograms/sample-game/share/game-invite.png": "",
+        "miniprograms/sample-game/build/generated.jpg": "",
+        "docs/00-governance/assets/screenshot.jpg": "",
+    };
+    assert.equal(fixture(t, files).status, 0);
+
+    const result = fixture(t, {
+        ...files,
+        "miniprograms/sample-game/assets/art/table.jpg": "",
+        "miniprograms/sample-game/assets/art/table.jpg.meta": "",
+        "miniprograms/sample-game/assets/art/tile.webp": "",
+        "miniprograms/sample-game/share/game-invite.jpeg": "",
+    });
+    assert.equal(result.status, 1);
+    for (const name of [
+        "table.jpg",
+        "table.jpg.meta",
+        "tile.webp",
+        "game-invite.jpeg",
+    ]) {
+        assert.ok(
+            result.stderr.includes(`${name}: use .png or .svg for game images`),
+            result.stderr,
+        );
+    }
+});
+
+test("rejects non-kebab-case Cocos asset and sidecar filenames", (t) => {
+    const names = [
+        "tileMatch.mp3",
+        "tile_match.png",
+        "Tile-match.png.meta",
+        "tile-match.PNG",
+    ];
+    const result = fixture(
+        t,
+        Object.fromEntries(
+            names.map((name) => [
+                `miniprograms/sample-game/assets/art/${name}`,
+                "",
+            ]),
+        ),
+    );
+    assert.equal(result.status, 1);
+    for (const name of names) {
+        assert.ok(
+            result.stderr.includes(
+                `${name}: use lowercase kebab-case Cocos asset filenames`,
+            ),
+            result.stderr,
+        );
+    }
+});
+
 test("rejects Cocos scenes outside a direct game directory", (t) => {
     const result = fixture(t, {
         "apps/other-game/assets/scenes/start.scene": "[]\n",

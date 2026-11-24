@@ -1,8 +1,12 @@
 import {
     _decorator,
+    AudioClip,
+    AudioSource,
     Color,
     Component,
+    Game,
     Graphics,
+    Input,
     Rect,
     Size,
     Sprite,
@@ -15,11 +19,15 @@ import {
     tween,
     Tween,
     Vec3,
+    game,
+    input,
 } from "cc";
 import {
     covers,
     deal,
     findMatch,
+    faceName,
+    FACE_FILES,
     shuffleBoard,
     SLOT_CAPACITY,
     TILE_WIDTH,
@@ -38,6 +46,14 @@ const RAIL = new Color(37, 99, 77);
 const SLOT_Y = 345;
 const SLOT_STEP = 74;
 const SLOT_SCALE = 0.65;
+const SOUNDS = {
+    button: "button-click",
+    select: "tile-select",
+    match: "tile-match",
+    shuffle: "tile-shuffle",
+    clear: "round-clear",
+} as const;
+type Sound = keyof typeof SOUNDS;
 
 type BoardTile = {
     tile: PlacedTile;
@@ -73,10 +89,46 @@ export class MahjongStartScreen extends Component {
     private status!: Label;
     private remaining!: Label;
 
-    private tileFrames: SpriteFrame[] = [];
+    private tileFrames = new Map<string, SpriteFrame>();
     private toolFrames: SpriteFrame[] = [];
 
+    private audio!: AudioSource;
+    private readonly audioClips = new Map<Sound, AudioClip>();
+    private music!: AudioSource;
+    private musicRequested = false;
+    private foreground = true;
+
     protected start(): void {
+        this.audio = this.node.addComponent(AudioSource);
+        this.audio.playOnAwake = false;
+        this.music = this.node.addComponent(AudioSource);
+        this.music.playOnAwake = false;
+        this.music.loop = true;
+        this.music.volume = 0.24;
+        input.on(Input.EventType.TOUCH_END, this.requestMusic, this);
+        input.on(Input.EventType.MOUSE_UP, this.requestMusic, this);
+        game.on(Game.EVENT_HIDE, this.pauseMusic, this);
+        game.on(Game.EVENT_SHOW, this.resumeMusic, this);
+        resources.load("audio/table-music", AudioClip, (error, clip) => {
+            if (!this.isValid) return;
+            if (error) {
+                console.warn(error);
+                return;
+            }
+            this.music.clip = clip;
+            this.syncMusic();
+        });
+        for (const sound of Object.keys(SOUNDS) as Sound[]) {
+            resources.load(
+                `audio/${SOUNDS[sound]}`,
+                AudioClip,
+                (error, clip) => {
+                    if (!this.node.isValid) return;
+                    if (error) console.warn(error);
+                    else this.audioClips.set(sound, clip);
+                },
+            );
+        }
         void this.loadArtwork().catch((error: unknown) => {
             if (this.node.isValid)
                 this.text(
@@ -91,23 +143,55 @@ export class MahjongStartScreen extends Component {
         });
     }
 
+    private requestMusic(): void {
+        this.musicRequested = true;
+        this.syncMusic();
+    }
+
+    private pauseMusic(): void {
+        this.foreground = false;
+        this.music.pause();
+    }
+
+    private resumeMusic(): void {
+        this.foreground = true;
+        this.syncMusic();
+    }
+
+    private syncMusic(): void {
+        if (
+            this.musicRequested &&
+            this.foreground &&
+            this.music.clip &&
+            !this.music.playing
+        ) {
+            this.music.play();
+        }
+    }
+
+    private playSound(sound: Sound): void {
+        const clip = this.audioClips.get(sound);
+        if (clip) this.audio.playOneShot(clip);
+    }
+
     private async loadArtwork(): Promise<void> {
-        const [table, tiles, tools] = await Promise.all([
+        const [table, tools, ...tiles] = await Promise.all([
             loadTexture("table"),
-            loadTexture("tiles"),
             loadTexture("tools"),
+            ...FACE_FILES.map((name) => loadTexture(`tiles/${name}`)),
         ]);
         if (!this.node.isValid) return;
-        this.tileFrames = Array.from({ length: 28 }, (_, index) =>
-            frame(
-                tiles,
-                new Rect(
-                    (index % 7) * 128,
-                    Math.floor(index / 7) * 176,
-                    128,
-                    176,
-                ),
-            ),
+        this.tileFrames = new Map(
+            FACE_FILES.map((name, index) => {
+                const texture = tiles[index];
+                return [
+                    name,
+                    frame(
+                        texture,
+                        new Rect(0, 0, texture.width, texture.height),
+                    ),
+                ];
+            }),
         );
         this.toolFrames = Array.from({ length: 3 }, (_, index) =>
             frame(tools, new Rect(index * 160, 0, 160, 160)),
@@ -145,7 +229,10 @@ export class MahjongStartScreen extends Component {
         const restart = this.child(this.node, "Restart", 0, -555);
         this.panel(restart, 166, 48, 16, RAIL);
         this.text(restart, "重新发牌", 23, CREAM, 0, 0);
-        restart.on(Node.EventType.TOUCH_END, this.startRound, this);
+        restart.on(Node.EventType.TOUCH_END, () => {
+            this.playSound("button");
+            this.startRound();
+        });
 
         this.startRound();
     }
@@ -193,6 +280,7 @@ export class MahjongStartScreen extends Component {
     private shuffle(): void {
         if (this.busy) return;
         if (this.board.length < 2 || this.tray.length === SLOT_CAPACITY) {
+            this.playSound("button");
             this.status.string =
                 this.tray.length === SLOT_CAPACITY
                     ? "槽满了，先消除或撤回"
@@ -205,11 +293,13 @@ export class MahjongStartScreen extends Component {
             this.tray.map(({ tile }) => tile),
         );
         this.status.string = "已洗牌，槽内牌保留";
+        this.playSound("shuffle");
     }
 
     private clearTray(): void {
         if (this.busy) return;
         if (this.tray.length === 0) {
+            this.playSound("button");
             this.status.string = "收牌槽是空的";
             return;
         }
@@ -218,11 +308,12 @@ export class MahjongStartScreen extends Component {
         this.removeFromTray(
             new Set(Array.from({ length: count }, (_, index) => index)),
         );
-        this.finishMove(`已消除槽内 ${count} 张牌`);
+        this.finishMove(`已消除槽内 ${count} 张牌`, true);
     }
 
     private undo(): void {
         if (this.busy) return;
+        this.playSound("button");
         const previous = this.beforePick;
         if (!previous) {
             this.status.string = "没有可撤回的取牌";
@@ -235,13 +326,9 @@ export class MahjongStartScreen extends Component {
 
     private makeTile(tile: PlacedTile): BoardTile {
         const node = this.child(this.round, "Tile", tile.x, tile.y);
-        const index =
-            tile.suit === "字"
-                ? 27
-                : ["万", "筒", "条"].indexOf(tile.suit) * 9 + tile.rank - 1;
         const sprite = this.image(
             node,
-            this.tileFrames[index],
+            this.tileFrames.get(faceName(tile))!,
             TILE_WIDTH,
             TILE_HEIGHT,
         );
@@ -272,6 +359,7 @@ export class MahjongStartScreen extends Component {
         this.tray.push(card);
         card.node.setSiblingIndex(this.round.children.length - 1);
         this.refreshBoard();
+        this.playSound("select");
 
         tween(card.node)
             .to(
@@ -293,6 +381,7 @@ export class MahjongStartScreen extends Component {
             result
                 ? `${result.match}！消掉三张`
                 : `收牌槽 ${this.tray.length} / ${SLOT_CAPACITY}`,
+            result !== null,
         );
     }
 
@@ -313,13 +402,15 @@ export class MahjongStartScreen extends Component {
         });
     }
 
-    private finishMove(message: string): void {
+    private finishMove(message: string, removedTiles: boolean): void {
         this.finished = false;
         this.status.string = message;
         this.refreshBoard();
-        if (this.board.length === 0 && this.tray.length === 0) {
+        const cleared = this.board.length === 0 && this.tray.length === 0;
+        if (cleared) {
             this.finished = true;
             this.status.string = "清台成功！";
+            this.playSound("clear");
         } else if (
             this.tray.length === SLOT_CAPACITY ||
             this.board.length === 0
@@ -328,6 +419,9 @@ export class MahjongStartScreen extends Component {
             this.status.string = this.board.length
                 ? "收牌槽满了，可消除或撤回"
                 : "槽里还有散牌，可消除或撤回";
+        }
+        if (removedTiles && !cleared) {
+            this.playSound("match");
         }
         this.busy = false;
     }
@@ -376,6 +470,11 @@ export class MahjongStartScreen extends Component {
     }
 
     protected onDestroy(): void {
+        input.off(Input.EventType.TOUCH_END, this.requestMusic, this);
+        input.off(Input.EventType.MOUSE_UP, this.requestMusic, this);
+        game.off(Game.EVENT_HIDE, this.pauseMusic, this);
+        game.off(Game.EVENT_SHOW, this.resumeMusic, this);
+        this.music?.stop();
         this.clearRound();
     }
 

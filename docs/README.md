@@ -15,6 +15,8 @@
 
 ## 设计
 
+- [麻将消消素材清单](30-designs/MAHJONG-MATCH-ASSET-INVENTORY.md)
+- [麻将消消音频设计](30-designs/MAHJONG-MATCH-AUDIO.md)
 - [Flip Zoo 游戏设计](30-designs/FLIP-ZOO-DESIGN.md)
 - [Flip Zoo 微信第二关布局配置指南](30-designs/FLIP-ZOO-LAYOUT-GUIDE.md)
 - [Flip Zoo 提高难度的操作与效果评分](30-designs/FLIP-ZOO-DIFFICULTY-OPERATIONS.md)

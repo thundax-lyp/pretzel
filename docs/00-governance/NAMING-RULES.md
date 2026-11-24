@@ -12,8 +12,12 @@
 
 `miniprograms/<工程名>/` 使用独立的 Cocos Creator 工程结构。场景放在 assets/scenes，组件和纯 TypeScript 模块放在 assets/scripts，动态加载资源放在 assets/resources。资源及对应 .meta 文件一起维护。
 
+小游戏 `assets/` 内的文件名使用小写 kebab-case，例如 `animals-action-01.png`、`tile-match.mp3`。扩展名保持小写，`.d.ts` 和 Cocos `.meta` 保留工具约定的后缀。隐藏文件不参与此检查。
+
+小游戏工程的图片源文件统一使用 `.png` 或 `.svg`，包括 Cocos 图片和微信分享卡。结构 lint 检查图片扩展名及对应的 Cocos `.meta` 文件名。构建产物和工程文档截图沿用各自的格式。
+
 文档使用大写英文和连字符，按治理、需求、契约、设计、验收分类；导航顺序由 docs/README.md 维护，不给每个文件添加容易失效的序号前缀。
 
 ## 自动检查
 
-EditorConfig 约束编辑器缩进；Prettier 检查前端、小程序和配置；结构 lint 检查自定义目录的小写 kebab-case 命名、小游戏目录和文档链接。根目录 `npm run lint` 与 CI 执行同一门禁，非法目录名导致检查失败。依赖、构建产物与工具管理目录不参与自定义目录命名检查；隐藏目录的前导点保留，例如 `.agents`。
+EditorConfig 约束编辑器缩进；Prettier 检查前端、小程序和配置；结构 lint 检查自定义目录和 Cocos 资源文件的小写 kebab-case 命名、小游戏目录和文档链接。根目录 `npm run lint` 与 CI 执行同一门禁，非法目录名导致检查失败。依赖、构建产物与工具管理目录不参与自定义目录命名检查；隐藏目录的前导点保留，例如 `.agents`。
