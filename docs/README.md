@@ -22,6 +22,7 @@
 
 ## 验收与证据
 
+- [Flip Zoo 界面与交付验收状态](40-readiness/FLIP-ZOO-READINESS.md)
 - [Flip Zoo 第二关难度验收状态](40-readiness/FLIP-ZOO-DIFFICULTY-READINESS.md)
 - [Flip Zoo 第二关难度校准报告](40-readiness/FLIP-ZOO-DIFFICULTY-CALIBRATION.md)
 
@@ -29,4 +30,4 @@
 
 - [开发检查](../scripts/README.md)：安装、格式、lint 与验证命令。
 
-需求、设计和验收分别维护。已确认需求可能尚未实现，离线验证与真机验收分别记录。`backup/` 保存历史归档。
+查玩家可见规则时读「产品需求」，查实现职责和数据流时读「设计」，查验证依据和交付范围时读「验收与证据」。需求、实现和验证状态分别维护。`backup/` 保存历史归档。
