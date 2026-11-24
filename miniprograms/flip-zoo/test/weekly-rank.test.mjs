@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { runInNewContext } from "node:vm";
+import { leaderboardFooterBottom } from "../assets/scripts/ui/leaderboard-layout.ts";
 
 function fixture({
     self = 9,
@@ -12,13 +13,14 @@ function fixture({
 } = {}) {
     const labels = [];
     const fills = [];
+    const tabRects = [];
     const drawing = {
         clearRect() {
             labels.length = 0;
             fills.length = 0;
+            tabRects.length = 0;
         },
         fillText(text) {
-            if (["好友排行榜", "本周榜", "历史榜"].includes(text)) return;
             labels.push(text);
         },
         strokeText() {},
@@ -30,7 +32,10 @@ function fixture({
         arcTo() {},
         closePath() {},
         clip() {},
-        drawImage() {},
+        drawImage(image, x, y, width, height) {
+            if (image.path === "open-data/tabs.png")
+                tabRects.push([x, y, width, height]);
+        },
         fill() {},
         stroke() {},
         arc() {},
@@ -76,6 +81,7 @@ function fixture({
     const writes = [];
     const pending = [];
     const friendRequests = [];
+    const warnings = [];
     let failWrite = false;
     let receive;
     const wx = {
@@ -88,7 +94,7 @@ function fixture({
         getFriendCloudStorage(callback) {
             friendRequests.push([...callback.keyList]);
             const respond = () => {
-                if (fail) callback.fail();
+                if (fail) callback.fail(fail);
                 else
                     callback.success({
                         data: entries.map((entry) => ({
@@ -132,13 +138,14 @@ function fixture({
         },
         createImage() {
             return {
-                set src(_url) {
+                set src(path) {
+                    this.path = path;
                     queueMicrotask(() => this.onload());
                 },
             };
         },
     };
-    const sandbox = { wx };
+    const sandbox = { wx, console: { warn: (...args) => warnings.push(args) } };
     runInNewContext(
         readFileSync(
             new URL("../open-data/index.js", import.meta.url),
@@ -155,12 +162,14 @@ function fixture({
         failWrites: (value) => (failWrite = value),
         failFriends: (value) => (fail = value),
         friendRequests,
+        warnings,
         resolveFriends: async (index) => {
             pending[index]();
             await new Promise((resolve) => setImmediate(resolve));
         },
         labels,
         fills,
+        tabRects,
         async send(message) {
             receive(message);
             await new Promise((resolve) => setImmediate(resolve));
@@ -271,7 +280,7 @@ test("history failure is visible and refresh can recover without erasing counts"
     assert.ok(f.labels.includes("21"));
     await f.send({ action: "loading-history" });
     await f.send({ action: "history-error" });
-    assert.deepEqual(f.labels, ["累计次数同步失败，请点击刷新"]);
+    assert.ok(f.labels.includes("21"));
 });
 
 test("late history responses cannot overwrite a newer weekly view", async () => {
@@ -326,9 +335,21 @@ test("adaptive panel keeps its button clearance and tab hit area follows its top
     const f = fixture({ count: 1, self: 0, history: [20] });
     await f.send({ action: "show-week" });
     const before = f.layout();
-    assert.equal(before.bottom - (f.canvas.height / 2 + 250 + 38), 68);
+    assert.deepEqual(f.tabRects, [
+        [0, 81, 262, 81],
+        [262, 0, 262, 81],
+    ]);
+    assert.equal(
+        before.bottom - (f.canvas.height / 2 - leaderboardFooterBottom),
+        68,
+    );
     await f.send({ action: "rank-pointer", x: 482, y: before.top + 124 });
     assert.ok(f.labels.includes("累计通关"));
+    assert.deepEqual(f.tabRects, [
+        [0, 0, 262, 81],
+        [262, 81, 262, 81],
+    ]);
+    assert.ok(!f.labels.includes("本周榜") && !f.labels.includes("历史榜"));
     await f.send({ action: "refresh-rank" });
     assert.ok(f.labels.includes("累计通关"));
     assert.equal(f.layout().height, 720);
@@ -340,6 +361,7 @@ test("lifetime refresh failure does not prevent loading the weekly board", async
     await f.send({ action: "loading-rank" });
     await f.send({ action: "rank-error" });
     assert.ok(f.labels.includes("本周通关"));
+    f.failFriends(true);
     await f.send({ action: "show-history" });
     await f.send({ action: "rank-error" });
     assert.deepEqual(f.labels, ["刷新失败，请重试"]);
@@ -403,4 +425,31 @@ test("a completed history sync refreshes the active historical board without reo
     const previewRequests = f.friendRequests.length;
     await f.send({ action: "sync-history", total: 60 });
     assert.equal(f.friendRequests.length, previewRequests);
+});
+
+test("history refresh reads once after syncing and keeps its last successful result on failure", async () => {
+    const f = fixture({ count: 1, self: 0, history: [20] });
+    await f.send({ action: "show-history" });
+    const previousReads = f.friendRequests.length;
+    await f.send({ action: "loading-rank" });
+    assert.ok(f.labels.includes("20"));
+
+    await f.send({ action: "sync-history", total: 40 });
+    assert.equal(f.friendRequests.length, previousReads);
+    f.failFriends({ errCode: "-123", errMsg: "private account data" });
+    await f.send({ action: "refresh-rank" });
+
+    assert.equal(f.friendRequests.length, previousReads + 1);
+    assert.deepEqual(f.friendRequests.at(-1), ["mgrank_total"]);
+    assert.ok(f.labels.includes("20"));
+    assert.deepEqual(f.warnings, [
+        ["[FLIP ZOO] history leaderboard getFriendCloudStorage failed", -123],
+    ]);
+
+    f.failFriends(false);
+    await f.send({ action: "loading-rank" });
+    await f.send({ action: "sync-history", total: 40 });
+    await f.send({ action: "refresh-rank" });
+    assert.equal(f.friendRequests.length, previousReads + 2);
+    assert.ok(f.labels.includes("40"));
 });

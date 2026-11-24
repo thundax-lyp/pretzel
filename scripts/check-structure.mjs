@@ -97,12 +97,16 @@ for (const file of all.filter(
         )
     )
         fail(file, "use uppercase English document filenames");
-    const links = fs.readFileSync(file, "utf8").matchAll(/\]\(([^)]+)\)/g);
-    for (const [, link] of links) {
+    const links = fs
+        .readFileSync(file, "utf8")
+        .matchAll(/(!?)\[[^\n\]]*\]\(([^)]+)\)/g);
+    for (const [, image, link] of links) {
         if (/^(https?:|#)/.test(link)) continue;
         const target = path.resolve(path.dirname(file), link.split("#")[0]);
         if (!fs.existsSync(target))
             fail(file, `missing document target: ${link}`);
+        if (image && /\.(?:avif|gif|jpe?g|png|svg|webp)$/i.test(target))
+            continue;
         if (file !== docsIndex) {
             fail(
                 file,

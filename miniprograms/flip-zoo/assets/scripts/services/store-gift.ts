@@ -89,10 +89,17 @@ export function giftMessage(result: GiftResult): string {
     }
 }
 
-export function giftEnabled(result: GiftResult): boolean {
-    return (
-        result.enabled === true || ["ready", "pending"].includes(result.status)
-    );
+export function giftControl(
+    result: GiftResult,
+    balance: number,
+): { enabled: boolean; detail: string } {
+    if (result.status === "ready") return { enabled: true, detail: "继续领取" };
+    if (result.status === "pending")
+        return { enabled: true, detail: "重试确认" };
+    const cost = result.cost ?? 1000;
+    if (balance < cost) return { enabled: false, detail: "碎片不足" };
+    if (result.enabled !== true) return { enabled: false, detail: "暂未开放" };
+    return { enabled: true, detail: `${cost}碎片` };
 }
 
 export function giftDiagnostic(

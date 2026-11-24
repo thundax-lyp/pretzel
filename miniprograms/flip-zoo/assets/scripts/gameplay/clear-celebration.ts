@@ -3,84 +3,44 @@ import {
     Color,
     Component,
     Graphics,
-    UIOpacity,
+    UITransform,
     Vec3,
     tween,
     type Node,
+    type SpriteFrame,
 } from "cc";
-import { uiNode } from "../ui/nodes";
+import { picture } from "../ui/nodes";
 
-export function shatterMirror(
+export function openGardenGate(
     overlay: Node,
+    doors: readonly SpriteFrame[],
     width: number,
     height: number,
     onFinished: () => void,
 ): void {
-    const impact = new Vec3(width * 0.04, height * 0.08);
-    const rim = [
-        [-0.5, -0.5],
-        [-0.19, -0.5],
-        [0.16, -0.5],
-        [0.5, -0.5],
-        [0.5, -0.22],
-        [0.5, 0.17],
-        [0.5, 0.5],
-        [0.18, 0.5],
-        [-0.18, 0.5],
-        [-0.5, 0.5],
-        [-0.5, 0.23],
-        [-0.5, -0.16],
-    ].map(([x, y]) => new Vec3(x * width, y * height));
-    const inner = rim.map((point, index) =>
-        Vec3.lerp(new Vec3(), impact, point, 0.37 + (index % 3) * 0.1),
-    );
-    const shades = ["#A4C7DC", "#D8F1F7", "#769EBB", "#B9D9E7", "#E9FAFF"].map(
-        (hex) => new Color().fromHEX(hex),
-    );
-    const duration = 0.42;
-    const crackTime = 0.09;
-
-    const addShard = (points: readonly Vec3[], index: number): void => {
-        const center = points
-            .reduce((sum, point) => sum.add(point), new Vec3())
-            .multiplyScalar(1 / points.length);
-        const shard = uiNode(overlay, "MirrorShard");
-        shard.setPosition(center);
-        const graphic = shard.addComponent(Graphics);
-        const [first, ...rest] = points;
-        graphic.moveTo(first.x - center.x, first.y - center.y);
-        for (const point of rest)
-            graphic.lineTo(point.x - center.x, point.y - center.y);
-        graphic.close();
-        graphic.fillColor = shades[index % shades.length];
-        graphic.fill();
-        graphic.strokeColor = new Color(240, 253, 255, 220);
-        graphic.lineWidth = 2;
-        graphic.stroke();
-        const destination = center
-            .clone()
-            .add(center.clone().subtract(impact).multiplyScalar(0.8))
-            .add(new Vec3(0, -height * 0.32));
-        tween(shard)
-            .delay(crackTime)
-            .to(
-                duration,
-                { position: destination, angle: index % 2 === 0 ? 28 : -32 },
-                { easing: "quadIn" },
-            )
-            .start();
-    };
-
-    rim.forEach((point, index) => {
-        const next = (index + 1) % rim.length;
-        addShard([impact, inner[index], inner[next]], index * 2);
-        addShard([inner[index], point, rim[next], inner[next]], index * 2 + 1);
+    const size = doors[0].originalSize;
+    const scale = Math.max(width / (2 * size.width), height / size.height);
+    const doorWidth = size.width * scale;
+    const doorHeight = size.height * scale;
+    doors.forEach((frame, index) => {
+        const left = index === 0;
+        const door = picture(
+            overlay,
+            left ? "LeftGardenDoor" : "RightGardenDoor",
+            frame,
+            doorWidth,
+            doorHeight,
+        ).node;
+        door.getComponent(UITransform)!.setAnchorPoint(left ? 0 : 1, 0.5);
+        door.setPosition(left ? -doorWidth : doorWidth, 0);
+        const opening = tween(door).to(
+            0.3,
+            { scale: new Vec3(0, 1, 1) },
+            { easing: "quadInOut" },
+        );
+        if (!left) opening.call(onFinished);
+        opening.start();
     });
-    tween(overlay.addComponent(UIOpacity))
-        .delay(crackTime)
-        .to(duration, { opacity: 0 }, { easing: "quadIn" })
-        .call(onFinished)
-        .start();
 }
 
 const COLORS = [

@@ -12,8 +12,17 @@ export interface ZooArtwork {
         background: SpriteFrame;
         buttons: readonly SpriteFrame[];
         settings: readonly SpriteFrame[];
-        rankingButtons: readonly [SpriteFrame, SpriteFrame];
+        settingsTitle: SpriteFrame;
+        abandonConfirm: {
+            title: SpriteFrame;
+            continue: SpriteFrame;
+            abandon: SpriteFrame;
+        };
+        rankingButtons: { back: SpriteFrame; refresh: SpriteFrame };
         tutorialTransition: SpriteFrame;
+        tutorialTitle: SpriteFrame;
+        gardenGate: readonly SpriteFrame[];
+        collectionTitle: SpriteFrame;
         collectionAnimals: readonly (readonly SpriteFrame[])[];
     };
     readonly raisedTile: SpriteFrame;
@@ -22,6 +31,8 @@ export interface ZooArtwork {
     readonly garden: SpriteFrame;
     readonly winPanda: SpriteFrame;
     readonly sadPanda: SpriteFrame;
+    readonly victoryTitle: SpriteFrame;
+    readonly defeatTitle: SpriteFrame;
     readonly resultButtons: Record<
         "home" | "revive" | "restart" | "home-compact" | "challenge" | "share",
         SpriteFrame
@@ -126,8 +137,8 @@ export async function loadZooArtwork(
     onProgress: (progress: number) => void = () => {},
 ): Promise<ZooArtwork> {
     let completed = 0;
-    // Ten main-package textures, one home bundle and seventeen home textures.
-    const advance = () => onProgress(++completed / 28);
+    // Ten main-package textures, one home bundle and twenty-four home textures.
+    const advance = () => onProgress(++completed / 37);
     const trackedTexture = async (name: string) => {
         const texture = await loadTexture(name);
         advance();
@@ -174,7 +185,7 @@ export async function loadZooArtwork(
         frame.packable = false;
         return frame;
     });
-    const { resultButtons, ...homeArtwork } = home;
+    const { resultButtons, victoryTitle, defeatTitle, ...homeArtwork } = home;
     const symbolsFrames = slice(symbols, 3, 2);
     const [undo] = slice(props, 2, 2);
     return {
@@ -186,6 +197,8 @@ export async function loadZooArtwork(
         winPanda: slice(winPanda, 1, 1)[0],
         sadPanda: slice(sadPanda, 1, 1)[0],
         resultButtons,
+        victoryTitle,
+        defeatTitle,
         animals: centeredAnimals(animals),
         paw: symbolsFrames[0],
         undo,
@@ -207,7 +220,8 @@ const SETTINGS_REGIONS = [
 async function loadHomeArtwork(
     advance: () => void,
 ): Promise<
-    Omit<ZooArtwork["home"], "background"> & Pick<ZooArtwork, "resultButtons">
+    Omit<ZooArtwork["home"], "background"> &
+        Pick<ZooArtwork, "resultButtons" | "victoryTitle" | "defeatTitle">
 > {
     const bundle = await new Promise<
         NonNullable<ReturnType<typeof assetManager.getBundle>>
@@ -237,9 +251,18 @@ async function loadHomeArtwork(
                 "challenge",
                 "share",
             ].map((name) => `result-buttons/${name}`),
-            "ranking-buttons/wood-active",
-            "ranking-buttons/paper",
+            "ranking-buttons/return",
+            "ranking-buttons/refresh",
             "tutorial-transition",
+            "garden-gate",
+            "result-buttons/victory-title",
+            "result-buttons/defeat-title",
+            "settings/title",
+            "settings/abandon-title",
+            "settings/continue-challenge",
+            "settings/abandon-challenge",
+            "tutorial-title",
+            "collection/title",
         ].map(
             (name) =>
                 new Promise<Texture2D>((resolve, reject) => {
@@ -260,6 +283,17 @@ async function loadHomeArtwork(
     const poses = textures.slice(0, 6).map((sheet) => slice(sheet, 2, 3));
     return {
         tutorialTransition: slice(textures[14], 1, 1)[0],
+        tutorialTitle: slice(textures[22], 1, 1)[0],
+        collectionTitle: slice(textures[23], 1, 1)[0],
+        gardenGate: slice(textures[15], 2, 1),
+        victoryTitle: slice(textures[16], 1, 1)[0],
+        defeatTitle: slice(textures[17], 1, 1)[0],
+        settingsTitle: slice(textures[18], 1, 1)[0],
+        abandonConfirm: {
+            title: slice(textures[19], 1, 1)[0],
+            continue: slice(textures[20], 1, 1)[0],
+            abandon: slice(textures[21], 1, 1)[0],
+        },
         resultButtons: {
             home: slice(textures[6], 1, 1)[0],
             revive: slice(textures[7], 1, 1)[0],
@@ -268,10 +302,10 @@ async function loadHomeArtwork(
             challenge: slice(textures[10], 1, 1)[0],
             share: slice(textures[11], 1, 1)[0],
         },
-        rankingButtons: [
-            slice(textures[12], 1, 1)[0],
-            slice(textures[13], 1, 1)[0],
-        ],
+        rankingButtons: {
+            back: slice(textures[12], 1, 1)[0],
+            refresh: slice(textures[13], 1, 1)[0],
+        },
         buttons: [
             [204, 110, 1128, 340],
             [206, 530, 350, 370],

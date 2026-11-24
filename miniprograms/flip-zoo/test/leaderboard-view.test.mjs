@@ -47,13 +47,11 @@ function fixture() {
     const pointers = [];
     const pending = [];
     const lists = [];
-    const buttons = [];
     const exports = {};
     const cc = {
         Node,
         SubContextView: class {},
         UITransform: class {},
-        LabelOutline: class {},
         Vec3: class {
             constructor(x, y, z) {
                 Object.assign(this, { x, y, z });
@@ -76,8 +74,8 @@ function fixture() {
                             pending.push({ resolve, reject }),
                         ),
                 },
+                "./dialog": { Dialog: class {} },
                 "./nodes": {
-                    color: (value) => value,
                     uiNode: () => {
                         const node = new Node();
                         lists.push(node);
@@ -86,35 +84,20 @@ function fixture() {
                 },
             })[name],
     );
-    const controls = {
-        button(_text, _x, _y, _width, action) {
-            buttons.push(action);
-            const parent = new Node(),
-                icon = new Node(),
-                caption = new Node();
-            caption.parent = parent;
-            parent.children.push(icon, caption);
-            return {
-                width: 240,
-                height: 76,
-                graphic: { clear() {} },
-                icon: { node: icon },
-                caption: { node: caption },
-            };
-        },
-    };
     return {
         messages,
         pointers,
         pending,
         show(preview = false, history = false) {
-            exports.showRankingList(new Node(), controls, preview, history, {
-                home: { rankingButtons: [{}, {}] },
-            });
+            const refresh = exports.showRankingList(
+                new Node(),
+                preview,
+                history,
+            );
             const list = lists.at(-1);
             return {
                 list,
-                refresh: buttons.at(-1),
+                refresh,
                 tap() {
                     list.handlers.start();
                     list.handlers.end({
@@ -163,8 +146,9 @@ test("refresh reuses in-flight sync and closing its view suppresses late refresh
     const f = fixture(),
         view = f.show(false, true);
     view.refresh();
+    view.refresh();
     assert.equal(f.pending.length, 1);
-    assert.equal(f.messages.at(-1), "loading-rank");
+    assert.deepEqual(f.messages, ["show-history", "loading-rank"]);
     view.list.isValid = false;
     const before = f.messages.length;
     f.pending[0].resolve();

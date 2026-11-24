@@ -15,7 +15,7 @@ import {
     giftDiagnostic,
     supportsStoreGift,
     openStoreGift,
-    giftEnabled,
+    giftControl,
 } from "../assets/scripts/services/store-gift.ts";
 
 const config = {
@@ -638,8 +638,26 @@ test("missing configuration and invalid activity/product/SKU/stock keep redempti
         assert.equal(f.wallet().balances[0], 20);
         assert.equal(f.requests.length, 0);
     }
-    assert.equal(giftEnabled({ status: "idle", enabled: false }), false);
-    assert.equal(giftEnabled({ status: "idle", enabled: true }), true);
+    assert.equal(
+        giftControl({ status: "idle", enabled: false, cost: 1 }, 1).enabled,
+        false,
+    );
+});
+
+test("home gift controls disable unaffordable new orders and allow pending recovery", () => {
+    const gift = { status: "idle", enabled: true, cost: 100 };
+    assert.deepEqual(giftControl(gift, 99), {
+        enabled: false,
+        detail: "碎片不足",
+    });
+    assert.deepEqual(giftControl(gift, 100), {
+        enabled: true,
+        detail: "100碎片",
+    });
+    assert.deepEqual(giftControl({ status: "pending", cost: 100 }, 0), {
+        enabled: true,
+        detail: "重试确认",
+    });
 });
 
 test("same-day pig redemption after another animal preserves cumulative quotas and refunds", async () => {
@@ -666,7 +684,10 @@ test("existing gift remains claimable when new redemption configuration is remov
     f.setConfig(null);
     const result = await f.call("gift-status");
     assert.equal(result.status, "ready");
-    assert.equal(giftEnabled(result), true);
+    assert.deepEqual(giftControl(result, 0), {
+        enabled: true,
+        detail: "继续领取",
+    });
     assert.equal(f.wallet().balances[0], 19);
 });
 

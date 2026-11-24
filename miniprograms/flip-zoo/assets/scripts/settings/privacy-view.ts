@@ -10,6 +10,7 @@ import {
 } from "cc";
 import { color, label, uiNode } from "../ui/nodes";
 import { ButtonPress, scaleButton } from "../ui/button-press";
+import { drawButtonIcon } from "../ui/button-icon";
 import { parsePrivacyDocument, type PrivacyDocument } from "./privacy-document";
 
 export function showPrivacyDocument(
@@ -31,11 +32,12 @@ export function showPrivacyDocument(
     const headerY = height / 2 - topInset - 16 * pixelScale;
     plainButton(
         root,
-        "‹ 返回",
+        "返回",
         -width / 2 + 56 * pixelScale,
         headerY,
         pixelScale,
         onBack,
+        true,
     );
     const status = label(root, "正在加载条款…", 17 * pixelScale, "#262626");
 
@@ -194,6 +196,7 @@ function plainButton(
     y: number,
     pixelScale: number,
     action: () => void,
+    backIcon = false,
 ): Node {
     const width = 88 * pixelScale;
     const height = 40 * pixelScale;
@@ -206,7 +209,18 @@ function plainButton(
     graphic.roundRect(-width / 2, -height / 2, width, height, 8 * pixelScale);
     graphic.fill();
     graphic.stroke();
-    label(node, text, 16 * pixelScale, "#262626");
+    const caption = label(node, text, 16 * pixelScale, "#262626");
+    if (backIcon) {
+        drawButtonIcon(
+            node,
+            "back",
+            -22 * pixelScale,
+            0,
+            18 * pixelScale,
+            "#262626",
+        );
+        caption.node.setPosition(9 * pixelScale, 0);
+    }
     const press = node.addComponent(ButtonPress);
     press.action = action;
     press.showPressed = scaleButton(node, 0.97);
