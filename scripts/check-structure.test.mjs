@@ -119,6 +119,21 @@ test("rejects cross references in document leaves", (t) => {
     assert.match(result.stderr, /leaf documents/);
 });
 
+test("validates inline local images without adding document navigation", (t) => {
+    const page = {
+        "docs/00-governance/NAMING-RULES.md": "![示例](assets/EXAMPLE.png)\n",
+    };
+    const image = "docs/00-governance/assets/EXAMPLE.png";
+    assert.equal(fixture(t, { ...page, [image]: "sample image" }).status, 0);
+    const missing = fixture(t, page);
+    assert.equal(missing.status, 1);
+    assert.match(
+        missing.stderr,
+        /missing document target: assets\/EXAMPLE.png/,
+    );
+    assert.doesNotMatch(missing.stderr, /leaf documents/);
+});
+
 test("keeps human work materials outside the navigation", (t) => {
     const draft = { "docs/60-human/DRAFT.md": "# Draft\n" };
     assert.equal(fixture(t, draft).status, 0);
