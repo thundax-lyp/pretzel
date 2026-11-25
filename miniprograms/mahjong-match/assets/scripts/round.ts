@@ -30,8 +30,37 @@ function group(suit: Suit, ...ranks: number[]): Tile[] {
     return ranks.map((rank) => ({ suit, rank }));
 }
 
-export const TILE_WIDTH = 94;
-export const TILE_HEIGHT = 130;
+export const TILE_WIDTH = 86;
+export const TILE_HEIGHT = 119;
+export const BOARD_COLUMN_STEP = 83;
+export const BOARD_ROW_STEP = 86;
+const BOARD_CENTER_Y = 18;
+
+const BOARD_SIDE = 7;
+const LAYOUTS = [
+    {
+        counts: [48, 42, 36, 30, 27, 21, 18, 12, 6],
+        weightX: 1,
+        weightY: 1,
+        driftX: 0,
+        driftY: 0,
+    },
+    {
+        counts: [48, 45, 39, 33, 27, 21, 15, 9, 3],
+        weightX: 0.65,
+        weightY: 1.65,
+        driftX: 0.13,
+        driftY: 0,
+    },
+    {
+        counts: [48, 45, 42, 36, 30, 24, 15],
+        weightX: 1.65,
+        weightY: 0.65,
+        driftX: 0,
+        driftY: -0.16,
+    },
+];
+export const BOARD_LAYOUT_COUNT = LAYOUTS.length;
 
 export type Position = Readonly<{ x: number; y: number; layer: number }>;
 export type PlacedTile = Tile & Position;
@@ -45,7 +74,7 @@ function shuffled<T>(items: readonly T[]): T[] {
     return result;
 }
 
-export function deal(): PlacedTile[] {
+export function deal(layoutIndex = 0): PlacedTile[] {
     const runs = [
         [1, 2, 3],
         [2, 3, 4],
@@ -70,27 +99,51 @@ export function deal(): PlacedTile[] {
         ),
     ]);
 
+    const layout = LAYOUTS[layoutIndex % BOARD_LAYOUT_COUNT];
+    const board: PlacedTile[] = [];
+    let lower: Position[] = [];
     let offset = 0;
-    return Array.from({ length: 9 }, (_, layer) => {
-        const rows = layer === 8 ? [5, 7, 7, 5] : [6, 7, 7, 7];
-        const positions = rows.flatMap((width, row) =>
-            Array.from({ length: width }, (_, column) => ({
-                x:
-                    (column - (width - 1) / 2) * 96 +
-                    ((row + layer) % 2 ? 12 : -12),
-                y: 170 - row * 132 - layer * 2,
+    layout.counts.forEach((size, layer) => {
+        const stagger = layer % 2 === 0 ? 0 : 0.5;
+        const positions = Array.from(
+            { length: BOARD_SIDE ** 2 },
+            (_, index) => ({
+                x: ((index % BOARD_SIDE) - 3 + stagger) * BOARD_COLUMN_STEP,
+                y:
+                    BOARD_CENTER_Y +
+                    (3 - Math.floor(index / BOARD_SIDE) - stagger) *
+                        BOARD_ROW_STEP,
                 layer,
-            })),
+            }),
         );
-        const count = positions.length / 3;
-        // Each layer has a clear order by taking its consecutive groups.
+        const score = ({ x, y }: Position) =>
+            layout.weightX *
+                (x / BOARD_COLUMN_STEP - layer * layout.driftX) ** 2 +
+            layout.weightY *
+                ((y - BOARD_CENTER_Y) / BOARD_ROW_STEP -
+                    layer * layout.driftY) **
+                    2;
+        const ranked = positions
+            .filter(
+                (position) =>
+                    layer === 0 || lower.some((tile) => covers(position, tile)),
+            )
+            .sort((a, b) => score(a) - score(b))
+            .slice(0, size);
+        lower = ranked;
+
+        const count = size / 3;
+        // Preserve complete groups in take order, while scattering their positions within the layer.
         const tiles = groups.slice(offset, offset + count).flatMap(shuffled);
         offset += count;
-        return positions.map((position, index) => ({
-            ...position,
-            ...tiles[index],
-        }));
-    }).flat();
+        board.push(
+            ...shuffled(ranked).map((position, index) => ({
+                ...position,
+                ...tiles[index],
+            })),
+        );
+    });
+    return board;
 }
 
 export function shuffleBoard(tiles: readonly PlacedTile[]): PlacedTile[] {
