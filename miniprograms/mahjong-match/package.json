@@ -6,7 +6,8 @@
     "scripts": {
         "check": "npm run typecheck && npm run lint",
         "typecheck": "tsc --noEmit",
-        "lint": "node ../../node_modules/eslint/bin/eslint.js --max-warnings 0 assets"
+        "lint": "node ../../node_modules/eslint/bin/eslint.js --max-warnings 0 assets",
+        "build:wechat": "node scripts/build-wechat.mjs"
     },
     "devDependencies": {
         "@cocos/creator-types": "3.8.8",

@@ -30,30 +30,31 @@ function group(suit: Suit, ...ranks: number[]): Tile[] {
     return ranks.map((rank) => ({ suit, rank }));
 }
 
-export const TILE_WIDTH = 86;
-export const TILE_HEIGHT = 119;
-export const BOARD_COLUMN_STEP = 83;
-export const BOARD_ROW_STEP = 86;
+export const TILE_WIDTH = 100;
+export const TILE_HEIGHT = 144;
+export const BOARD_COLUMN_STEP = TILE_WIDTH - 2;
+export const BOARD_ROW_STEP = TILE_HEIGHT - 14;
 const BOARD_CENTER_Y = 18;
 
-const BOARD_SIDE = 7;
+const BOARD_COLUMNS = 7;
+const BOARD_ROWS = 8;
 const LAYOUTS = [
     {
-        counts: [48, 42, 36, 30, 27, 21, 18, 12, 6],
+        counts: [56, 37, 33, 30, 27, 21, 18, 12, 6],
         weightX: 1,
         weightY: 1,
         driftX: 0,
         driftY: 0,
     },
     {
-        counts: [48, 45, 39, 33, 27, 21, 15, 9, 3],
+        counts: [56, 40, 36, 33, 27, 21, 15, 9, 3],
         weightX: 0.65,
         weightY: 1.65,
         driftX: 0.13,
         driftY: 0,
     },
     {
-        counts: [48, 45, 42, 36, 30, 24, 15],
+        counts: [56, 40, 39, 36, 30, 24, 15],
         weightX: 1.65,
         weightY: 0.65,
         driftX: 0,
@@ -99,19 +100,23 @@ export function deal(layoutIndex = 0): PlacedTile[] {
         ),
     ]);
 
+    const faces = groups.flatMap(shuffled);
     const layout = LAYOUTS[layoutIndex % BOARD_LAYOUT_COUNT];
     const board: PlacedTile[] = [];
     let lower: Position[] = [];
     let offset = 0;
     layout.counts.forEach((size, layer) => {
-        const stagger = layer % 2 === 0 ? 0 : 0.5;
+        // The half-cell grid fits between the outer rows and columns of the base.
+        const inset = layer % 2;
+        const columns = BOARD_COLUMNS - inset;
+        const rows = BOARD_ROWS - inset;
         const positions = Array.from(
-            { length: BOARD_SIDE ** 2 },
+            { length: columns * rows },
             (_, index) => ({
-                x: ((index % BOARD_SIDE) - 3 + stagger) * BOARD_COLUMN_STEP,
+                x: ((index % columns) - (columns - 1) / 2) * BOARD_COLUMN_STEP,
                 y:
                     BOARD_CENTER_Y +
-                    (3 - Math.floor(index / BOARD_SIDE) - stagger) *
+                    ((rows - 1) / 2 - Math.floor(index / columns)) *
                         BOARD_ROW_STEP,
                 layer,
             }),
@@ -132,10 +137,9 @@ export function deal(layoutIndex = 0): PlacedTile[] {
             .slice(0, size);
         lower = ranked;
 
-        const count = size / 3;
-        // Preserve complete groups in take order, while scattering their positions within the layer.
-        const tiles = groups.slice(offset, offset + count).flatMap(shuffled);
-        offset += count;
+        // Keep groups consecutive in reverse deal order even when a group spans two layers.
+        const tiles = faces.slice(offset, offset + size);
+        offset += size;
         board.push(
             ...shuffled(ranked).map((position, index) => ({
                 ...position,
