@@ -2,11 +2,11 @@ import {
     _decorator,
     AudioClip,
     AudioSource,
+    BlockInputEvents,
     Color,
     Component,
     Game,
     Graphics,
-    Input,
     Rect,
     Size,
     Sprite,
@@ -16,36 +16,70 @@ import {
     Label,
     Node,
     UITransform,
+    UIOpacity,
     tween,
     Tween,
     Vec3,
     game,
-    input,
+    sys,
 } from "cc";
 import {
+    BOARD_COLUMN_STEP,
+    BOARD_LAYOUT_COUNT,
+    BOARD_ROW_STEP,
     covers,
     deal,
     findMatch,
     faceName,
     FACE_FILES,
+    refreshUnsolvableBoard,
     shuffleBoard,
     SLOT_CAPACITY,
     TILE_WIDTH,
     TILE_HEIGHT,
+    UNSOLVABLE_CHECK_BOARD_LIMIT,
     type PlacedTile,
 } from "./round";
 
-const INK = new Color(26, 59, 47);
-const CREAM = new Color(255, 244, 217);
-const GOLD = new Color(248, 205, 118);
+const INK = new Color(33, 47, 32);
+const CREAM = new Color(255, 245, 222);
+const GOLD = new Color(235, 194, 106);
 const PORCELAIN = new Color(249, 250, 239);
 const JADE = new Color(38, 131, 73);
-const FELT = new Color(17, 68, 55);
-const RAIL = new Color(37, 99, 77);
+const FELT = new Color(51, 71, 44);
+const TABLE_FELT = new Color(61, 79, 51);
+const VERMILION = new Color(156, 62, 48);
+const RAIL = new Color(75, 93, 61);
 
-const SLOT_Y = 345;
-const SLOT_STEP = 74;
-const SLOT_SCALE = 0.65;
+const TUTORIAL_DONE = "mahjong-match.tutorial-completed";
+const TUTORIAL_BOARD: PlacedTile[] = [
+    ...(
+        [
+            ["筒", [5, 5, 5]],
+            ["条", [3, 4, 5]],
+            ["字", [1, 1, 1]],
+        ] as const
+    ).flatMap(([suit, ranks], row) =>
+        ranks.map((rank, index) => ({
+            suit,
+            rank,
+            x: (index - 1) * BOARD_COLUMN_STEP,
+            y: 175 - row * BOARD_ROW_STEP,
+            layer: 0,
+        })),
+    ),
+    ...[1, 2, 3].map((rank, index) => ({
+        suit: "万" as const,
+        rank,
+        x: (index - 1) * BOARD_COLUMN_STEP,
+        y: 191,
+        layer: 1,
+    })),
+];
+
+const SLOT_Y = 431;
+const SLOT_STEP = 76;
+const SLOT_SCALE = 0.79;
 const SOUNDS = {
     button: "button-click",
     select: "tile-select",
@@ -88,8 +122,21 @@ export class MahjongStartScreen extends Component {
     private finished = false;
     private status!: Label;
     private remaining!: Label;
+    private launch!: Node;
+    private launchTitleFallback!: Label;
+    private launchButton!: Node;
+    private launchLabel!: Label;
+    private launchStatus!: Label;
+    private table!: Node;
+    private tools!: Node;
+    private restartLabel!: Label;
+    private tutorialEnd!: Node;
+    private launchState: "loading" | "ready" | "error" | "entering" = "loading";
+    private teaching = false;
+    private nextLayout = Math.floor(Math.random() * BOARD_LAYOUT_COUNT);
 
     private tileFrames = new Map<string, SpriteFrame>();
+    private titleFrame!: SpriteFrame;
     private toolFrames: SpriteFrame[] = [];
 
     private audio!: AudioSource;
@@ -105,8 +152,6 @@ export class MahjongStartScreen extends Component {
         this.music.playOnAwake = false;
         this.music.loop = true;
         this.music.volume = 0.24;
-        input.on(Input.EventType.TOUCH_END, this.requestMusic, this);
-        input.on(Input.EventType.MOUSE_UP, this.requestMusic, this);
         game.on(Game.EVENT_HIDE, this.pauseMusic, this);
         game.on(Game.EVENT_SHOW, this.resumeMusic, this);
         resources.load("audio/table-music", AudioClip, (error, clip) => {
@@ -129,23 +174,101 @@ export class MahjongStartScreen extends Component {
                 },
             );
         }
-        void this.loadArtwork().catch((error: unknown) => {
-            if (this.node.isValid)
-                this.text(
-                    this.node,
-                    "美术资源加载失败，请刷新重试",
-                    28,
-                    CREAM,
-                    0,
-                    0,
-                );
-            console.error(error);
-        });
+        this.showLaunch();
+        void this.prepareTable();
     }
 
-    private requestMusic(): void {
+    private action(
+        parent: Node,
+        name: string,
+        title: string,
+        y: number,
+        onTap: () => void,
+    ): { node: Node; label: Label } {
+        const node = this.child(parent, name, 0, y);
+        this.panel(node, 336, 76, 22, GOLD);
+        const label = this.text(node, title, 34, INK, 0, 0);
+        node.on(Node.EventType.TOUCH_END, onTap);
+        return { node, label };
+    }
+
+    private showLaunch(): void {
+        this.launch = this.child(this.node, "Launch", 0, 0);
+        this.panel(this.launch, 1000, 1800, 0, FELT);
+        this.launch.addComponent(BlockInputEvents);
+
+        const emblem = this.child(this.launch, "Emblem", 0, 237);
+        this.panel(emblem, 128, 146, 22, VERMILION);
+        this.fill(emblem.getComponent(Graphics)!, 120, 138, 19, GOLD, 2);
+        this.fill(emblem.getComponent(Graphics)!, 110, 128, 15, PORCELAIN, 3);
+        this.text(emblem, "發", 72, JADE, 0, 5);
+
+        this.launchTitleFallback = this.text(
+            this.launch,
+            "麻将消消",
+            76,
+            CREAM,
+            0,
+            94,
+        );
+        this.launchStatus = this.text(this.launch, "", 25, CREAM, 0, -190);
+        const button = this.action(this.launch, "Start", "加载中…", -99, () =>
+            this.activateLaunch(),
+        );
+        this.launchButton = button.node;
+        this.launchLabel = button.label;
+    }
+
+    private async prepareTable(): Promise<void> {
+        this.launchState = "loading";
+        this.launchLabel.string = "加载中…";
+        this.launchStatus.string = "";
+        const opacity =
+            this.launchButton.getComponent(UIOpacity) ??
+            this.launchButton.addComponent(UIOpacity);
+        opacity.opacity = 130;
+        try {
+            await this.loadArtwork();
+            if (!this.isValid) return;
+            this.teaching = sys.localStorage.getItem(TUTORIAL_DONE) !== "1";
+            this.launchState = "ready";
+            this.launchLabel.string = this.teaching ? "开始教学" : "开始挑战";
+        } catch (error) {
+            if (!this.isValid) return;
+            this.launchState = "error";
+            this.launchLabel.string = "重试";
+            this.launchStatus.string = "牌桌资源加载失败";
+            console.error(error);
+        }
+        opacity.opacity = 255;
+    }
+
+    private activateLaunch(): void {
+        if (this.launchState === "error") {
+            void this.prepareTable();
+            return;
+        }
+        if (this.launchState !== "ready") return;
+        this.launchState = "entering";
         this.musicRequested = true;
         this.syncMusic();
+        this.playSound("button");
+
+        this.table.active = true;
+        this.startRound();
+        this.busy = true;
+        const launchOpacity = this.launch.addComponent(UIOpacity);
+        const tableOpacity = this.table.getComponent(UIOpacity)!;
+        tween(launchOpacity)
+            .to(0.26, { opacity: 0 }, { easing: "quadOut" })
+            .start();
+        tween(tableOpacity)
+            .to(0.36, { opacity: 255 }, { easing: "quadOut" })
+            .call(() => {
+                this.launch.destroy();
+                this.busy = false;
+            })
+            .start();
     }
 
     private pauseMusic(): void {
@@ -193,48 +316,79 @@ export class MahjongStartScreen extends Component {
                 ];
             }),
         );
-        this.toolFrames = Array.from({ length: 3 }, (_, index) =>
-            frame(tools, new Rect(index * 160, 0, 160, 160)),
-        );
-        const background = this.child(this.node, "Table", 0, 0);
+        this.titleFrame = frame(tools, new Rect(195, 0, 570, 156));
         this.image(
+            this.child(this.launch, "TitleArt", 0, 94),
+            this.titleFrame,
+            370,
+            101,
+        );
+        this.launchTitleFallback.node.active = false;
+        this.toolFrames = Array.from({ length: 3 }, (_, index) =>
+            frame(tools, new Rect(index * 320, 156, 320, 220)),
+        );
+        this.table = this.child(this.node, "GameView", 0, 0);
+        this.table.active = false;
+        this.table.addComponent(UIOpacity).opacity = 0;
+        this.launch.setSiblingIndex(this.node.children.length - 1);
+        const felt = this.child(this.table, "Felt", 0, 0);
+        this.panel(felt, 1000, 1800, 0, TABLE_FELT);
+        const background = this.child(this.table, "Table", 0, 0);
+        const texture = this.image(
             background,
             frame(table, new Rect(0, 0, table.width, table.height)),
             750,
-            1334,
+            1620,
         );
+        texture.color = new Color(230, 217, 165, 72);
         this.showGame();
     }
 
     private showGame(): void {
-        this.text(this.node, "麻将消消", 56, CREAM, 0, 524);
-        this.text(this.node, "点亮牌入槽，凑成顺子或刻子", 25, CREAM, 0, 457);
-        const tray = this.child(this.node, "Tray", 0, SLOT_Y).addComponent(
+        this.image(
+            this.child(this.table, "TitleArt", 0, 584),
+            this.titleFrame,
+            320,
+            88,
+        );
+        const tray = this.child(this.table, "Tray", 0, SLOT_Y).addComponent(
             Graphics,
         );
-        this.fill(tray, 460, 104, 18, RAIL);
-        this.fill(tray, 452, 96, 15, INK);
+        this.fill(tray, 480, 116, 18, RAIL);
+        this.fill(tray, 472, 108, 15, INK);
         for (let index = 0; index < SLOT_CAPACITY; index++) {
             tray.fillColor = FELT;
-            tray.roundRect(this.slotPosition(index).x - 32, -43, 64, 86, 8);
+            tray.roundRect(this.slotPosition(index).x - 35, -49, 70, 98, 8);
             tray.fill();
         }
-        this.remaining = this.text(this.node, "", 25, GOLD, 0, 278);
-        this.status = this.text(this.node, "", 28, CREAM, 0, -335);
+        this.remaining = this.text(this.table, "", 25, GOLD, 0, 356);
+        this.status = this.text(this.table, "", 28, CREAM, 0, -357);
 
-        this.addTool("洗牌", 0, -172, this.shuffle);
-        this.addTool("消除", 1, 0, this.clearTray);
-        this.addTool("撤回", 2, 172, this.undo);
+        this.tools = this.child(this.table, "Tools", 0, 0);
+        this.addTool("Shuffle", 0, -174, this.shuffle);
+        this.addTool("Remove", 1, 0, this.clearTray);
+        this.addTool("Undo", 2, 174, this.undo);
 
-        const restart = this.child(this.node, "Restart", 0, -555);
+        const restart = this.child(this.table, "Restart", 0, -440);
         this.panel(restart, 166, 48, 16, RAIL);
-        this.text(restart, "重新发牌", 23, CREAM, 0, 0);
+        this.restartLabel = this.text(restart, "重新发牌", 23, CREAM, 0, 0);
         restart.on(Node.EventType.TOUCH_END, () => {
+            if (this.busy) return;
             this.playSound("button");
             this.startRound();
         });
 
-        this.startRound();
+        this.tutorialEnd = this.action(
+            this.table,
+            "TutorialComplete",
+            "开始挑战",
+            -440,
+            () => {
+                this.teaching = false;
+                this.playSound("button");
+                this.startRound();
+            },
+        ).node;
     }
 
     private addTool(
@@ -243,30 +397,36 @@ export class MahjongStartScreen extends Component {
         x: number,
         action: () => void,
     ): void {
-        const button = this.child(this.node, label, x, -423);
-        button.addComponent(UITransform).setContentSize(114, 112);
-        this.image(
-            this.child(button, "Icon", 0, 10),
-            this.toolFrames[icon],
-            88,
-            88,
-        );
-        this.text(button, label, 27, CREAM, 0, -44);
+        const button = this.child(this.tools, label, x, -578);
+        this.image(button, this.toolFrames[icon], 150, 103);
         button.on(Node.EventType.TOUCH_END, action, this);
     }
 
     private startRound(): void {
         this.beforePick = undefined;
-        this.restoreTiles(deal(), []);
-        this.status.string = "点亮牌放入收牌槽";
+        this.tools.active = !this.teaching;
+        this.restartLabel.string = this.teaching ? "重新教学" : "重新发牌";
+        this.restartLabel.node.parent!.active = true;
+        this.tutorialEnd.active = false;
+        this.restoreTiles(
+            this.teaching
+                ? TUTORIAL_BOARD
+                : deal(this.nextLayout++ % BOARD_LAYOUT_COUNT),
+            [],
+        );
+        this.status.string = this.teaching
+            ? "先取上层三张万字牌，组成顺子"
+            : "点亮牌放入收牌槽";
     }
 
     private restoreTiles(board: PlacedTile[], tray: PlacedTile[]): void {
         this.clearRound();
-        this.round = this.child(this.node, "Round", 0, 0);
+        this.round = this.child(this.table, "Round", 0, 0);
         this.busy = false;
         this.finished = false;
-        this.board = board.map((tile) => this.makeTile(tile));
+        this.board = [...board]
+            .sort((a, b) => a.layer - b.layer || b.y - a.y || a.x - b.x)
+            .map((tile) => this.makeTile(tile));
         this.tray = tray.map((tile, index) => {
             const card = this.makeTile(tile);
             card.node.setPosition(this.slotPosition(index));
@@ -350,6 +510,12 @@ export class MahjongStartScreen extends Component {
             return;
         }
 
+        const expected = this.tutorialSuit();
+        if (expected && card.tile.suit !== expected) {
+            this.status.string =
+                expected === "万" ? "先取上层的万字牌" : "试试取露出的 5 筒";
+            return;
+        }
         this.beforePick = {
             board: this.board.map(({ tile }) => tile),
             tray: this.tray.map(({ tile }) => tile),
@@ -404,12 +570,38 @@ export class MahjongStartScreen extends Component {
 
     private finishMove(message: string, removedTiles: boolean): void {
         this.finished = false;
-        this.status.string = message;
+        const refreshed =
+            removedTiles || this.board.length === UNSOLVABLE_CHECK_BOARD_LIMIT
+                ? refreshUnsolvableBoard(
+                      this.board.map(({ tile }) => tile),
+                      this.tray.map(({ tile }) => tile),
+                  )
+                : undefined;
+        if (refreshed) {
+            this.board.forEach((card, index) => {
+                card.tile = refreshed[index];
+                card.sprite.spriteFrame = this.tileFrames.get(
+                    faceName(card.tile),
+                )!;
+            });
+            this.status.string = "剩余牌面无解，已刷新牌山，槽内牌保留";
+            this.playSound("shuffle");
+        } else {
+            this.status.string = message;
+        }
         this.refreshBoard();
         const cleared = this.board.length === 0 && this.tray.length === 0;
         if (cleared) {
             this.finished = true;
-            this.status.string = "清台成功！";
+            this.status.string = this.teaching ? "教学完成" : "清台成功！";
+            if (this.teaching) {
+                sys.localStorage.setItem(TUTORIAL_DONE, "1");
+                this.restartLabel.node.parent!.active = false;
+                this.tutorialEnd.active = true;
+                this.tutorialEnd.setSiblingIndex(
+                    this.table.children.length - 1,
+                );
+            }
             this.playSound("clear");
         } else if (
             this.tray.length === SLOT_CAPACITY ||
@@ -420,7 +612,13 @@ export class MahjongStartScreen extends Component {
                 ? "收牌槽满了，可消除或撤回"
                 : "槽里还有散牌，可消除或撤回";
         }
-        if (removedTiles && !cleared) {
+        if (removedTiles && !cleared && !refreshed) {
+            if (this.teaching)
+                this.status.string = this.board.some(
+                    ({ tile }) => tile.suit === "筒",
+                )
+                    ? "顺子！现在取露出的三张 5 筒"
+                    : message + "，剩下的牌可以自由清除";
             this.playSound("match");
         }
         this.busy = false;
@@ -470,8 +668,6 @@ export class MahjongStartScreen extends Component {
     }
 
     protected onDestroy(): void {
-        input.off(Input.EventType.TOUCH_END, this.requestMusic, this);
-        input.off(Input.EventType.MOUSE_UP, this.requestMusic, this);
         game.off(Game.EVENT_HIDE, this.pauseMusic, this);
         game.off(Game.EVENT_SHOW, this.resumeMusic, this);
         this.music?.stop();
@@ -485,9 +681,23 @@ export class MahjongStartScreen extends Component {
         this.round.destroy();
     }
 
+    private tutorialSuit(): PlacedTile["suit"] | undefined {
+        if (!this.teaching) return undefined;
+        if (this.board.some(({ tile }) => tile.layer === 1)) return "万";
+        if (this.board.some(({ tile }) => tile.suit === "筒")) return "筒";
+        return undefined;
+    }
+
     private refreshBoard(): void {
+        const guidedSuit = this.tutorialSuit();
         for (const card of this.board) {
-            if (card.node.active) this.drawTile(card, this.isCovered(card));
+            if (card.node.active) {
+                this.drawTile(
+                    card,
+                    this.isCovered(card) ||
+                        Boolean(guidedSuit && card.tile.suit !== guidedSuit),
+                );
+            }
         }
         this.remaining.string = `剩余 ${this.board.length + this.tray.length} 张`;
     }

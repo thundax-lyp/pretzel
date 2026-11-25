@@ -30,8 +30,37 @@ function group(suit: Suit, ...ranks: number[]): Tile[] {
     return ranks.map((rank) => ({ suit, rank }));
 }
 
-export const TILE_WIDTH = 94;
-export const TILE_HEIGHT = 130;
+export const TILE_WIDTH = 86;
+export const TILE_HEIGHT = 119;
+export const BOARD_COLUMN_STEP = 83;
+export const BOARD_ROW_STEP = 86;
+const BOARD_CENTER_Y = 18;
+
+const BOARD_SIDE = 7;
+const LAYOUTS = [
+    {
+        counts: [48, 42, 36, 30, 27, 21, 18, 12, 6],
+        weightX: 1,
+        weightY: 1,
+        driftX: 0,
+        driftY: 0,
+    },
+    {
+        counts: [48, 45, 39, 33, 27, 21, 15, 9, 3],
+        weightX: 0.65,
+        weightY: 1.65,
+        driftX: 0.13,
+        driftY: 0,
+    },
+    {
+        counts: [48, 45, 42, 36, 30, 24, 15],
+        weightX: 1.65,
+        weightY: 0.65,
+        driftX: 0,
+        driftY: -0.16,
+    },
+];
+export const BOARD_LAYOUT_COUNT = LAYOUTS.length;
 
 export type Position = Readonly<{ x: number; y: number; layer: number }>;
 export type PlacedTile = Tile & Position;
@@ -45,7 +74,7 @@ function shuffled<T>(items: readonly T[]): T[] {
     return result;
 }
 
-export function deal(): PlacedTile[] {
+export function deal(layoutIndex = 0): PlacedTile[] {
     const runs = [
         [1, 2, 3],
         [2, 3, 4],
@@ -70,27 +99,51 @@ export function deal(): PlacedTile[] {
         ),
     ]);
 
+    const layout = LAYOUTS[layoutIndex % BOARD_LAYOUT_COUNT];
+    const board: PlacedTile[] = [];
+    let lower: Position[] = [];
     let offset = 0;
-    return Array.from({ length: 9 }, (_, layer) => {
-        const rows = layer === 8 ? [5, 7, 7, 5] : [6, 7, 7, 7];
-        const positions = rows.flatMap((width, row) =>
-            Array.from({ length: width }, (_, column) => ({
-                x:
-                    (column - (width - 1) / 2) * 96 +
-                    ((row + layer) % 2 ? 12 : -12),
-                y: 170 - row * 132 - layer * 2,
+    layout.counts.forEach((size, layer) => {
+        const stagger = layer % 2 === 0 ? 0 : 0.5;
+        const positions = Array.from(
+            { length: BOARD_SIDE ** 2 },
+            (_, index) => ({
+                x: ((index % BOARD_SIDE) - 3 + stagger) * BOARD_COLUMN_STEP,
+                y:
+                    BOARD_CENTER_Y +
+                    (3 - Math.floor(index / BOARD_SIDE) - stagger) *
+                        BOARD_ROW_STEP,
                 layer,
-            })),
+            }),
         );
-        const count = positions.length / 3;
-        // Each layer has a clear order by taking its consecutive groups.
+        const score = ({ x, y }: Position) =>
+            layout.weightX *
+                (x / BOARD_COLUMN_STEP - layer * layout.driftX) ** 2 +
+            layout.weightY *
+                ((y - BOARD_CENTER_Y) / BOARD_ROW_STEP -
+                    layer * layout.driftY) **
+                    2;
+        const ranked = positions
+            .filter(
+                (position) =>
+                    layer === 0 || lower.some((tile) => covers(position, tile)),
+            )
+            .sort((a, b) => score(a) - score(b))
+            .slice(0, size);
+        lower = ranked;
+
+        const count = size / 3;
+        // Preserve complete groups in take order, while scattering their positions within the layer.
         const tiles = groups.slice(offset, offset + count).flatMap(shuffled);
         offset += count;
-        return positions.map((position, index) => ({
-            ...position,
-            ...tiles[index],
-        }));
-    }).flat();
+        board.push(
+            ...shuffled(ranked).map((position, index) => ({
+                ...position,
+                ...tiles[index],
+            })),
+        );
+    });
+    return board;
 }
 
 export function shuffleBoard(tiles: readonly PlacedTile[]): PlacedTile[] {
@@ -123,6 +176,7 @@ export function matchTiles(
 }
 
 export const SLOT_CAPACITY = 6;
+export const UNSOLVABLE_CHECK_BOARD_LIMIT = 48;
 
 export function findMatch(tiles: readonly Tile[]): {
     indices: readonly [number, number, number];
@@ -141,4 +195,114 @@ export function findMatch(tiles: readonly Tile[]): {
         }
     }
     return null;
+}
+
+function canPartition(tiles: readonly Tile[]): boolean {
+    return (Object.keys(FACE_NAMES) as Suit[]).every((suit) => {
+        const counts = FACE_NAMES[suit].map(() => 0);
+        for (const tile of tiles) {
+            if (tile.suit === suit) counts[tile.rank - 1]++;
+        }
+        if (!NUMBERED_SUITS.some((numbered) => numbered === suit)) {
+            return counts.every((count) => count % 3 === 0);
+        }
+
+        const deadEnds = new Set<string>();
+        function consume(): boolean {
+            const first = counts.findIndex((count) => count > 0);
+            if (first < 0) return true;
+            const key = counts.join(",");
+            if (deadEnds.has(key)) return false;
+            if (counts[first] >= 3) {
+                counts[first] -= 3;
+                if (consume()) return true;
+                counts[first] += 3;
+            }
+            if (counts[first + 1] > 0 && counts[first + 2] > 0) {
+                for (let i = first; i < first + 3; i++) counts[i]--;
+                if (consume()) return true;
+                for (let i = first; i < first + 3; i++) counts[i]++;
+            }
+            deadEnds.add(key);
+            return false;
+        }
+        return consume();
+    });
+}
+
+function completeTray(
+    tray: readonly Tile[],
+    available: number,
+): Tile[] | undefined {
+    if (tray.length === 0) return [];
+    const choices: Tile[][] = [];
+    for (const { suit, rank } of tray) {
+        choices.push(group(suit, rank, rank, rank));
+        if (NUMBERED_SUITS.some((numbered) => numbered === suit)) {
+            for (
+                let low = Math.max(1, rank - 2);
+                low <= Math.min(7, rank);
+                low++
+            ) {
+                choices.push(group(suit, low, low + 1, low + 2));
+            }
+        }
+    }
+
+    for (const choice of choices) {
+        const unmatched = [...tray];
+        const additions = choice.filter((tile) => {
+            const index = unmatched.findIndex(
+                (other) => other.suit === tile.suit && other.rank === tile.rank,
+            );
+            if (index < 0) return true;
+            unmatched.splice(index, 1);
+            return false;
+        });
+        if (additions.length > Math.min(available, SLOT_CAPACITY - tray.length))
+            continue;
+
+        let next = [...tray];
+        for (const tile of additions) {
+            next.push(tile);
+            const match = findMatch(next);
+            if (match) next = next.filter((_, i) => !match.indices.includes(i));
+        }
+        if (next.length >= tray.length) continue;
+        const rest = completeTray(next, available - additions.length);
+        if (rest) return [...additions, ...rest];
+    }
+    return undefined;
+}
+
+export function refreshUnsolvableBoard(
+    board: readonly PlacedTile[],
+    tray: readonly Tile[],
+): PlacedTile[] | undefined {
+    if (
+        board.length === 0 ||
+        board.length > UNSOLVABLE_CHECK_BOARD_LIMIT ||
+        tray.length >= SLOT_CAPACITY ||
+        (board.length + tray.length) % 3 !== 0 ||
+        canPartition([...board, ...tray])
+    ) {
+        return undefined;
+    }
+
+    const completion = completeTray(tray, board.length);
+    if (!completion) return undefined;
+    const faces = [
+        ...completion,
+        ...deal().slice(0, board.length - completion.length),
+    ];
+    // All upper layers can be taken before any lower layer.
+    const order = board
+        .map((_, i) => i)
+        .sort((a, b) => board[b].layer - board[a].layer);
+    const refreshed = [...board];
+    order.forEach((index, i) => {
+        const { suit, rank } = faces[i];
+        refreshed[index] = { ...board[index], suit, rank };
+    });
+    return refreshed;
 }
