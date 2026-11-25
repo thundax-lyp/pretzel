@@ -1,4 +1,12 @@
-import { BlockInputEvents, Color, Graphics, Node, UITransform } from "cc";
+import {
+    BlockInputEvents,
+    Color,
+    Graphics,
+    Node,
+    Sprite,
+    UITransform,
+    type SpriteFrame,
+} from "cc";
 
 const FRAME = new Color(193, 150, 70);
 const PANEL = new Color(7, 44, 33);
@@ -15,6 +23,7 @@ export class Dialog {
         private readonly width: number,
         private readonly height: number,
         dismiss?: () => void,
+        artwork?: SpriteFrame,
     ) {
         this.layer = this.child(parent, name);
         this.layer.addComponent(BlockInputEvents);
@@ -24,6 +33,15 @@ export class Dialog {
         this.panel = this.child(this.layer, "DialogPanel");
         this.panel.getComponent(UITransform)!.setContentSize(width, height);
         this.panel.addComponent(BlockInputEvents);
+        if (artwork) {
+            const node = this.child(this.panel, "DialogFrameArtwork");
+            const sprite = node.addComponent(Sprite);
+            sprite.type = Sprite.Type.SLICED;
+            sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+            sprite.spriteFrame = artwork;
+            node.getComponent(UITransform)!.setContentSize(width, height);
+            return;
+        }
         const frame = this.panel.addComponent(Graphics);
         this.rounded(frame, width, height, 34, FRAME);
         this.rounded(frame, width - 5, height - 5, 32, PANEL);

@@ -56,6 +56,7 @@ import {
     wechatMenuBottomRatio,
 } from "./home-platform";
 import { Dialog } from "./dialog";
+import { SettingsDialog, type SettingsArtwork } from "./settings-dialog";
 
 const INK = new Color(33, 47, 32);
 const CREAM = new Color(255, 245, 222);
@@ -157,6 +158,7 @@ export class MahjongStartScreen extends Component {
     private homeArt?: Node;
     private homeControls?: { menu: Node; start: Node; row: Node[] };
     private dialog?: Dialog;
+    private settingsArtwork!: SettingsArtwork;
     private feedbackButton?: { destroy(): void };
     private feedbackControl?: Node;
     private musicVolume = storedVolume(
@@ -502,69 +504,40 @@ export class MahjongStartScreen extends Component {
     }
 
     private showSettings(fromGame = false): void {
-        const box = this.openDialog("设置");
-        const music = this.action(
-            box,
-            "Music",
-            this.musicVolume ? "关闭音乐" : "开启音乐",
-            199,
-            () => {
-                this.musicVolume = this.musicVolume ? 0 : 100;
-                this.music.volume = (0.24 * this.musicVolume) / 100;
-                sys.localStorage.setItem(
-                    MUSIC_VOLUME,
-                    String(this.musicVolume),
-                );
-                music.label.string = this.musicVolume ? "关闭音乐" : "开启音乐";
-                this.musicRequested = true;
-                this.syncMusic();
+        this.closeDialog();
+        const settings = new SettingsDialog(this.node, this.settingsArtwork, {
+            volume: (channel) =>
+                channel === "music" ? this.musicVolume : this.soundVolume,
+            setVolume: (channel, value) => {
+                if (channel === "music") {
+                    this.musicVolume = value;
+                    this.music.volume = (0.24 * value) / 100;
+                    sys.localStorage.setItem(MUSIC_VOLUME, String(value));
+                    this.musicRequested = true;
+                    this.syncMusic();
+                } else {
+                    this.soundVolume = value;
+                    sys.localStorage.setItem(SOUND_VOLUME, String(value));
+                    this.playSound("button");
+                }
             },
-        );
-        const sound = this.action(
-            box,
-            "Sound",
-            this.soundVolume ? "关闭音效" : "开启音效",
-            100,
-            () => {
-                this.soundVolume = this.soundVolume ? 0 : 100;
-                sys.localStorage.setItem(
-                    SOUND_VOLUME,
-                    String(this.soundVolume),
-                );
-                sound.label.string = this.soundVolume ? "关闭音效" : "开启音效";
+            contact: (notice) => openService("contact", notice),
+            feedback: (notice) => {
+                if (!this.feedbackButton) notice("请在微信小游戏内提交反馈");
             },
-        );
-        const notice = this.text(box, "", 23, CREAM, 0, 260);
-        this.action(box, "Contact", "联系客服", 0, () =>
-            openService("contact", (message) => {
-                if (notice.isValid) notice.string = message;
-            }),
-        );
-        this.feedbackControl = this.action(
-            box,
-            "Feedback",
-            "问题反馈",
-            -83,
-            () => {
-                if (!this.feedbackButton)
-                    notice.string = "请在微信小游戏内提交反馈";
-            },
-        ).node;
+            privacy: (notice) => openService("privacy", notice),
+            leave: fromGame
+                ? {
+                      label: this.teaching ? "退出教学" : "放弃挑战",
+                      run: () => this.confirmReturnHome(),
+                  }
+                : undefined,
+            close: () => this.closeDialog(),
+        });
+        this.dialog = settings;
+        this.resizeDialog(settings);
+        this.feedbackControl = settings.feedbackControl;
         this.scheduleOnce(() => this.syncFeedbackControl());
-        this.action(box, "Privacy", "隐私声明", -166, () =>
-            openService("privacy", (message) => {
-                if (notice.isValid) notice.string = message;
-            }),
-        );
-        if (fromGame) {
-            this.action(
-                box,
-                "LeaveRound",
-                this.teaching ? "退出教学" : "放弃挑战",
-                -249,
-                () => this.confirmReturnHome(),
-            );
-        }
     }
 
     private showCollection(): void {
@@ -701,11 +674,26 @@ export class MahjongStartScreen extends Component {
         this.launchStatus.string = "";
         try {
             if (!this.homeArt) {
-                const [background, controls] = await Promise.all([
-                    loadTexture("home-background"),
-                    loadTexture("home-controls"),
-                ]);
+                const [background, controls, panel, buttons] =
+                    await Promise.all([
+                        loadTexture("home-background"),
+                        loadTexture("home-controls"),
+                        loadTexture("settings-panel"),
+                        loadTexture("settings-buttons"),
+                    ]);
                 if (!this.isValid) return;
+                const panelFrame = frame(
+                    panel,
+                    new Rect(0, 0, panel.width, panel.height),
+                );
+                panelFrame.insetLeft = panelFrame.insetRight = 118;
+                panelFrame.insetTop = panelFrame.insetBottom = 118;
+                this.settingsArtwork = {
+                    panel: panelFrame,
+                    gold: frame(buttons, new Rect(17, 33, 594, 160)),
+                    jade: frame(buttons, new Rect(17, 211, 592, 163)),
+                    red: frame(buttons, new Rect(17, 391, 593, 163)),
+                };
                 this.installHomeArt(background, controls);
             }
             await this.loadArtwork();
