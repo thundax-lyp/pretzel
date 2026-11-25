@@ -123,6 +123,7 @@ export function matchTiles(
 }
 
 export const SLOT_CAPACITY = 6;
+export const UNSOLVABLE_CHECK_BOARD_LIMIT = 48;
 
 export function findMatch(tiles: readonly Tile[]): {
     indices: readonly [number, number, number];
@@ -141,4 +142,114 @@ export function findMatch(tiles: readonly Tile[]): {
         }
     }
     return null;
+}
+
+function canPartition(tiles: readonly Tile[]): boolean {
+    return (Object.keys(FACE_NAMES) as Suit[]).every((suit) => {
+        const counts = FACE_NAMES[suit].map(() => 0);
+        for (const tile of tiles) {
+            if (tile.suit === suit) counts[tile.rank - 1]++;
+        }
+        if (!NUMBERED_SUITS.some((numbered) => numbered === suit)) {
+            return counts.every((count) => count % 3 === 0);
+        }
+
+        const deadEnds = new Set<string>();
+        function consume(): boolean {
+            const first = counts.findIndex((count) => count > 0);
+            if (first < 0) return true;
+            const key = counts.join(",");
+            if (deadEnds.has(key)) return false;
+            if (counts[first] >= 3) {
+                counts[first] -= 3;
+                if (consume()) return true;
+                counts[first] += 3;
+            }
+            if (counts[first + 1] > 0 && counts[first + 2] > 0) {
+                for (let i = first; i < first + 3; i++) counts[i]--;
+                if (consume()) return true;
+                for (let i = first; i < first + 3; i++) counts[i]++;
+            }
+            deadEnds.add(key);
+            return false;
+        }
+        return consume();
+    });
+}
+
+function completeTray(
+    tray: readonly Tile[],
+    available: number,
+): Tile[] | undefined {
+    if (tray.length === 0) return [];
+    const choices: Tile[][] = [];
+    for (const { suit, rank } of tray) {
+        choices.push(group(suit, rank, rank, rank));
+        if (NUMBERED_SUITS.some((numbered) => numbered === suit)) {
+            for (
+                let low = Math.max(1, rank - 2);
+                low <= Math.min(7, rank);
+                low++
+            ) {
+                choices.push(group(suit, low, low + 1, low + 2));
+            }
+        }
+    }
+
+    for (const choice of choices) {
+        const unmatched = [...tray];
+        const additions = choice.filter((tile) => {
+            const index = unmatched.findIndex(
+                (other) => other.suit === tile.suit && other.rank === tile.rank,
+            );
+            if (index < 0) return true;
+            unmatched.splice(index, 1);
+            return false;
+        });
+        if (additions.length > Math.min(available, SLOT_CAPACITY - tray.length))
+            continue;
+
+        let next = [...tray];
+        for (const tile of additions) {
+            next.push(tile);
+            const match = findMatch(next);
+            if (match) next = next.filter((_, i) => !match.indices.includes(i));
+        }
+        if (next.length >= tray.length) continue;
+        const rest = completeTray(next, available - additions.length);
+        if (rest) return [...additions, ...rest];
+    }
+    return undefined;
+}
+
+export function refreshUnsolvableBoard(
+    board: readonly PlacedTile[],
+    tray: readonly Tile[],
+): PlacedTile[] | undefined {
+    if (
+        board.length === 0 ||
+        board.length > UNSOLVABLE_CHECK_BOARD_LIMIT ||
+        tray.length >= SLOT_CAPACITY ||
+        (board.length + tray.length) % 3 !== 0 ||
+        canPartition([...board, ...tray])
+    ) {
+        return undefined;
+    }
+
+    const completion = completeTray(tray, board.length);
+    if (!completion) return undefined;
+    const faces = [
+        ...completion,
+        ...deal().slice(0, board.length - completion.length),
+    ];
+    // All upper layers can be taken before any lower layer.
+    const order = board
+        .map((_, i) => i)
+        .sort((a, b) => board[b].layer - board[a].layer);
+    const refreshed = [...board];
+    order.forEach((index, i) => {
+        const { suit, rank } = faces[i];
+        refreshed[index] = { ...board[index], suit, rank };
+    });
+    return refreshed;
 }

@@ -28,10 +28,12 @@ import {
     findMatch,
     faceName,
     FACE_FILES,
+    refreshUnsolvableBoard,
     shuffleBoard,
     SLOT_CAPACITY,
     TILE_WIDTH,
     TILE_HEIGHT,
+    UNSOLVABLE_CHECK_BOARD_LIMIT,
     type PlacedTile,
 } from "./round";
 
@@ -404,7 +406,25 @@ export class MahjongStartScreen extends Component {
 
     private finishMove(message: string, removedTiles: boolean): void {
         this.finished = false;
-        this.status.string = message;
+        const refreshed =
+            removedTiles || this.board.length === UNSOLVABLE_CHECK_BOARD_LIMIT
+                ? refreshUnsolvableBoard(
+                      this.board.map(({ tile }) => tile),
+                      this.tray.map(({ tile }) => tile),
+                  )
+                : undefined;
+        if (refreshed) {
+            this.board.forEach((card, index) => {
+                card.tile = refreshed[index];
+                card.sprite.spriteFrame = this.tileFrames.get(
+                    faceName(card.tile),
+                )!;
+            });
+            this.status.string = "剩余牌面无解，已刷新牌山，槽内牌保留";
+            this.playSound("shuffle");
+        } else {
+            this.status.string = message;
+        }
         this.refreshBoard();
         const cleared = this.board.length === 0 && this.tray.length === 0;
         if (cleared) {
@@ -420,7 +440,7 @@ export class MahjongStartScreen extends Component {
                 ? "收牌槽满了，可消除或撤回"
                 : "槽里还有散牌，可消除或撤回";
         }
-        if (removedTiles && !cleared) {
+        if (removedTiles && !cleared && !refreshed) {
             this.playSound("match");
         }
         this.busy = false;
