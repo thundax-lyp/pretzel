@@ -12,3 +12,12 @@ npm run check
 ```
 
 在 Cocos Creator 3.8.8 中导入本目录，打开 `start.scene` 后预览。微信小游戏构建选择「微信小游戏」平台，设置竖屏与本游戏的 AppID，再将生成的 `build/wechatgame` 目录导入微信开发者工具。
+
+本地微信调试构建从仓库根目录运行，先在私有 `.env` 中配置
+`MAHJONG_MATCH_WECHAT_GAME_APP_ID`：
+
+```sh
+node scripts/with-env.mjs --env-file .env -- npm --prefix miniprograms/mahjong-match run build:wechat
+```
+
+命令输出到 `miniprograms/mahjong-match/build/wechatgame`，并接入定制微信首屏。
