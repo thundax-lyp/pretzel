@@ -18,17 +18,11 @@ npm run preview
 
 ## 微信小游戏
 
-在仓库根目录的私有 `.env` 中配置 `FLIP_ZOO_WECHAT_GAME_APP_ID` 和 `FLIP_ZOO_WECHAT_CLOUD_ENV`，从仓库根目录执行 `node scripts/with-env.mjs --env-file .env -- npm --prefix miniprograms/flip-zoo run build:wechat`。将 `build/wechatgame` 导入微信开发者工具，使用小游戏项目类型进行预览和真机验证。
+在仓库根目录的私有 `.env` 中配置 `FLIP_ZOO_WECHAT_GAME_APP_ID` 和 `FLIP_ZOO_WECHAT_CLOUD_ENV`，从仓库根目录执行 `node scripts/with-env.mjs --env-file .env -- npm --prefix miniprograms/flip-zoo run build:wechat`。将 `build/wechatgame` 导入微信开发者工具，使用小游戏项目类型进行本地模拟器调试、预览和真机验证。
 
 微信小游戏第二关开局开放 6 格，第 7 格通过调起微信转发解锁，本局有效。槽满失败后可以重试或返回首页。
 
 背景音乐放在 `music` 分包。首页加载完成后，音乐音量大于零时加载并循环播放；点击「开始游戏」时会再次检查播放状态。消除音效随主包提供。微信构建分别检查主包 4 MB 和整包 30 MB。构建脚本还会直接执行 Creator 输出的 `Round` 模块，核验 6／7 格、剩余 0／1 格时均可复活并完整补牌清槽，防止源码测试通过但正式转译产物失效。
-
-本地模拟器调试在仓库根目录的私有 `.env` 中设置 `FLIP_ZOO_WECHAT_TEST_APP_ID`，使用当前微信开发者工具账号可用的小游戏测试号。从仓库根目录执行以下命令，再把 `build/wechatgame-test` 作为小游戏项目导入微信开发者工具。
-
-```bash
-node scripts/with-env.mjs --env-file .env -- npm --prefix miniprograms/flip-zoo run build:wechat -- --test
-```
 
 ### 功能定位
 
@@ -52,9 +46,8 @@ node scripts/with-env.mjs --env-file .env -- npm --prefix miniprograms/flip-zoo 
 
 ### 微信云开发
 
-在微信云开发控制台将小游戏 AppID 关联到目标环境。正式构建从私有环境读取
-`FLIP_ZOO_WECHAT_CLOUD_ENV`，`--test` 构建读取
-`FLIP_ZOO_WECHAT_TEST_CLOUD_ENV`。将 `cloud-functions/flip-zoo-health` 部署到对应环境，云函数名称指定为 `flipZooHealth`，并安装云端依赖。
+在微信云开发控制台将小游戏 AppID 关联到目标环境。微信构建从私有环境读取
+`FLIP_ZOO_WECHAT_CLOUD_ENV`。将 `cloud-functions/flip-zoo-health` 部署到对应环境，云函数名称指定为 `flipZooHealth`，并安装云端依赖。
 
 配置环境 ID 后，小游戏启动时调用 `flipZooHealth`。云函数通过微信调用上下文验证身份，
 接通时开发者工具控制台显示 `FLIP ZOO cloud connection verified`。首页优先使用

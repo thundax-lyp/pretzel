@@ -8,34 +8,22 @@ import { verifyBuiltRevival } from "./verify-built-revival.mjs";
 const project = fileURLToPath(new URL("../", import.meta.url));
 const [platform, ...flags] = process.argv.slice(2);
 const wechat = platform === "wechatgame";
-const testBuild = wechat && flags.includes("--test");
 if (
     (!wechat && platform !== "web-mobile") ||
-    flags.some((flag) => flag !== "--debug" && !(wechat && flag === "--test"))
+    flags.some((flag) => flag !== "--debug")
 ) {
+    throw new Error("Choose web-mobile or wechatgame [--debug]");
+}
+const appid = process.env.FLIP_ZOO_WECHAT_GAME_APP_ID;
+if (wechat && !/^wx[0-9a-f]{16}$/.test(appid ?? "")) {
     throw new Error(
-        "Choose web-mobile or wechatgame [--debug] [--test for WeChat]",
+        "Set FLIP_ZOO_WECHAT_GAME_APP_ID to an authorized WeChat game AppID",
     );
 }
-const testAppId = process.env.FLIP_ZOO_WECHAT_TEST_APP_ID;
-const appIdVariable = testBuild
-    ? "FLIP_ZOO_WECHAT_TEST_APP_ID"
-    : "FLIP_ZOO_WECHAT_GAME_APP_ID";
-const appid = process.env[appIdVariable];
-if (wechat && !/^wx[0-9a-f]{16}$/.test(appid ?? "")) {
-    throw new Error(`Set ${appIdVariable} to an authorized WeChat game AppID`);
-}
-if (wechat && !testBuild && appid === testAppId) {
-    throw new Error("Use the game's AppID for a release build");
-}
 const cloudEnv = wechat
-    ? process.env[
-          testBuild
-              ? "FLIP_ZOO_WECHAT_TEST_CLOUD_ENV"
-              : "FLIP_ZOO_WECHAT_CLOUD_ENV"
-      ]?.trim()
+    ? process.env.FLIP_ZOO_WECHAT_CLOUD_ENV?.trim()
     : undefined;
-const outputName = testBuild ? "wechatgame-test" : platform;
+const outputName = platform;
 const creator =
     process.env.COCOS_CREATOR_PATH ??
     "/Applications/CocosCreator/Creator/3.8.8/CocosCreator.app/Contents/MacOS/CocosCreator";
