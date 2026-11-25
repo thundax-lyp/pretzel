@@ -809,7 +809,7 @@ export class MahjongStartScreen extends Component {
         this.table = this.child(this.node, "GameView", 0, 0);
         this.table.active = false;
         this.table.addComponent(UIOpacity).opacity = 0;
-        this.launch.setSiblingIndex(this.node.children.length - 1);
+        this.table.setSiblingIndex(this.launch.getSiblingIndex());
         this.tableArt = this.child(this.table, "Table", 0, 0);
         this.image(
             this.tableArt,
