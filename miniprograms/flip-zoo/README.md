@@ -32,14 +32,14 @@ node scripts/with-env.mjs --env-file .env -- npm --prefix miniprograms/flip-zoo 
 
 ### 功能定位
 
-| 调试内容       | 配置或入口                                                                                                                | 规则位置                                                                             |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| 普通／通关分享 | 私有环境中的 `FLIP_ZOO_SHARE_DEFAULT_*`／`FLIP_ZOO_SHARE_VICTORY_*`。审核图片 ID 与 URL 成对配置。Web Demo 提供模拟分享。 | [分享与来源记录](../../docs/01-requirements/FLIP-ZOO-REQUIREMENTS.md#分享与来源记录) |
-| 复活与清槽     | 调试微信分享返回、补牌和清槽动画。                                                                                        | [分享复活与清槽](../../docs/30-designs/FLIP-ZOO-DESIGN.md#分享复活与清槽)            |
-| 弹窗           | 设置中可打开微信客服和原生问题反馈。                                                                                      | [对话框标准](../../docs/30-designs/FLIP-ZOO-DESIGN.md#对话框标准)                    |
-| 好友榜         | 微信开放数据域读取 `mgrank`／`mgrank_total`，历史累计由 `flipZooRank` 提供。                                              | [好友周榜与历史榜](../../docs/30-designs/FLIP-ZOO-DESIGN.md#好友周榜与历史榜)        |
-| 家园           | `flipZooFragments` 提供余额与兑换状态，打开家园时重试网络失败的结算。实际兑换依赖云部署、小店配置与手机微信。             | [家园兑换规则](../../docs/01-requirements/FLIP-ZOO-REQUIREMENTS.md#家园)             |
-| 交付验收       | 核对 IDE、CI 和微信上传的验证范围。                                                                                       | [界面与交付验收状态](../../docs/40-readiness/FLIP-ZOO-READINESS.md)                  |
+| 调试内容   | 配置或入口                                                                                                    | 规则位置                                                                             |
+| ---------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| 微信分享   | 所有入口使用私有环境中的 `FLIP_ZOO_SHARE_DEFAULT_*`。审核图片 ID 与 URL 成对配置。Web Demo 提供模拟分享。     | [分享与来源记录](../../docs/01-requirements/FLIP-ZOO-REQUIREMENTS.md#分享与来源记录) |
+| 复活与清槽 | 调试微信分享返回、补牌和清槽动画。                                                                            | [分享复活与清槽](../../docs/30-designs/FLIP-ZOO-DESIGN.md#分享复活与清槽)            |
+| 弹窗       | 设置中可打开微信客服和原生问题反馈。                                                                          | [对话框标准](../../docs/30-designs/FLIP-ZOO-DESIGN.md#对话框标准)                    |
+| 好友榜     | 微信开放数据域读取 `mgrank`／`mgrank_total`，历史累计由 `flipZooRank` 提供。                                  | [好友周榜与历史榜](../../docs/30-designs/FLIP-ZOO-DESIGN.md#好友周榜与历史榜)        |
+| 家园       | `flipZooFragments` 提供余额与兑换状态，打开家园时重试网络失败的结算。实际兑换依赖云部署、小店配置与手机微信。 | [家园兑换规则](../../docs/01-requirements/FLIP-ZOO-REQUIREMENTS.md#家园)             |
+| 交付验收   | 核对 IDE、CI 和微信上传的验证范围。                                                                           | [界面与交付验收状态](../../docs/40-readiness/FLIP-ZOO-READINESS.md)                  |
 
 ### 牌局来源
 
@@ -164,13 +164,13 @@ npm run check
 | 首页、设置独立控件与家园动画   | `assets/home/buttons.png`、`assets/home/settings/`、`assets/home/collection/` | `home` 分包  |
 | 全局背景音乐                   | `assets/music/shared/background-music.mp3`                                    | `music` 分包 |
 | 教学完成过渡插画               | `assets/home/tutorial-transition.png`                                         | `home` 分包  |
-| 邀请与胜利分享卡               | `share/game-invite.png`、`share/victory-result.png`                           | 主包         |
+| 默认分享卡                     | `share/game-invite.png`                                                       | 主包         |
 
 LOADING 背景先由主包加载并显示，再加载 `home` 分包。
 
 ### 分享素材与儿童隐私
 
-普通和胜利分享卡使用 [share/game-invite.png](share/game-invite.png) 与 [share/victory-result.png](share/victory-result.png)，均为 500 × 400。微信构建将两张图复制进代码包。可通过既有的分享配置指定平台审核通过的图片编号与地址。
+微信构建将 500 × 400 的默认分享图 [share/game-invite.png](share/game-invite.png) 复制进代码包。可通过分享配置指定平台审核通过的图片编号与地址。
 
 弹层纸纹改编自 [ambientCG Paper 001](https://ambientcg.com/view?id=Paper001)，采用 [CC0 1.0](https://docs.ambientcg.com/license/)。标题装饰和胜负熊猫为本项目生成的插画。
 

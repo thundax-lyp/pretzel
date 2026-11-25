@@ -109,38 +109,25 @@ try {
         fs.cpSync(path.join(project, "share"), path.join(output, "share"), {
             recursive: true,
         });
-        const shareCards = ["DEFAULT", "VICTORY"].map((kind) => {
-            const title = process.env[`FLIP_ZOO_SHARE_${kind}_TITLE`]?.trim();
-            const imageUrlId =
-                process.env[`FLIP_ZOO_SHARE_${kind}_IMAGE_ID`]?.trim();
-            const imageUrl =
-                process.env[`FLIP_ZOO_SHARE_${kind}_IMAGE_URL`]?.trim();
-            if (Boolean(imageUrlId) !== Boolean(imageUrl)) {
-                throw new Error(
-                    `Set both the image ID and URL for the ${kind.toLowerCase()} share card`,
-                );
-            }
-            const victory = kind === "VICTORY";
-            return {
-                title:
-                    title ||
-                    (victory
-                        ? "我通关了！来挑战两只眼睛几条腿"
-                        : "两只眼睛几条腿 · 一起来找同款"),
-                imageUrlId,
-                imageUrl:
-                    imageUrl ||
-                    (victory
-                        ? "share/victory-result.png"
-                        : "share/game-invite.png"),
-            };
-        });
+        const title = process.env.FLIP_ZOO_SHARE_DEFAULT_TITLE?.trim();
+        const imageUrlId = process.env.FLIP_ZOO_SHARE_DEFAULT_IMAGE_ID?.trim();
+        const imageUrl = process.env.FLIP_ZOO_SHARE_DEFAULT_IMAGE_URL?.trim();
+        if (Boolean(imageUrlId) !== Boolean(imageUrl)) {
+            throw new Error(
+                "Set both the image ID and URL for the default share card",
+            );
+        }
+        const shareCard = {
+            title: title || "两只眼睛几条腿 · 一起来找同款",
+            imageUrlId,
+            imageUrl: imageUrl || "share/game-invite.png",
+        };
         fs.writeFileSync(
             entry,
             (cloudEnv
                 ? `GameGlobal.flipZooCloudEnv = ${JSON.stringify(cloudEnv)};\n`
                 : "") +
-                `GameGlobal.flipZooShareCards = ${JSON.stringify(shareCards)};\n` +
+                `GameGlobal.flipZooShareCard = ${JSON.stringify(shareCard)};\n` +
                 fs.readFileSync(entry, "utf8"),
         );
         const gameConfigPath = path.join(output, "game.json");

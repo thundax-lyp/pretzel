@@ -192,11 +192,7 @@ export class FlipZooStartScreen extends Component {
     private welcome?: Node;
     private feedbackControl?: Node;
     private feedbackButton?: { destroy(): void };
-    private readonly shareFromMenu = () =>
-        wechat.trackedShareCard(
-            this.overlay?.name === "RoundResult" &&
-                this.round?.status === "won",
-        );
+    private readonly shareFromMenu = () => wechat.trackedShareCard();
     private shareTrackingStarted = false;
     private readonly boardApi = createBoardApi(WECHAT);
     private nextBoard?: {
@@ -1669,7 +1665,7 @@ export class FlipZooStartScreen extends Component {
         const actions = {
             home: () => this.returnHome(),
             share: () => {
-                if (this.overlay === result) this.share(true);
+                if (this.overlay === result) this.share();
             },
             retry: () => {
                 if (this.overlay !== result) return;
@@ -1736,8 +1732,8 @@ export class FlipZooStartScreen extends Component {
         this.playSlotClear(groups, 0);
     }
 
-    private share(won = false): boolean {
-        const result = wechat.openShare(won);
+    private share(): boolean {
+        const result = wechat.openShare();
         if (result === "opened") return true;
         if (result === "unsupported")
             this.platformNotice("当前环境无法调起微信分享", this.welcome);
