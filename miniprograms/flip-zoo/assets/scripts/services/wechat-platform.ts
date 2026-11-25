@@ -23,7 +23,7 @@ interface ShareCard {
     query?: string;
 }
 
-declare const GameGlobal: { flipZooShareCards?: ShareCard[] };
+declare const GameGlobal: { flipZooShareCard?: ShareCard };
 declare const wx: {
     getAccountInfoSync?: () => { miniProgram?: { version?: string } };
     shareAppMessage?: (card: ShareCard) => void;
@@ -72,11 +72,6 @@ declare const wx: {
     };
 };
 
-export function shareCard(won: boolean): ShareCard {
-    const cards = GameGlobal.flipZooShareCards;
-    return cards?.[won ? 1 : 0] ?? { title: "两只眼睛几条腿" };
-}
-
 export function releaseVersion(): string | undefined {
     if (!WECHAT) return undefined;
     try {
@@ -90,8 +85,8 @@ export function releaseVersion(): string | undefined {
 
 let stopShareTracking: (() => void) | undefined;
 
-export function trackedShareCard(won: boolean): ShareCard {
-    const card = shareCard(won);
+export function trackedShareCard(): ShareCard {
+    const card = GameGlobal.flipZooShareCard ?? { title: "两只眼睛几条腿" };
     if (!hasCloudEnvironment()) return card;
     return {
         ...card,
@@ -119,10 +114,10 @@ export function disableShareMenu(handler: () => ShareCard): void {
     wx.offShareAppMessage?.(handler);
 }
 
-export function openShare(won: boolean): "opened" | "unsupported" | "failed" {
+export function openShare(): "opened" | "unsupported" | "failed" {
     if (!WECHAT) return "unsupported";
     try {
-        const card = trackedShareCard(won);
+        const card = trackedShareCard();
         if (!wx.shareAppMessage) return "unsupported";
         wx.shareAppMessage(card);
         return "opened";
@@ -149,7 +144,7 @@ export function openRevivalShare(
         onReturn();
     };
     wx.onShow(show);
-    if (openShare(false) !== "opened") {
+    if (openShare() !== "opened") {
         cancel();
         return undefined;
     }

@@ -8,34 +8,22 @@ import { verifyBuiltRevival } from "./verify-built-revival.mjs";
 const project = fileURLToPath(new URL("../", import.meta.url));
 const [platform, ...flags] = process.argv.slice(2);
 const wechat = platform === "wechatgame";
-const testBuild = wechat && flags.includes("--test");
 if (
     (!wechat && platform !== "web-mobile") ||
-    flags.some((flag) => flag !== "--debug" && !(wechat && flag === "--test"))
+    flags.some((flag) => flag !== "--debug")
 ) {
+    throw new Error("Choose web-mobile or wechatgame [--debug]");
+}
+const appid = process.env.FLIP_ZOO_WECHAT_GAME_APP_ID;
+if (wechat && !/^wx[0-9a-f]{16}$/.test(appid ?? "")) {
     throw new Error(
-        "Choose web-mobile or wechatgame [--debug] [--test for WeChat]",
+        "Set FLIP_ZOO_WECHAT_GAME_APP_ID to an authorized WeChat game AppID",
     );
 }
-const testAppId = process.env.FLIP_ZOO_WECHAT_TEST_APP_ID;
-const appIdVariable = testBuild
-    ? "FLIP_ZOO_WECHAT_TEST_APP_ID"
-    : "FLIP_ZOO_WECHAT_GAME_APP_ID";
-const appid = process.env[appIdVariable];
-if (wechat && !/^wx[0-9a-f]{16}$/.test(appid ?? "")) {
-    throw new Error(`Set ${appIdVariable} to an authorized WeChat game AppID`);
-}
-if (wechat && !testBuild && appid === testAppId) {
-    throw new Error("Use the game's AppID for a release build");
-}
 const cloudEnv = wechat
-    ? process.env[
-          testBuild
-              ? "FLIP_ZOO_WECHAT_TEST_CLOUD_ENV"
-              : "FLIP_ZOO_WECHAT_CLOUD_ENV"
-      ]?.trim()
+    ? process.env.FLIP_ZOO_WECHAT_CLOUD_ENV?.trim()
     : undefined;
-const outputName = testBuild ? "wechatgame-test" : platform;
+const outputName = platform;
 const creator =
     process.env.COCOS_CREATOR_PATH ??
     "/Applications/CocosCreator/Creator/3.8.8/CocosCreator.app/Contents/MacOS/CocosCreator";
@@ -109,38 +97,25 @@ try {
         fs.cpSync(path.join(project, "share"), path.join(output, "share"), {
             recursive: true,
         });
-        const shareCards = ["DEFAULT", "VICTORY"].map((kind) => {
-            const title = process.env[`FLIP_ZOO_SHARE_${kind}_TITLE`]?.trim();
-            const imageUrlId =
-                process.env[`FLIP_ZOO_SHARE_${kind}_IMAGE_ID`]?.trim();
-            const imageUrl =
-                process.env[`FLIP_ZOO_SHARE_${kind}_IMAGE_URL`]?.trim();
-            if (Boolean(imageUrlId) !== Boolean(imageUrl)) {
-                throw new Error(
-                    `Set both the image ID and URL for the ${kind.toLowerCase()} share card`,
-                );
-            }
-            const victory = kind === "VICTORY";
-            return {
-                title:
-                    title ||
-                    (victory
-                        ? "我通关了！来挑战两只眼睛几条腿"
-                        : "两只眼睛几条腿 · 一起来找同款"),
-                imageUrlId,
-                imageUrl:
-                    imageUrl ||
-                    (victory
-                        ? "share/victory-result.png"
-                        : "share/game-invite.png"),
-            };
-        });
+        const title = process.env.FLIP_ZOO_SHARE_DEFAULT_TITLE?.trim();
+        const imageUrlId = process.env.FLIP_ZOO_SHARE_DEFAULT_IMAGE_ID?.trim();
+        const imageUrl = process.env.FLIP_ZOO_SHARE_DEFAULT_IMAGE_URL?.trim();
+        if (Boolean(imageUrlId) !== Boolean(imageUrl)) {
+            throw new Error(
+                "Set both the image ID and URL for the default share card",
+            );
+        }
+        const shareCard = {
+            title: title || "两只眼睛几条腿 · 一起来找同款",
+            imageUrlId,
+            imageUrl: imageUrl || "share/game-invite.png",
+        };
         fs.writeFileSync(
             entry,
             (cloudEnv
                 ? `GameGlobal.flipZooCloudEnv = ${JSON.stringify(cloudEnv)};\n`
                 : "") +
-                `GameGlobal.flipZooShareCards = ${JSON.stringify(shareCards)};\n` +
+                `GameGlobal.flipZooShareCard = ${JSON.stringify(shareCard)};\n` +
                 fs.readFileSync(entry, "utf8"),
         );
         const gameConfigPath = path.join(output, "game.json");

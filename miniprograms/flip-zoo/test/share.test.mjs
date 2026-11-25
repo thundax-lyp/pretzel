@@ -47,20 +47,13 @@ function loadScreen(imports, wx, gameGlobal) {
     return new exports.FlipZooStartScreen();
 }
 
-test("opening the share picker does not mutate the round", () => {
+test("in-game and menu sharing use the default card without mutating the round", () => {
     const calls = [];
-    const cards = [
-        {
-            title: "来翻牌",
-            imageUrlId: "default",
-            imageUrl: "https://example.com/share.png",
-        },
-        {
-            title: "通关了",
-            imageUrlId: "victory",
-            imageUrl: "https://example.com/win.png",
-        },
-    ];
+    const card = {
+        title: "来翻牌",
+        imageUrlId: "default",
+        imageUrl: "https://example.com/share.png",
+    };
     const imports = {
         cc: {
             Component: class {},
@@ -72,23 +65,21 @@ test("opening the share picker does not mutate the round", () => {
     const screen = loadScreen(
         imports,
         { shareAppMessage: (card) => calls.push(card) },
-        { flipZooShareCards: cards },
+        { flipZooShareCard: card },
     );
     screen.round = Object.freeze({ status: "lost", slotCapacity: 7 });
     screen.share();
-    screen.share(true);
-    const tracked = cards.map((card) => ({
-        ...card,
-        query: "share_channel=test-channel",
-    }));
-    assert.deepEqual(calls, tracked);
+    const tracked = { ...card, query: "share_channel=test-channel" };
+    assert.deepEqual(calls, [tracked]);
     assert.deepEqual(screen.round, { status: "lost", slotCapacity: 7 });
     screen.overlay = { name: "RoundResult" };
-    assert.deepEqual(screen.shareFromMenu(), tracked[0]);
+    assert.deepEqual(screen.shareFromMenu(), tracked);
     screen.round = Object.freeze({ status: "won", slotCapacity: 7 });
-    assert.deepEqual(screen.shareFromMenu(), tracked[1]);
+    assert.deepEqual(screen.shareFromMenu(), tracked);
+    screen.share();
+    assert.deepEqual(calls, [tracked, tracked]);
     screen.overlay = { name: "Leaderboard" };
-    assert.deepEqual(screen.shareFromMenu(), tracked[0]);
+    assert.deepEqual(screen.shareFromMenu(), tracked);
 });
 
 for (const prop of ["undo", "peek", "remove"]) {
@@ -410,20 +401,20 @@ test("menu and direct sharing each create one tracked channel, including failed 
         wx,
         {},
     );
-    const menu = () => exports.trackedShareCard(false);
+    const menu = () => exports.trackedShareCard();
     exports.enableShareMenu(menu);
     assert.equal(handler, undefined);
     ready();
     const first = handler();
     const second = handler();
     assert.notEqual(first.query, second.query);
-    assert.equal(exports.openShare(true), "opened");
+    assert.equal(exports.openShare(), "opened");
     assert.equal(clicks, 3);
     assert.equal(sent.length, 1);
     wx.shareAppMessage = () => {
         throw Error("cancelled/unavailable");
     };
-    assert.equal(exports.openShare(false), "failed");
+    assert.equal(exports.openShare(), "failed");
     assert.equal(clicks, 4);
     exports.disableShareMenu(menu);
     assert.equal(handler, undefined);
@@ -669,13 +660,13 @@ test("WeChat without a cloud environment shares and enables its menu without inv
             onShow: (handler) => (returned = handler),
             offShow: () => (returned = undefined),
         },
-        { flipZooShareCards: [card] },
+        { flipZooShareCard: card },
     );
-    const handler = () => platform.trackedShareCard(false);
+    const handler = () => platform.trackedShareCard();
     platform.enableShareMenu(handler);
     assert.equal(shows, 1);
     assert.deepEqual(menu(), card);
-    assert.equal(platform.openShare(false), "opened");
+    assert.equal(platform.openShare(), "opened");
     let revivals = 0;
     assert.equal(
         typeof platform.openRevivalShare(() => revivals++),
@@ -722,13 +713,13 @@ test("configured cloud sharing never bypasses identity readiness", () => {
         },
         {},
     );
-    platform.enableShareMenu(() => platform.trackedShareCard(false));
+    platform.enableShareMenu(() => platform.trackedShareCard());
     assert.equal(menu, undefined);
-    assert.equal(platform.openShare(false), "failed");
+    assert.equal(platform.openShare(), "failed");
     assert.equal(nativeShares, 0);
     identityReady = true;
     ready();
     assert.equal(menu().query, "share_channel=" + "a".repeat(32));
-    assert.equal(platform.openShare(false), "opened");
+    assert.equal(platform.openShare(), "opened");
     assert.equal(nativeShares, 1);
 });

@@ -18,28 +18,22 @@ npm run preview
 
 ## 微信小游戏
 
-在仓库根目录的私有 `.env` 中配置 `FLIP_ZOO_WECHAT_GAME_APP_ID` 和 `FLIP_ZOO_WECHAT_CLOUD_ENV`，从仓库根目录执行 `node scripts/with-env.mjs --env-file .env -- npm --prefix miniprograms/flip-zoo run build:wechat`。将 `build/wechatgame` 导入微信开发者工具，使用小游戏项目类型进行预览和真机验证。
+在仓库根目录的私有 `.env` 中配置 `FLIP_ZOO_WECHAT_GAME_APP_ID` 和 `FLIP_ZOO_WECHAT_CLOUD_ENV`，从仓库根目录执行 `node scripts/with-env.mjs --env-file .env -- npm --prefix miniprograms/flip-zoo run build:wechat`。将 `build/wechatgame` 导入微信开发者工具，使用小游戏项目类型进行本地模拟器调试、预览和真机验证。
 
 微信小游戏第二关开局开放 6 格，第 7 格通过调起微信转发解锁，本局有效。槽满失败后可以重试或返回首页。
 
 背景音乐放在 `music` 分包。首页加载完成后，音乐音量大于零时加载并循环播放；点击「开始游戏」时会再次检查播放状态。消除音效随主包提供。微信构建分别检查主包 4 MB 和整包 30 MB。构建脚本还会直接执行 Creator 输出的 `Round` 模块，核验 6／7 格、剩余 0／1 格时均可复活并完整补牌清槽，防止源码测试通过但正式转译产物失效。
 
-本地模拟器调试在仓库根目录的私有 `.env` 中设置 `FLIP_ZOO_WECHAT_TEST_APP_ID`，使用当前微信开发者工具账号可用的小游戏测试号。从仓库根目录执行以下命令，再把 `build/wechatgame-test` 作为小游戏项目导入微信开发者工具。
-
-```bash
-node scripts/with-env.mjs --env-file .env -- npm --prefix miniprograms/flip-zoo run build:wechat -- --test
-```
-
 ### 功能定位
 
-| 调试内容       | 配置或入口                                                                                                                | 规则位置                                                                             |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| 普通／通关分享 | 私有环境中的 `FLIP_ZOO_SHARE_DEFAULT_*`／`FLIP_ZOO_SHARE_VICTORY_*`。审核图片 ID 与 URL 成对配置。Web Demo 提供模拟分享。 | [分享与来源记录](../../docs/01-requirements/FLIP-ZOO-REQUIREMENTS.md#分享与来源记录) |
-| 复活与清槽     | 调试微信分享返回、补牌和清槽动画。                                                                                        | [分享复活与清槽](../../docs/30-designs/FLIP-ZOO-DESIGN.md#分享复活与清槽)            |
-| 弹窗           | 设置中可打开微信客服和原生问题反馈。                                                                                      | [对话框标准](../../docs/30-designs/FLIP-ZOO-DESIGN.md#对话框标准)                    |
-| 好友榜         | 微信开放数据域读取 `mgrank`／`mgrank_total`，历史累计由 `flipZooRank` 提供。                                              | [好友周榜与历史榜](../../docs/30-designs/FLIP-ZOO-DESIGN.md#好友周榜与历史榜)        |
-| 家园           | `flipZooFragments` 提供余额与兑换状态，打开家园时重试网络失败的结算。实际兑换依赖云部署、小店配置与手机微信。             | [家园兑换规则](../../docs/01-requirements/FLIP-ZOO-REQUIREMENTS.md#家园)             |
-| 交付验收       | 核对 IDE、CI 和微信上传的验证范围。                                                                                       | [界面与交付验收状态](../../docs/40-readiness/FLIP-ZOO-READINESS.md)                  |
+| 调试内容   | 配置或入口                                                                                                    | 规则位置                                                                             |
+| ---------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| 微信分享   | 所有入口使用私有环境中的 `FLIP_ZOO_SHARE_DEFAULT_*`。审核图片 ID 与 URL 成对配置。Web Demo 提供模拟分享。     | [分享与来源记录](../../docs/01-requirements/FLIP-ZOO-REQUIREMENTS.md#分享与来源记录) |
+| 复活与清槽 | 调试微信分享返回、补牌和清槽动画。                                                                            | [分享复活与清槽](../../docs/30-designs/FLIP-ZOO-DESIGN.md#分享复活与清槽)            |
+| 弹窗       | 设置中可打开微信客服和原生问题反馈。                                                                          | [对话框标准](../../docs/30-designs/FLIP-ZOO-DESIGN.md#对话框标准)                    |
+| 好友榜     | 微信开放数据域读取 `mgrank`／`mgrank_total`，历史累计由 `flipZooRank` 提供。                                  | [好友周榜与历史榜](../../docs/30-designs/FLIP-ZOO-DESIGN.md#好友周榜与历史榜)        |
+| 家园       | `flipZooFragments` 提供余额与兑换状态，打开家园时重试网络失败的结算。实际兑换依赖云部署、小店配置与手机微信。 | [家园兑换规则](../../docs/01-requirements/FLIP-ZOO-REQUIREMENTS.md#家园)             |
+| 交付验收   | 核对 IDE、CI 和微信上传的验证范围。                                                                           | [界面与交付验收状态](../../docs/40-readiness/FLIP-ZOO-READINESS.md)                  |
 
 ### 牌局来源
 
@@ -52,9 +46,8 @@ node scripts/with-env.mjs --env-file .env -- npm --prefix miniprograms/flip-zoo 
 
 ### 微信云开发
 
-在微信云开发控制台将小游戏 AppID 关联到目标环境。正式构建从私有环境读取
-`FLIP_ZOO_WECHAT_CLOUD_ENV`，`--test` 构建读取
-`FLIP_ZOO_WECHAT_TEST_CLOUD_ENV`。将 `cloud-functions/flip-zoo-health` 部署到对应环境，云函数名称指定为 `flipZooHealth`，并安装云端依赖。
+在微信云开发控制台将小游戏 AppID 关联到目标环境。微信构建从私有环境读取
+`FLIP_ZOO_WECHAT_CLOUD_ENV`。将 `cloud-functions/flip-zoo-health` 部署到对应环境，云函数名称指定为 `flipZooHealth`，并安装云端依赖。
 
 配置环境 ID 后，小游戏启动时调用 `flipZooHealth`。云函数通过微信调用上下文验证身份，
 接通时开发者工具控制台显示 `FLIP ZOO cloud connection verified`。首页优先使用
@@ -164,13 +157,13 @@ npm run check
 | 首页、设置独立控件与家园动画   | `assets/home/buttons.png`、`assets/home/settings/`、`assets/home/collection/` | `home` 分包  |
 | 全局背景音乐                   | `assets/music/shared/background-music.mp3`                                    | `music` 分包 |
 | 教学完成过渡插画               | `assets/home/tutorial-transition.png`                                         | `home` 分包  |
-| 邀请与胜利分享卡               | `share/game-invite.png`、`share/victory-result.png`                           | 主包         |
+| 默认分享卡                     | `share/game-invite.png`                                                       | 主包         |
 
 LOADING 背景先由主包加载并显示，再加载 `home` 分包。
 
 ### 分享素材与儿童隐私
 
-普通和胜利分享卡使用 [share/game-invite.png](share/game-invite.png) 与 [share/victory-result.png](share/victory-result.png)，均为 500 × 400。微信构建将两张图复制进代码包。可通过既有的分享配置指定平台审核通过的图片编号与地址。
+微信构建将 500 × 400 的默认分享图 [share/game-invite.png](share/game-invite.png) 复制进代码包。可通过分享配置指定平台审核通过的图片编号与地址。
 
 弹层纸纹改编自 [ambientCG Paper 001](https://ambientcg.com/view?id=Paper001)，采用 [CC0 1.0](https://docs.ambientcg.com/license/)。标题装饰和胜负熊猫为本项目生成的插画。
 
