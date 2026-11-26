@@ -1,5 +1,7 @@
 import {
     _decorator,
+    AssetManager,
+    assetManager,
     AudioClip,
     AudioSource,
     BlockInputEvents,
@@ -13,7 +15,6 @@ import {
     SpriteFrame,
     SubContextView,
     Texture2D,
-    resources,
     screen,
     Label,
     Mask,
@@ -127,9 +128,21 @@ type BoardTile = {
     sprite: Sprite;
 };
 
-function loadTexture(name: string): Promise<Texture2D> {
+function loadBundle(name: string): Promise<AssetManager.Bundle> {
     return new Promise((resolve, reject) => {
-        resources.load(`art/${name}/texture`, Texture2D, (error, texture) => {
+        assetManager.loadBundle(name, (error, bundle) => {
+            if (error) reject(error);
+            else resolve(bundle);
+        });
+    });
+}
+
+function loadTexture(
+    bundle: AssetManager.Bundle,
+    name: string,
+): Promise<Texture2D> {
+    return new Promise((resolve, reject) => {
+        bundle.load(`${name}/texture`, Texture2D, (error, texture) => {
             if (error) reject(error);
             else resolve(texture);
         });
@@ -204,7 +217,18 @@ export class MahjongStartScreen extends Component {
         this.music.volume = (0.24 * this.musicVolume) / 100;
         game.on(Game.EVENT_HIDE, this.pauseMusic, this);
         game.on(Game.EVENT_SHOW, this.resumeMusic, this);
-        resources.load("audio/table-music", AudioClip, (error, clip) => {
+        view.on("canvas-resize", this.fitArtwork, this);
+        this.showLaunch();
+        void this.prepareTable();
+        void this.loadAudio();
+    }
+
+    private async loadAudio(): Promise<void> {
+        const bundle = await loadBundle("audio").catch((error: unknown) => {
+            if (this.isValid) console.warn(error);
+        });
+        if (!bundle || !this.isValid) return;
+        bundle.load("table-music", AudioClip, (error, clip) => {
             if (!this.isValid) return;
             if (error) {
                 console.warn(error);
@@ -214,19 +238,12 @@ export class MahjongStartScreen extends Component {
             this.syncMusic();
         });
         for (const sound of Object.keys(SOUNDS) as Sound[]) {
-            resources.load(
-                `audio/${SOUNDS[sound]}`,
-                AudioClip,
-                (error, clip) => {
-                    if (!this.node.isValid) return;
-                    if (error) console.warn(error);
-                    else this.audioClips.set(sound, clip);
-                },
-            );
+            bundle.load(SOUNDS[sound], AudioClip, (error, clip) => {
+                if (!this.node.isValid) return;
+                if (error) console.warn(error);
+                else this.audioClips.set(sound, clip);
+            });
         }
-        view.on("canvas-resize", this.fitArtwork, this);
-        this.showLaunch();
-        void this.prepareTable();
     }
 
     private action(
@@ -674,12 +691,17 @@ export class MahjongStartScreen extends Component {
         this.launchStatus.string = "";
         try {
             if (!this.homeArt) {
+                const [home, settings] = await Promise.all([
+                    loadBundle("home"),
+                    loadBundle("settings"),
+                ]);
+                if (!this.isValid) return;
                 const [background, controls, panel, buttons] =
                     await Promise.all([
-                        loadTexture("home-background"),
-                        loadTexture("home-controls"),
-                        loadTexture("settings-panel"),
-                        loadTexture("settings-buttons"),
+                        loadTexture(home, "home-background"),
+                        loadTexture(home, "home-controls"),
+                        loadTexture(settings, "settings-panel"),
+                        loadTexture(settings, "settings-buttons"),
                     ]);
                 if (!this.isValid) return;
                 const panelFrame = frame(
@@ -772,12 +794,14 @@ export class MahjongStartScreen extends Component {
     }
 
     private async loadArtwork(): Promise<void> {
+        const bundle = await loadBundle("table");
+        if (!this.isValid) return;
         const [table, borderFrame, tools, emblem, ...tiles] = await Promise.all(
             [
-                loadTexture("table"),
+                loadTexture(bundle, "table"),
                 new Promise<SpriteFrame>((resolve, reject) => {
-                    resources.load(
-                        "art/table-frame/spriteFrame",
+                    bundle.load(
+                        "table-frame/spriteFrame",
                         SpriteFrame,
                         (error, asset) => {
                             if (error) reject(error);
@@ -785,9 +809,11 @@ export class MahjongStartScreen extends Component {
                         },
                     );
                 }),
-                loadTexture("tools"),
-                loadTexture("table-emblem"),
-                ...FACE_FILES.map((name) => loadTexture(`tiles/${name}`)),
+                loadTexture(bundle, "tools"),
+                loadTexture(bundle, "table-emblem"),
+                ...FACE_FILES.map((name) =>
+                    loadTexture(bundle, `tiles/${name}`),
+                ),
             ],
         );
         if (!this.node.isValid) return;

@@ -5,5 +5,9 @@
     "uuid": "6643d49c-7b7e-445d-863c-bf13333b917c",
     "files": [],
     "subMetas": {},
-    "userData": {}
+    "userData": {
+        "isBundle": true,
+        "bundleName": "audio",
+        "priority": 1
+    }
 }

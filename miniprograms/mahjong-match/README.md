@@ -21,3 +21,5 @@ node scripts/with-env.mjs --env-file .env -- npm --prefix miniprograms/mahjong-m
 ```
 
 命令输出到 `miniprograms/mahjong-match/build/wechatgame`，并接入定制微信首屏。
+
+微信构建将首页、设置、牌桌和音频分别打入 `home`、`settings`、`table` 和 `audio` 分包。主包包含启动场景、加载页脚本、背景和适龄提示图。构建检查主包、各分包和整包大小。发布时在构建命令末尾加 `-- --release`。
