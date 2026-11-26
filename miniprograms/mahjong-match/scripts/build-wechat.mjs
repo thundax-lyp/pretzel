@@ -3,9 +3,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
 
+const { values } = parseArgs({ options: { release: { type: "boolean" } } });
 const project = fileURLToPath(new URL("../", import.meta.url));
 const output = path.join(project, "build/wechatgame");
+const bundles = ["home", "settings", "table", "audio"];
 const appid = process.env.MAHJONG_MATCH_WECHAT_GAME_APP_ID;
 if (!/^wx[0-9a-f]{16}$/.test(appid ?? "")) {
     throw new Error("Set MAHJONG_MATCH_WECHAT_GAME_APP_ID in the private .env");
@@ -31,7 +34,7 @@ try {
             taskName: "wechatgame",
             buildPath: "project://build",
             outputName: "wechatgame",
-            debug: true,
+            debug: !values.release,
             startScene,
             packages: { wechatgame: { appid, orientation: "portrait" } },
         }),
@@ -81,6 +84,22 @@ if (
         "Generated WeChat project disagrees with build configuration",
     );
 }
+
+const settingsPath = path.join(output, "src/settings.json");
+const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
+fs.mkdirSync(path.join(output, "subpackages"), { recursive: true });
+gameConfig.subpackages ??= [];
+for (const name of bundles) {
+    const root = `subpackages/${name}`;
+    fs.renameSync(path.join(output, "assets", name), path.join(output, root));
+    fs.renameSync(
+        path.join(output, root, "index.js"),
+        path.join(output, root, "game.js"),
+    );
+    gameConfig.subpackages.push({ name, root });
+    settings.assets.subpackages.push(name);
+}
+fs.writeFileSync(settingsPath, JSON.stringify(settings));
 
 gameConfig.openDataContext = "open-data";
 fs.cpSync(path.join(project, "open-data"), path.join(output, "open-data"), {
@@ -192,4 +211,42 @@ fs.copyFileSync(
     path.join(output, "loading-age-rating.png"),
 );
 fs.writeFileSync(firstScreenPath, firstScreen);
-console.log("Mahjong Match WeChat debug build ready.");
+
+const packageBytes = new Map(
+    gameConfig.subpackages.map(({ root }) => [root, 0]),
+);
+let mainBytes = 0;
+for (const entry of fs.readdirSync(output, {
+    recursive: true,
+    withFileTypes: true,
+})) {
+    if (!entry.isFile()) continue;
+    const filename = path.join(entry.parentPath, entry.name);
+    const relative = path.relative(output, filename);
+    const root = relative.split(path.sep).slice(0, 2).join("/");
+    const bytes = fs.statSync(filename).size;
+    if (packageBytes.has(root)) {
+        packageBytes.set(root, packageBytes.get(root) + bytes);
+    } else {
+        mainBytes += bytes;
+    }
+}
+let totalBytes = 0;
+for (const [name, bytes] of [["main", mainBytes], ...packageBytes]) {
+    totalBytes += bytes;
+    if (bytes > 4_000_000) {
+        throw new Error(
+            `WeChat package ${name} exceeds 4,000,000 bytes (${bytes})`,
+        );
+    }
+    console.log(`WeChat package ${name}: ${bytes} bytes`);
+}
+if (totalBytes > 30_000_000) {
+    throw new Error(
+        `WeChat total package exceeds 30,000,000 bytes (${totalBytes})`,
+    );
+}
+console.log(`WeChat total package: ${totalBytes} bytes`);
+console.log(
+    `Mahjong Match WeChat ${values.release ? "release" : "debug"} build ready.`,
+);
